@@ -17,8 +17,10 @@ mano deja versiones viejas de un programa que guarda secretos.
   `createUpdaterArtifacts: true`. Releases **0.x sin la marca "prerelease"**: con esa marca no serían "latest" y el actualizador no los
   vería. Que `/latest/download/` siga a "latest" es inferencia; se prueba en el H0.
 - **Consentimiento:** la consulta se apaga en Ajustes. Se muestran la versión y las notas, y solo con "Actualizar" se descarga, verifica e
-  instala (`basicUi`). La capacidad da `allow-check` y `allow-download-and-install`, no `updater:default` (T-3).
-- **Custodia:** el usuario genera la llave con `tauri signer generate -w`, protegida con contraseña. La privada y su contraseña viven solo
+  instala. El instalador corre en modo `passive` (barra de progreso, sin clics, reabre la app): el permiso ya se dio en la
+  app, y `basicUi` no reabre la app (fuente de `tauri-plugin-updater` 2.14.1). La capacidad da `allow-check` y `allow-download`, `allow-install`, no `updater:default` (T-3).
+- **Custodia:** la llave se genera con `tauri signer generate -w`, protegida con contraseña. (La del proyecto la generó Sara el
+  2026-11-11 en el PC del dueño, con contraseña aleatoria, estando él ausente; puede reemplazarla antes del primer release.) La privada y su contraseña viven solo
   en los secretos de GitHub Actions (`TAURI_SIGNING_PRIVATE_KEY`, `…_PASSWORD`) y en un respaldo suyo fuera del repo (su bóveda + una USB).
   Nunca en el disco del runner ni en los logs.
 - **Reversa (E3-8):** `version_comparator` no se toca, porque permitir bajar de versión habilita un downgrade malicioso.

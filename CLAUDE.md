@@ -15,6 +15,7 @@ Este archivo solo agrega o endurece; nunca relaja. Corto: lo que se deduce del c
 3. **Cada RF tiene una prueba que lo cita** (`rf_NN_…` en Rust, `it("RF-NN: …")` en TS) — `/especificar validar`.
 4. **Cero criptografía propia:** cifrado, KDF y formato salen de `keepass` y sus dependencias; ningún crate de
    cifrado en código nuestro fuera de `almarioks-core::kdbx` — `cargo deny check` + revisión del `Cargo.toml`.
+   (Las pruebas del actualizador usan `minisign` solo como `dev-dependency`, para fabricar llaves de prueba.)
 5. **Ida y vuelta sin pérdida:** lo que la app no edita, lo conserva — pruebas `roundtrip_*` de `almarioks-core`
    contra `tests/fixtures/` (KeePass 2 y KeePassXC).
 6. **Los secretos no cruzan a la interfaz:** ningún comando de Tauri devuelve una contraseña salvo `reveal_*`;
@@ -39,13 +40,14 @@ Este archivo solo agrega o endurece; nunca relaja. Corto: lo que se deduce del c
 | Rust: formato / lints / pruebas | `cargo fmt --check` · `cargo clippy --all-targets --all-features --locked -- -D warnings` · `cargo nextest run --workspace --locked` |
 | Dependencias | `cargo deny check` |
 | Interfaz: tipos / lint / pruebas | `pnpm typecheck` · `pnpm lint` · `pnpm test` |
-| Instalador | `pnpm tauri build` |
+| Instalador | `pnpm tauri build` (firma el paquete de actualización: pide `TAURI_SIGNING_PRIVATE_KEY`, solo en CI) · sin llave: `pnpm tauri build --no-bundle` |
+| Auditoría npm | `pnpm audit --prod` |
 
 ## Mapa del código
 - `Cargo.toml` — workspace: versión única (`[workspace.package]`, de ahí la toma Tauri), lints, perfil release; `rust-toolchain.toml` fija 1.99.1.
-- `crates/almarioks-core/` — núcleo sin Tauri ni red; `tests/roundtrip.rs` + `tests/fixtures/keepass2/` (datos falsos).
-- `src-tauri/` — app Tauri 2.12: `tauri.conf.json` (CSP, NSIS `currentUser`), `capabilities/main-window.json` (solo `core:app:allow-version`), `build.rs` (`AppManifest::commands`).
-- `src/` — interfaz React + TS strict (Vite); pruebas `*.test.tsx` con Vitest.
+- `crates/almarioks-core/` — núcleo sin Tauri ni red; `tests/roundtrip*.rs` + `tests/fixtures/keepass2/` y `keepassxc/` (datos falsos).
+- `src-tauri/` — app Tauri 2.12: `tauri.conf.json` (CSP, NSIS `currentUser`), `capabilities/main-window.json` (`core:app:allow-version`, `updater:allow-check`, `updater:allow-download`, `updater:allow-install`), `build.rs` (`AppManifest::commands`); actualizador con `pubkey` y endpoint de GitHub Releases (ADR-0003).
+- `src/` — interfaz React + TS strict (Vite); `src/update/` flujo de actualización con consentimiento; pruebas `*.test.tsx` con Vitest.
 - `deny.toml` — avisos, licencias compatibles con GPL-3.0, solo crates.io.
 - Restricción del núcleo: `cargo tree -p almarioks-core -e normal --prefix none` sin `tauri`.
 

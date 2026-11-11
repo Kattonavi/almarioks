@@ -3,7 +3,7 @@
 Gestor de contraseñas local y abierto. Tu bóveda es un archivo **KDBX 4** estándar, protegido con contraseña maestra,
 archivo llave o ambos, que también abren KeePass 2 y KeePassXC. Sin cuenta, sin nube y sin telemetría.
 
-> **Estado: en planeación (2026-11-11). Todavía no hay instalador.**
+> **Estado: H0 en curso (2026-11-11). Todavía no hay instalador publicado.**
 > Las versiones 0.x serán **de desarrollo: no las uses con tus contraseñas reales**. Saldrán sin firma de Windows
 > (SmartScreen va a advertir) hasta la 1.0; cada una llevará la firma del actualizador, `SHA256SUMS` y atestación.
 
@@ -15,14 +15,26 @@ archivo llave o ambos, que también abren KeePass 2 y KeePassXC. Sin cuenta, sin
 ## Cómo va
 | Fase | Entrega | Estado |
 |---|---|---|
-| H0 | Instalador que instala, abre, actualiza con permiso y desinstala | por empezar |
+| H0 | Instalador que instala, abre, actualiza con permiso y desinstala | ensayado en local ([evidencia](docs/H0-EVIDENCIA.md)); falta el primer release |
 | 0.1 | Bóveda | pendiente |
 | 0.2 | Navegador | pendiente |
 | 1.0 | Publicable: firma, SBOM, importar CSV, inglés, accesibilidad | pendiente |
 
+## Compilar
+Requisitos: Rust (el canal lo fija `rust-toolchain.toml`), las C++ Build Tools de Visual Studio, Node 26 y pnpm 12.
+
+```
+pnpm install
+pnpm tauri dev      # ventana de desarrollo
+pnpm test           # pruebas de la interfaz
+cargo nextest run --workspace --locked
+```
+El instalador firmado solo lo construye el workflow de release (`docs/RELEASE.md`).
+
 ## Documentos
 - [Plan y alcance](docs/PROYECTO.md) · [Arquitectura](docs/ARQUITECTURA.md) · [Decisiones](docs/adr/)
 - [Modelo de amenazas](docs/AMENAZAS.md) · [Checklist de calidad](docs/CHECKLIST.md) · [UX](docs/UX.md)
+- [Cómo se publica una versión](docs/RELEASE.md)
 - [Experimento: KDBX 4 desde Rust sin pérdida](docs/lab/kdbx-roundtrip/EXPERIMENTO.md)
 
 ## Seguridad

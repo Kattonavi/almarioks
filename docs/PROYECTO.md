@@ -103,6 +103,7 @@ desinstalar.
 | Rebanada | Hecho | Falta | Horas usadas / apetito |
 |---|---|---|---|
 | Antes del plan | Contexto, lab 19 (KDBX sin pérdida), base de documentos, 5 ADR, arquitectura y modelo de amenazas | C++ Build Tools para empezar el H0 | ~0,5 h de reloj (09:15 a 09:45) más ~23 min de dos agentes en paralelo; cuenta dentro del H0 |
+| H0 (en curso) | Esqueleto Tauri con CSP y capacidades mínimas; núcleo con ida y vuelta KDBX (KeePass 2 y KeePassXC); actualizador con permiso; CI en verde; `release.yml`; entorno y etiquetas protegidos; ensayo local instalar → rechazar firma mala → actualizar → desinstalar (`docs/H0-EVIDENCIA.md`) | Subir secretos de firma y fusionar el PR (dueño); primer release `v0.0.1` y `v0.0.2` por CI; repetir la prueba contra GitHub y con usuario estándar; preparar solicitud a SignPath | ~1 h de reloj / 8 h |
 
 ## Stack (según estandares/decisiones-stack.md → "Rust")
 | Capa | Elección | Por qué / desviación |
@@ -180,8 +181,8 @@ Plan y los 5 ADR: **aceptados**. Repo público creado ese día.
 
 ## Pendientes
 - **Usuario:** instalar las C++ Build Tools (bloquea el H0) · en el H0: activar 2FA en GitHub,
-  generar la llave del actualizador con su contraseña y guardar el respaldo en 2 lugares fuera del repo, aprobar cada
-  release en el entorno `release` · tras el primer release: enviar la solicitud a SignPath · en la 1.0:
+  subir la llave del actualizador a los secretos del entorno `release` (ya está generada: `docs/RELEASE.md`) y guardar
+  su respaldo en 2 lugares fuera del repo, fusionar el PR #1, aprobar cada release en el entorno `release` · tras el primer release: enviar la solicitud a SignPath · en la 1.0:
   cuenta de la Chrome Web Store (tiene un pago único; es gasto y cuenta del usuario).
 - **Sara:** instalar `pnpm`, `cargo-nextest`, `cargo-deny` y `tauri-cli` cuando el PC compile.
 - `proyectos/vault-desktop` (Almario) no está en este disco: no se cuenta con sus fixtures.
