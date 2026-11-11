@@ -3,7 +3,7 @@ resolver = "3"
 members = ["crates/*", "src-tauri"]
 
 [workspace.package]
-version = "0.0.1"
+version = "0.0.2"
 edition = "2024"
 # Minimum required by tauri 2.12 (keepass 0.17 needs 1.89). Raised on purpose, never by accident.
 rust-version = "1.90"

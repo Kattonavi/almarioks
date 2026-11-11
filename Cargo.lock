@@ -45,7 +45,7 @@ dependencies = [
 
 [[package]]
 name = "almarioks"
-version = "0.0.1"
+version = "0.0.2"
 dependencies = [
  "base64 0.22.1",
  "minisign",
@@ -57,14 +57,14 @@ dependencies = [
 
 [[package]]
 name = "almarioks-core"
-version = "0.0.1"
+version = "0.0.2"
 dependencies = [
  "keepass",
 ]
 
 [[package]]
 name = "almarioks-release-verify"
-version = "0.0.1"
+version = "0.0.2"
 dependencies = [
  "base64 0.22.1",
  "minisign",
