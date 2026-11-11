@@ -32,7 +32,7 @@ Este archivo solo agrega o endurece; nunca relaja. Corto: lo que se deduce del c
 13. Idioma: código, identificadores y commits en inglés; textos al usuario y documentos en español.
 14. **Primero completo, luego pulido:** ninguna revisión de seguridad, diseño o QA antes de la matriz de completitud en verde.
 
-## Comandos (se confirman al hacer el scaffold del H0)
+## Comandos (confirmados en el scaffold del H0, 2026-11-11)
 | Tarea | Comando |
 |---|---|
 | Dev | `pnpm tauri dev` |
@@ -42,7 +42,12 @@ Este archivo solo agrega o endurece; nunca relaja. Corto: lo que se deduce del c
 | Instalador | `pnpm tauri build` |
 
 ## Mapa del código
-(completar al hacer el scaffold; propuesta en `docs/ARQUITECTURA.md`)
+- `Cargo.toml` — workspace: versión única (`[workspace.package]`, de ahí la toma Tauri), lints, perfil release; `rust-toolchain.toml` fija 1.99.1.
+- `crates/almarioks-core/` — núcleo sin Tauri ni red; `tests/roundtrip.rs` + `tests/fixtures/keepass2/` (datos falsos).
+- `src-tauri/` — app Tauri 2.12: `tauri.conf.json` (CSP, NSIS `currentUser`), `capabilities/main-window.json` (solo `core:app:allow-version`), `build.rs` (`AppManifest::commands`).
+- `src/` — interfaz React + TS strict (Vite); pruebas `*.test.tsx` con Vitest.
+- `deny.toml` — avisos, licencias compatibles con GPL-3.0, solo crates.io.
+- Restricción del núcleo: `cargo tree -p almarioks-core -e normal --prefix none` sin `tauri`.
 
 ## Reglas específicas del proyecto
 - Versiones fijadas a mano: Tauri **2.x**. `cargo info tauri` y `cargo add tauri` ya devuelven la 3.0 alfa.
