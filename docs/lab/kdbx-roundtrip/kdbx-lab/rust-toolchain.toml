@@ -1,0 +1,4 @@
+# Solo para este experimento: el PC no tenía las C++ Build Tools (link.exe) el 2026-11-11.
+# El toolchain GNU trae su propio enlazador y basta para crates 100 % Rust.
+[toolchain]
+channel = "stable-x86_64-pc-windows-gnu"
