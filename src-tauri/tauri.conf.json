@@ -34,22 +34,43 @@
         "form-action": "'none'"
       },
       "freezePrototype": true,
-      "capabilities": ["main-window"]
+      "capabilities": [
+        "main-window"
+      ]
     }
   },
   "bundle": {
     "active": true,
-    "targets": ["nsis"],
+    "targets": [
+      "nsis"
+    ],
     "publisher": "Kattonavi",
     "shortDescription": "Gestor de contraseñas local con bóveda KDBX 4",
     "category": "Utility",
-    "icon": ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/icon.ico"],
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.ico"
+    ],
     "windows": {
       "webviewInstallMode": {
         "type": "downloadBootstrapper"
       },
       "nsis": {
         "installMode": "currentUser"
+      }
+    },
+    "createUpdaterArtifacts": true
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDkwNzFFNjJCMEVBQTE1QTUKUldTbEZhb09LK1p4a0swVFlUNXphMTlXYldJSGlhOXlDSG5iWEhDRi9IUGcvT2xrSzQ0UnVKVXIK",
+      "endpoints": [
+        "https://github.com/Kattonavi/almarioks/releases/latest/download/latest.json"
+      ],
+      "windows": {
+        "installMode": "basicUi"
       }
     }
   }

@@ -1,6 +1,8 @@
 import { getVersion } from "@tauri-apps/api/app";
 import { useEffect, useState } from "react";
 
+import { UpdatePanel } from "./update/UpdatePanel";
+
 type VersionState =
   | { readonly kind: "loading" }
   | { readonly kind: "ready"; readonly version: string }
@@ -49,6 +51,7 @@ export function App() {
         <VersionText state={state} />
       </p>
       <p>Versión de desarrollo: no la uses con tus contraseñas reales.</p>
+      <UpdatePanel />
     </main>
   );
 }

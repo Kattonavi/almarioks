@@ -19,3 +19,17 @@ main {
   outline: 3px solid Highlight;
   outline-offset: 2px;
 }
+
+.release-notes {
+  white-space: pre-line;
+}
+
+.actions {
+  display: flex;
+  gap: 0.75rem;
+}
+
+button {
+  font: inherit;
+  padding: 0.4rem 1rem;
+}

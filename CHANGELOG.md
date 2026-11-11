@@ -4,6 +4,9 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/). Versiones:
 Las versiones 0.x son de desarrollo: no las uses con tus contraseñas reales.
 
 ## [Unreleased]
+### Added
+- Botón para buscar e instalar actualizaciones, con tu permiso y firma verificada.
+- Prueba de ida y vuelta con una bóveda hecha en KeePassXC.
 
 ## [0.0.1] - 2026-11-11
 ### Added
