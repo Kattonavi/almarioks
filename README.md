@@ -20,6 +20,17 @@ archivo llave o ambos, que también abren KeePass 2 y KeePassXC. Sin cuenta, sin
 | 0.2 | Navegador | pendiente |
 | 1.0 | Publicable: firma, SBOM, importar CSV, inglés, accesibilidad | pendiente |
 
+## Compilar
+Requisitos: Rust (el canal lo fija `rust-toolchain.toml`), las C++ Build Tools de Visual Studio, Node 26 y pnpm 12.
+
+```
+pnpm install
+pnpm tauri dev      # ventana de desarrollo
+pnpm test           # pruebas de la interfaz
+cargo nextest run --workspace --locked
+```
+El instalador firmado solo lo construye el workflow de release (`docs/RELEASE.md`).
+
 ## Documentos
 - [Plan y alcance](docs/PROYECTO.md) · [Arquitectura](docs/ARQUITECTURA.md) · [Decisiones](docs/adr/)
 - [Modelo de amenazas](docs/AMENAZAS.md) · [Checklist de calidad](docs/CHECKLIST.md) · [UX](docs/UX.md)

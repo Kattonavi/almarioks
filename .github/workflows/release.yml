@@ -1,6 +1,10 @@
 name: release
-# Runs only for version tags. Tags v* are protected by a ruleset and the `release`
-# environment requires approval, so the updater signing key is never exposed to PRs.
+# Runs only for version tags. Tags v* are protected by a ruleset.
+# Two jobs on purpose (threat model U1/U4/C1):
+#   build   - compiles everything (third-party build scripts, Vite plugins) WITHOUT secrets or OIDC.
+#   publish - runs in the `release` environment (approval required), signs the already built
+#             installer, verifies the signature against the public key baked into the app,
+#             attests provenance and publishes.
 on:
   push:
     tags: ["v*"]
@@ -8,27 +12,27 @@ permissions:
   contents: read
 
 jobs:
-  publish:
+  build:
     runs-on: windows-latest
     timeout-minutes: 45
-    environment: release
-    permissions:
-      contents: write
-      id-token: write
-      attestations: write
-    env:
-      BUNDLE_DIR: target/release/bundle/nsis
+    outputs:
+      version: ${{ steps.version.outputs.version }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          fetch-depth: 0
           persist-credentials: false
+      - name: The tagged commit must already be on main
+        shell: bash
+        run: git merge-base --is-ancestor "$GITHUB_SHA" origin/main
       - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .nvmrc
       - name: Rust toolchain (from rust-toolchain.toml)
         run: rustup show
-      - name: Tag must match the app version
+      - name: Tag must match the app version (no prereleases while there is a single channel)
+        id: version
         shell: bash
         env:
           TAG: ${{ github.ref_name }}
@@ -37,31 +41,91 @@ jobs:
           version=$(node -p "require('./metadata.json').packages.find(p => p.name === 'almarioks').version")
           web_version=$(node -p "require('./package.json').version")
           rm metadata.json
+          if ! [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "version $version is not a plain X.Y.Z release" >&2
+            exit 1
+          fi
           if [ "v$version" != "$TAG" ] || [ "$web_version" != "$version" ]; then
             echo "tag $TAG, Cargo version $version and package.json version $web_version must match" >&2
             exit 1
           fi
-          echo "VERSION=$version" >> "$GITHUB_ENV"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
       - name: Updater must reject http endpoints and bad signatures in release mode
         run: cargo test -p almarioks --test updater_signature --release --locked
-      - name: Build and sign the installer
+      # Unsigned on purpose: the signing key is not available in this job.
+      - name: Build the installer (unsigned)
+        run: pnpm tauri build --config .github/ci-installer.conf.json
+      - name: Build the signature verifier
+        run: cargo build --release --locked -p almarioks-release-verify
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: installer
+          path: target/release/bundle/nsis/*-setup.exe
+          if-no-files-found: error
+          retention-days: 7
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: verifier
+          path: target/release/almarioks-release-verify.exe
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    needs: build
+    runs-on: windows-latest
+    timeout-minutes: 20
+    environment: release
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    env:
+      VERSION: ${{ needs.build.outputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: installer
+          path: release-assets
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: verifier
+          path: release-tools
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+      # Only to get the pinned Tauri CLI for signing. No dependency scripts run.
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+      - name: Sign the installer (updater signature bound to the version)
+        shell: bash
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-        run: pnpm tauri build
+        run: |
+          installer=$(ls release-assets/*-setup.exe)
+          pnpm tauri signer sign --app-version "$VERSION" "$installer"
+          test -s "$installer.sig"
+      - name: The signature must verify against the public key baked into the app
+        shell: bash
+        run: |
+          installer=$(ls release-assets/*-setup.exe)
+          release-tools/almarioks-release-verify.exe src-tauri/tauri.conf.json "$installer" "$installer.sig" "$VERSION"
       - name: Updater manifest and checksums
         shell: bash
         env:
           REPO: ${{ github.repository }}
         run: |
-          node scripts/release-manifest.mjs "$BUNDLE_DIR" "$VERSION" "$REPO" "Versión de desarrollo. No la uses con tus contraseñas reales."
+          node scripts/release-manifest.mjs release-assets "$VERSION" "$REPO" "Versión de desarrollo. No la uses con tus contraseñas reales."
       - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-path: |
-            target/release/bundle/nsis/*-setup.exe
-            target/release/bundle/nsis/latest.json
+            release-assets/*-setup.exe
+            release-assets/latest.json
       - name: Publish the GitHub Release
         shell: bash
         env:
@@ -69,5 +133,5 @@ jobs:
           TAG: ${{ github.ref_name }}
         run: |
           gh release create "$TAG" \
-            "$BUNDLE_DIR"/*-setup.exe "$BUNDLE_DIR"/*-setup.exe.sig "$BUNDLE_DIR"/latest.json "$BUNDLE_DIR"/SHA256SUMS \
+            release-assets/*-setup.exe release-assets/*-setup.exe.sig release-assets/latest.json release-assets/SHA256SUMS \
             --verify-tag --title "AlmarioKS $TAG" --notes-file docs/RELEASE_NOTES.md --latest

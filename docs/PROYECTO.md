@@ -181,8 +181,8 @@ Plan y los 5 ADR: **aceptados**. Repo público creado ese día.
 
 ## Pendientes
 - **Usuario:** instalar las C++ Build Tools (bloquea el H0) · en el H0: activar 2FA en GitHub,
-  generar la llave del actualizador con su contraseña y guardar el respaldo en 2 lugares fuera del repo, aprobar cada
-  release en el entorno `release` · tras el primer release: enviar la solicitud a SignPath · en la 1.0:
+  subir la llave del actualizador a los secretos del entorno `release` (ya está generada: `docs/RELEASE.md`) y guardar
+  su respaldo en 2 lugares fuera del repo, fusionar el PR #1, aprobar cada release en el entorno `release` · tras el primer release: enviar la solicitud a SignPath · en la 1.0:
   cuenta de la Chrome Web Store (tiene un pago único; es gasto y cuenta del usuario).
 - **Sara:** instalar `pnpm`, `cargo-nextest`, `cargo-deny` y `tauri-cli` cuando el PC compile.
 - `proyectos/vault-desktop` (Almario) no está en este disco: no se cuenta con sus fixtures.

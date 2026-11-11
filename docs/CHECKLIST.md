@@ -11,18 +11,18 @@ No hay revisor experto de Rust equivalente a `dotnet-reviewer`: lo suyo lo cubre
 ## Escritorio E0–E1
 | ID | Requisito (traducido) | Fase | Resp. | Evidencia |
 |---|---|---|---|---|
-| E0-1 | `cargo clippy … -D warnings` y `cargo nextest run` sin errores; `pnpm typecheck` y `pnpm lint` | H0 | R | pendiente |
-| E0-2 | Versión única en `Cargo.toml` del workspace y `tauri.conf.json`; README con cómo compilar y ejecutar | H0 | R | pendiente |
-| E0-3 | El instalador de `pnpm tauri build` corre en otra máquina | H0 | P | pendiente (job de Actions + segundo usuario; no hay Windows Sandbox en Home) |
+| E0-1 | `cargo clippy … -D warnings` y `cargo nextest run` sin errores; `pnpm typecheck` y `pnpm lint` | H0 | R | ✅ CI `verify` en el PR #1 (clippy `-D warnings`, 11 pruebas nextest, typecheck, lint, 10 pruebas Vitest) |
+| E0-2 | Versión única en `Cargo.toml` del workspace y `tauri.conf.json`; README con cómo compilar y ejecutar | H0 | R | ✅ versión en `[workspace.package]` + `package.json` (release.yml exige que coincidan); README → "Compilar" |
+| E0-3 | El instalador de `pnpm tauri build` corre en otra máquina | H0 | P | ✅ job `installer` de CI en runner limpio |
 | E0-4 | Logs locales rotados y sin secretos | 0.1 | R | pendiente |
-| E1-1 | H0 cumplido (instala, abre, actualiza, desinstala) | H0 | P | pendiente (URL del release + captura) |
-| E1-2 | SemVer 2.0; `CHANGELOG.md` y notas del release tomadas de él | H0 | R | pendiente |
-| E1-3 | Instalador NSIS por usuario + actualizador de Tauri (en vez de Velopack; ADR-0003) | H0 | R | pendiente (`latest.json`) |
-| E1-4 | `release.yml` por etiqueta `v*` sin pasos manuales | H0 | R | pendiente |
-| E1-5 | `SHA256SUMS` en el mismo release | H0 | R | pendiente |
-| E1-6 | Decisión de firma en un ADR; sin firma, el README avisa de SmartScreen | H0 | P | pendiente (ADR-0004) |
-| E1-7 | Actualización con consentimiento y recuperación si falla | H0 | R+T | pendiente (prueba 0.0.1 → 0.0.2) |
-| E1-8 | Desinstalación limpia; no borra bóvedas ni datos sin preguntar | H0 | Q | pendiente |
+| E1-1 | H0 cumplido (instala, abre, actualiza, desinstala) | H0 | P | 🟡 ensayado en local y en CI (`docs/H0-EVIDENCIA.md`); falta el primer release público |
+| E1-2 | SemVer 2.0; `CHANGELOG.md` y notas del release tomadas de él | H0 | R | 🟡 `CHANGELOG.md` existe; notas del release en `docs/RELEASE_NOTES.md` |
+| E1-3 | Instalador NSIS por usuario + actualizador de Tauri (en vez de Velopack; ADR-0003) | H0 | R | ✅ NSIS `currentUser` + actualizador (config); `latest.json` lo genera `scripts/release-manifest.mjs`, sin ejecutar aún en release |
+| E1-4 | `release.yml` por etiqueta `v*` sin pasos manuales | H0 | R | ⏳ `release.yml` escrito, nunca ejecutado (faltan secretos) |
+| E1-5 | `SHA256SUMS` en el mismo release | H0 | R | ⏳ lo genera `release.yml`; sin ejecutar |
+| E1-6 | Decisión de firma en un ADR; sin firma, el README avisa de SmartScreen | H0 | P | ✅ ADR-0004 + aviso en README y `docs/RELEASE_NOTES.md` |
+| E1-7 | Actualización con consentimiento y recuperación si falla | H0 | R+T | 🟡 ensayo local 0.0.1 → 0.0.2 con permiso; si la firma falla la versión queda intacta. Falta contra GitHub |
+| E1-8 | Desinstalación limpia; no borra bóvedas ni datos sin preguntar | H0 | Q | ✅ job `installer` + ensayo local (bóveda intacta). Deja datos de WebView2: backlog |
 | E1-9 | "Acerca de": versión, licencia, enlace al changelog, al código y a reporte de errores | 0.1 | F | pendiente |
 | E1-10 | Prueba de humo en ventana real tras instalar (abre, crea una entrada, cierra, reabre) | 0.1 | Q | pendiente |
 | E1-11 | Accesibilidad: nombre accesible en controles sin texto, teclado completo, foco visible, contraste AA, Narrator | 0.1 básico · 1.0 completo | F+Q | pendiente |
@@ -32,20 +32,20 @@ No hay revisor experto de Rust equivalente a `dotnet-reviewer`: lo suyo lo cubre
 | ID | Requisito (traducido) | Fase | Resp. | Evidencia |
 |---|---|---|---|---|
 | E2-1 | Firma Authenticode del instalador y binarios con sello de tiempo; mismo firmante siempre | 1.0 | U+P | ❌ en las 0.x, aceptado por el usuario el 2026-11-11 (SignPath exige un release publicado; las 0.x van marcadas como desarrollo) |
-| E2-2 | Actualizaciones solo por HTTPS desde el canal propio, verificadas antes de aplicar | H0 | R+S | pendiente (prueba negativa con paquete alterado) |
+| E2-2 | Actualizaciones solo por HTTPS desde el canal propio, verificadas antes de aplicar | H0 | R+S | ✅ 5 pruebas `rf_h0_*` contra el plugin real + ensayo local con instalador alterado |
 | E2-3 | Configuración en el directorio de datos de la app; la app no guarda la contraseña maestra en ningún lado; nada secreto en texto plano ni en logs | 0.1 | R+S | pendiente |
 | E2-4 | Carga segura de DLL: sin DLL sueltas junto al ejecutable, instalación en carpeta del usuario no escribible por otros | 1.0 | R+S | pendiente (Process Monitor) |
-| E2-5 | Instala por usuario; no pide administrador en uso normal | H0 | R | pendiente |
+| E2-5 | Instala por usuario; no pide administrador en uso normal | H0 | R | 🟡 solo `HKCU` y `%LOCALAPPDATA%`; falta probar con usuario estándar |
 | E2-7 | `docs/PRIVACIDAD.md` público: no se recolecta nada (lo pide la tienda de extensiones) | 1.0 | U+P | pendiente |
-| E2-8 | OWASP Desktop Top 10, una línea por ítem | H0 | S | pendiente (`docs/AMENAZAS.md`) |
-| E2-9 | `cargo deny check` (avisos, licencias, fuentes) y `pnpm audit --prod` limpios; `Cargo.lock` y `pnpm-lock.yaml` en git | H0 | R | pendiente |
+| E2-8 | OWASP Desktop Top 10, una línea por ítem | H0 | S | ✅ `docs/AMENAZAS.md` §3 |
+| E2-9 | `cargo deny check` (avisos, licencias, fuentes) y `pnpm audit --prod` limpios; `Cargo.lock` y `pnpm-lock.yaml` en git | H0 | R | ✅ CI `verify`: `cargo deny check` y `pnpm audit --prod`; lockfiles en git |
 | E2-10 | Lector de pantalla (Narrator o NVDA) en los flujos principales | 1.0 | Q | pendiente |
 | E2-11 | Arranque en frío medido contra la meta del proyecto | 0.1 | T | pendiente |
 
 ## Escritorio E3
 | ID | Requisito (traducido) | Fase | Resp. | Evidencia |
 |---|---|---|---|---|
-| E3-1 | Modelo de amenazas STRIDE corto antes del código de seguridad | H0 | S | pendiente (`docs/AMENAZAS.md`) |
+| E3-1 | Modelo de amenazas STRIDE corto antes del código de seguridad | H0 | S | ✅ `docs/AMENAZAS.md` |
 | E3-2 | Cifrado, KDF y formato con librería probada; cero criptografía propia; parches documentados | 0.1 | R+S | parcial: lab 19 (`docs/lab/kdbx-roundtrip/EXPERIMENTO.md`), sin parches |
 | E3-3 | Secretos con tipos protegidos (`secrecy`, `zeroize`); el bloqueo oculta la vista y limpia el portapapeles; no falla abierto | 0.1 | R+S | pendiente |
 | E3-4 | Pruebas de formato con fixtures reales de KeePass 2 y KeePassXC y fuzzing básico del parser | H0 fixtures · 1.0 fuzzing | T+S | parcial: KeePass 2.62 en el lab 19 |
@@ -59,20 +59,20 @@ No hay revisor experto de Rust equivalente a `dotnet-reviewer`: lo suyo lo cubre
 ## Rust (R) y Tauri (T) — `estandares/rust.md`
 | ID | Requisito | Fase | Resp. | Evidencia |
 |---|---|---|---|---|
-| R-1 | `Cargo.lock` en git; CI corre fmt, clippy y pruebas con `--locked` | H0 | R | pendiente |
-| R-2 | Bloque de lints del estándar; cada `#[allow]` dice por qué | H0 | R | pendiente |
-| R-3 | Dominio en `almarioks-core` sin Tauri; fechas en UTC, texto por caracteres | H0 | R | pendiente |
+| R-1 | `Cargo.lock` en git; CI corre fmt, clippy y pruebas con `--locked` | H0 | R | ✅ CI `verify` |
+| R-2 | Bloque de lints del estándar; cada `#[allow]` dice por qué | H0 | R | ✅ `Cargo.toml` del workspace |
+| R-3 | Dominio en `almarioks-core` sin Tauri; fechas en UTC, texto por caracteres | H0 | R | ✅ `cargo tree -p almarioks-core -e normal` sin `tauri` |
 | R-4 | Sin `unwrap`/`expect`/índice sobre entrada externa; un tipo de error por crate | 0.1 | R | pendiente |
 | R-5 | Async sin bloqueos ni candados vivos en `.await`; canales acotados; apagado ordenado | 0.2 | R | pendiente |
-| R-6 | `cargo deny check` en CI | H0 | R | pendiente |
+| R-6 | `cargo deny check` en CI | H0 | R | ✅ CI `verify` |
 | R-7 | `unsafe` solo en `ffi` con `// SAFETY:`. Miri no ejecuta Win32: el permiso del pipe se prueba con integración (otro usuario no abre) | 0.2 | R+S | pendiente |
 | R-8 | Pruebas del dominio con propiedades (generador, coincidencia de origen); ningún `#[ignore]` sin tarea | 0.1 | T | pendiente |
-| T-1 | H0: instalador que se actualiza de N a N+1 | H0 | R+U | pendiente |
-| T-2 | CSP definida; `devtools` solo en desarrollo | H0 | R | pendiente |
-| T-3 | Capacidades mínimas por ventana; sin `remote` con comodín ni `shell` abierto | H0 | R+S | pendiente |
+| T-1 | H0: instalador que se actualiza de N a N+1 | H0 | R+U | 🟡 ensayo local N → N+1; falta por GitHub Releases |
+| T-2 | CSP definida; `devtools` solo en desarrollo | H0 | R | ✅ `src-tauri/tauri.conf.json` (CSP sin `unsafe-*`; sin feature `devtools`) |
+| T-3 | Capacidades mínimas por ventana; sin `remote` con comodín ni `shell` abierto | H0 | R+S | ✅ `src-tauri/capabilities/main-window.json` + `AppManifest::commands(&[])` |
 | T-4 | Cada comando valida sus argumentos; rutas desde un diálogo del sistema | 0.1 | R | pendiente |
 | T-5 | Ningún secreto en archivos de texto ni logs | 0.1 | R+S | pendiente |
-| T-6 | Actualizador con `pubkey`, HTTPS y llave privada solo en secretos de CI, con respaldo fuera del repo | H0 | R+U | pendiente |
+| T-6 | Actualizador con `pubkey`, HTTPS y llave privada solo en secretos de CI, con respaldo fuera del repo | H0 | R+U | 🟡 `pubkey` y HTTPS en config; llave verificada con simulacro; falta subirla a los secretos de CI y el respaldo |
 | T-8 | Firma de código en Windows | 1.0 | U | pendiente (ADR-0004) |
 | T-9 | Ningún comando síncrono hace disco pesado (el KDF corre fuera del hilo de la interfaz) | 0.1 | R | pendiente |
 
