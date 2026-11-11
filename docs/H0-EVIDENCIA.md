@@ -8,9 +8,9 @@ depende de tres pasos del dueño del repo (ver `docs/RELEASE.md`).
 |---|---|---|---|
 | 1 | Ida y vuelta de KDBX con KeePass 2 y KeePassXC | ✅ | CI en `main`: `cargo nextest run --workspace --locked`, 6 pruebas (`roundtrip_keepass2_*` ×4, `roundtrip_keepassxc_both`, `wrong_key_is_rejected`) |
 | 2 | `release.yml` publica por etiqueta sin pasos manuales | ⏳ | Escrito y con YAML válido; no ha corrido: faltan los secretos de firma en el entorno `release` |
-| 3 | Instala por usuario, sin administrador, en máquina limpia | 🟡 | Ensayo local: instala en `%LOCALAPPDATA%\AlmarioKS`, solo escribe en `HKCU`, 0 claves en `HKLM`. Falta repetirlo con un usuario estándar o en un runner limpio (la consola del ensayo estaba elevada) |
+| 3 | Instala por usuario, sin administrador, en máquina limpia | ✅ | Job `installer` de CI en un runner limpio de GitHub: instala en `%LOCALAPPDATA%\AlmarioKS`, clave solo en `HKCU`, ninguna en `HKLM`, la app arranca y sigue viva 10 s. También el ensayo local. Falta solo repetirlo con un usuario estándar sin privilegios (el runner y la consola del ensayo son administradores) |
 | 4 | Actualiza N → N+1 con permiso; un paquete alterado se rechaza | 🟡 | Ensayo local completo (abajo) + 5 pruebas automáticas `rf_h0_*` contra el plugin real. Falta repetirlo contra GitHub Releases |
-| 5 | Desinstalar no deja programa y no toca las bóvedas | ✅ local | Ensayo local (abajo). Queda la carpeta de datos de WebView2: ver hallazgos |
+| 5 | Desinstalar no deja programa y no toca las bóvedas | ✅ | Job `installer` de CI (sin carpeta ni clave tras desinstalar) + ensayo local (bóveda del usuario con el mismo SHA-256). Queda la carpeta de datos de WebView2: ver hallazgos |
 | 6 | Requisitos [B] de `AMENAZAS.md` §4 | 🟡 | Ver tabla siguiente |
 
 | Requisito [B] del H0 | Estado | Evidencia |
