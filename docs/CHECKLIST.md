@@ -31,7 +31,7 @@ No hay revisor experto de Rust equivalente a `dotnet-reviewer`: lo suyo lo cubre
 ## Escritorio E2
 | ID | Requisito (traducido) | Fase | Resp. | Evidencia |
 |---|---|---|---|---|
-| E2-1 | Firma Authenticode del instalador y binarios con sello de tiempo; mismo firmante siempre | 1.0 | U+P | ❌ en las 0.x (SignPath exige un release publicado; motivo por aceptar por el usuario) |
+| E2-1 | Firma Authenticode del instalador y binarios con sello de tiempo; mismo firmante siempre | 1.0 | U+P | ❌ en las 0.x, aceptado por el usuario el 2026-11-11 (SignPath exige un release publicado; las 0.x van marcadas como desarrollo) |
 | E2-2 | Actualizaciones solo por HTTPS desde el canal propio, verificadas antes de aplicar | H0 | R+S | pendiente (prueba negativa con paquete alterado) |
 | E2-3 | Configuración en el directorio de datos de la app; la app no guarda la contraseña maestra en ningún lado; nada secreto en texto plano ni en logs | 0.1 | R+S | pendiente |
 | E2-4 | Carga segura de DLL: sin DLL sueltas junto al ejecutable, instalación en carpeta del usuario no escribible por otros | 1.0 | R+S | pendiente (Process Monitor) |

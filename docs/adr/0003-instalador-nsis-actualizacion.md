@@ -1,5 +1,5 @@
 # ADR-0003: Instalador NSIS por usuario y actualizador de Tauri con consentimiento, desde GitHub Releases
-Estado: **aceptado** (actualizar con permiso y firma verificada; consulta que se puede apagar; identificador `io.github.kattonavi.almarioks` fijo desde el primer release: decisión del usuario) · **propuesto** (resto) · 2026-11-11
+Estado: **aceptado** (plan aprobado por el usuario el 2026-11-11)
 
 **Contexto:** pilar 4, T-1, T-6 y E3-8. Almario (su ADR-0005) no descargaba actualizaciones; aquí el usuario lo cambia, porque instalar a
 mano deja versiones viejas de un programa que guarda secretos.

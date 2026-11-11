@@ -1,5 +1,5 @@
 # ADR-0002: Fronteras de crates y procesos, secretos fuera de la webview y bloqueo que no falla abierto
-Estado: **propuesto** (el stack viene de la visión, donde figura como propuesto; se acepta al aprobar el plan) · 2026-11-11
+Estado: **aceptado** (plan aprobado por el usuario el 2026-11-11)
 
 **Contexto:** E3-3, R-3 y T-3. Todo lo que llega al JS de la webview lo puede leer cualquier script que corra en ella. Los comandos de
 `invoke_handler` quedan permitidos "a todas las ventanas" salvo que se limiten con `AppManifest::commands` en `build.rs`

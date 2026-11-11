@@ -1,6 +1,5 @@
 # ADR-0004: Firma Authenticode con SignPath Foundation, aparte de la firma del actualizador de Tauri
-Estado: **propuesto** (la visión propone SignPath; el usuario aún no ha aceptado publicar las 0.x sin firma ni que el
-editor visible sea "SignPath Foundation") · 2026-11-11
+Estado: **aceptado** (plan aprobado por el usuario el 2026-11-11) · El usuario aceptó publicar las 0.x sin Authenticode, marcadas como versiones de desarrollo, y que el editor visible con SignPath sea "SignPath Foundation".
 
 **Contexto:** E1-6 y T-8. Artifact Signing no está abierto a individuos de Colombia (investigación del autor de 2026-11; confirmar en la fuente antes de decidir). EV ya no da reputación
 inmediata: se acumula con un firmante constante (https://v2.tauri.app/distribute/sign/windows/). Condiciones de SignPath Foundation

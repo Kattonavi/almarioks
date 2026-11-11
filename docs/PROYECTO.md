@@ -1,7 +1,7 @@
 # AlmarioKS
 
 > Generado por /nuevo-proyecto el 2026-11-11 desde la visión aprobada por el autor ese día.
-> Lo marcado **(pendiente)** está por confirmar. Plan **sin aprobar**: no se escribe código hasta que el usuario lo apruebe.
+> Lo marcado **(pendiente)** está por confirmar. **Plan aprobado por el usuario el 2026-11-11.**
 
 ## Resumen
 - **Cliente / negocio:** proyecto propio de Kattonavi, de código abierto (GPL-3.0).
@@ -102,7 +102,7 @@ desinstalar.
 ## Avance (se actualiza al cerrar cada rebanada)
 | Rebanada | Hecho | Falta | Horas usadas / apetito |
 |---|---|---|---|
-| Antes del plan | Contexto, lab 19 (KDBX sin pérdida), base de documentos, 5 ADR, arquitectura y modelo de amenazas | Aprobación del plan; C++ Build Tools | ~0,5 h de reloj (09:15 a 09:45) más ~23 min de dos agentes en paralelo; cuenta dentro del H0 |
+| Antes del plan | Contexto, lab 19 (KDBX sin pérdida), base de documentos, 5 ADR, arquitectura y modelo de amenazas | C++ Build Tools para empezar el H0 | ~0,5 h de reloj (09:15 a 09:45) más ~23 min de dos agentes en paralelo; cuenta dentro del H0 |
 
 ## Stack (según estandares/decisiones-stack.md → "Rust")
 | Capa | Elección | Por qué / desviación |
@@ -169,18 +169,17 @@ Decisiones de una vía: `docs/adr/` (máx. 5) · arquitectura: `docs/ARQUITECTUR
 - **Registro del anfitrión nativo:** sale del H0 y pasa a la 0.2.
 - **Checklist:** ya está traducido a Rust/Tauri.
 
-## Decisiones que necesitan al usuario
-Los ADR están en estado **propuesto** salvo lo que el usuario decidió de forma explícita (formato KDBX 4, GPL-3.0,
-repo nuevo, actualizar con permiso, repo público desde el H0, editor e identificador). Aprobar el plan los acepta.
+## Decisiones del usuario al aprobar el plan (2026-11-11)
+Plan y los 5 ADR: **aceptados**. Repo público creado ese día.
 1. **Releases 0.x sin firma Authenticode en un repo público.** E2/E3 piden firma antes del primer usuario externo y
-   SignPath exige un release publicado para aceptar la solicitud. Propuesta: las 0.x salen marcadas "versión de
-   desarrollo: no la uses con tus contraseñas reales", E2-1 queda ❌ con ese motivo hasta la 1.0.
-2. **Con SignPath, Windows muestra "SignPath Foundation" como editor**, no "Kattonavi" (el nombre de la app sí es el nuestro).
-3. **Para la spec 002:** ¿la app confirma el primer uso de cada entrada desde el navegador? Un botón dentro de la
+   SignPath exige un release publicado para aceptar la solicitud. **Aceptado:** las 0.x salen marcadas "versión de
+   desarrollo: no la uses con tus contraseñas reales"; E2-1 queda ❌ con ese motivo hasta la 1.0.
+2. **Con SignPath, Windows muestra "SignPath Foundation" como editor**, no "Kattonavi" (el nombre de la app sí es el nuestro). **Aceptado.**
+3. **Abierta, para la spec 002:** ¿la app confirma el primer uso de cada entrada desde el navegador? Un botón dentro de la
    página no cuenta como gesto seguro (amenaza N2). Se pregunta al empezar la 0.2.
 
 ## Pendientes
-- **Usuario:** instalar las C++ Build Tools (bloquea el H0) · aprobar el plan · en el H0: activar 2FA en GitHub,
+- **Usuario:** instalar las C++ Build Tools (bloquea el H0) · en el H0: activar 2FA en GitHub,
   generar la llave del actualizador con su contraseña y guardar el respaldo en 2 lugares fuera del repo, aprobar cada
   release en el entorno `release` · tras el primer release: enviar la solicitud a SignPath · en la 1.0:
   cuenta de la Chrome Web Store (tiene un pago único; es gasto y cuenta del usuario).

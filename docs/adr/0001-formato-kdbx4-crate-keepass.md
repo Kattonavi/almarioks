@@ -1,6 +1,5 @@
 # ADR-0001: Formato KDBX 4 con el crate `keepass` =0.17.0, envuelto en `almarioks-core`
-Estado: **aceptado** (formato KDBX 4 y licencia GPL-3.0: decisión del usuario, 2026-11-11) · **propuesto** (crate
-`keepass`, envolturas, política 3.1 y plan de salida) · Fecha: 2026-11-11
+Estado: **aceptado** (plan aprobado por el usuario el 2026-11-11)
 
 **Contexto:** pilar 1 ("la bóveda es del usuario") y E3-2 (cero criptografía propia). Atributo conductor: compatibilidad
 sin pérdida con KeePass 2 y KeePassXC. `docs/lab/kdbx-roundtrip/EXPERIMENTO.md`: abrir y guardar con `save_kdbx4` 4

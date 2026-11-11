@@ -1,5 +1,5 @@
 # ADR-0005: Canal extensión → anfitrión nativo (stdio) → app por named pipe con DACL del usuario
-Estado: **propuesto** (MV3 + anfitrión en Rust vienen de la visión como propuesta; se acepta al aprobar el plan) · 2026-11-11 · El detalle va en la spec de la 0.2.
+Estado: **aceptado** (plan aprobado por el usuario el 2026-11-11) · El detalle va en la spec de la 0.2.
 
 **Contexto:** pilar 3.
 - Mensajería nativa (https://developer.chrome.com/docs/extensions/develop/concepts/native-messaging):
