@@ -103,7 +103,7 @@ desinstalar.
 | Rebanada | Hecho | Falta | Horas usadas / apetito |
 |---|---|---|---|
 | Antes del plan | Contexto, lab 19 (KDBX sin pérdida), base de documentos, 5 ADR, arquitectura y modelo de amenazas | C++ Build Tools para empezar el H0 | ~0,5 h de reloj (09:15 a 09:45) más ~23 min de dos agentes en paralelo; cuenta dentro del H0 |
-| H0 (cumplido en lo técnico, 2026-11-11) | Esqueleto Tauri con CSP y capacidades mínimas; núcleo con ida y vuelta KDBX (KeePass 2 y KeePassXC); actualizador con permiso; CI; `release.yml` en dos trabajos; entorno y etiquetas protegidos; **`v0.0.1` y `v0.0.2` publicadas por CI** y actualización real 0.0.1 → 0.0.2 desde GitHub (`docs/H0-EVIDENCIA.md`) | Probar con un usuario estándar de Windows; solicitud a SignPath; puerta de la 1.0: respaldo de la llave y 2FA (aplazados por el dueño) | ~2,5 h de trabajo / 8 h |
+| H0 (cumplido en lo técnico, 2026-11-11) | Esqueleto Tauri con CSP y capacidades mínimas; núcleo con ida y vuelta KDBX (KeePass 2 y KeePassXC); actualizador con permiso; CI; `release.yml` en dos trabajos; entorno y etiquetas protegidos; **`v0.0.1` y `v0.0.2` publicadas por CI** y actualización real 0.0.1 → 0.0.2 desde GitHub (`docs/H0-EVIDENCIA.md`) | Probar con un usuario estándar de Windows; solicitud a SignPath; puertas de la 1.0 del dueño (`docs/RELEASE.md`) | ~3,6 h de reloj / 8 h |
 
 ## Stack (según estandares/decisiones-stack.md → "Rust")
 | Capa | Elección | Por qué / desviación |
@@ -181,8 +181,8 @@ Plan y los 5 ADR: **aceptados**. Repo público creado ese día.
 
 ## Pendientes
 - **Usuario:** instalar las C++ Build Tools (bloquea el H0) · en el H0:
-  subir la llave del actualizador a los secretos del entorno `release` (hecho el 2026-11-11), fusionar el PR #1 (hecho), aprobar cada release en el entorno `release` · **puerta de la 1.0** (aplazado en las 0.x por decisión del dueño): 2FA en GitHub y
-  respaldo de la llave en 2 lugares fuera del repo · tras el primer release: enviar la solicitud a SignPath · en la 1.0:
+  subir la llave del actualizador a los secretos del entorno `release` (hecho el 2026-11-11), fusionar el PR #1 (hecho), aprobar cada release en el entorno `release` · **puertas de la 1.0** (`docs/RELEASE.md`): 2FA en GitHub y
+  respaldo de la llave en 2 lugares fuera del repo · enviar la solicitud a SignPath (`docs/SIGNPATH.md`; exige el 2FA) · en la 1.0:
   cuenta de la Chrome Web Store (tiene un pago único; es gasto y cuenta del usuario).
 - **Sara:** instalar `pnpm`, `cargo-nextest`, `cargo-deny` y `tauri-cli` cuando el PC compile.
 - `proyectos/vault-desktop` (Almario) no está en este disco: no se cuenta con sus fixtures.

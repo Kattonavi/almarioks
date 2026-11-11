@@ -15,7 +15,7 @@ No hay revisor experto de Rust equivalente a `dotnet-reviewer`: lo suyo lo cubre
 | E0-2 | Versión única en `Cargo.toml` del workspace y `tauri.conf.json`; README con cómo compilar y ejecutar | H0 | R | ✅ versión en `[workspace.package]` + `package.json` (release.yml exige que coincidan); README → "Compilar" |
 | E0-3 | El instalador de `pnpm tauri build` corre en otra máquina | H0 | P | ✅ job `installer` de CI en runner limpio |
 | E0-4 | Logs locales rotados y sin secretos | 0.1 | R | pendiente |
-| E1-1 | H0 cumplido (instala, abre, actualiza, desinstala) | H0 | P | ✅ `v0.0.1` y `v0.0.2` publicadas; instalar, abrir, actualizar 0.0.1 → 0.0.2 desde GitHub y desinstalar (`docs/H0-EVIDENCIA.md`) |
+| E1-1 | H0 cumplido (instala, abre, actualiza, desinstala) | H0 | P | ✅ `v0.0.1` y `v0.0.2` publicadas; instalar, abrir y actualizar 0.0.1 → 0.0.2 probados desde GitHub; desinstalar, en el job `installer` de CI y en el ensayo local (`docs/H0-EVIDENCIA.md`) |
 | E1-2 | SemVer 2.0; `CHANGELOG.md` y notas del release tomadas de él | H0 | R | 🟡 `CHANGELOG.md` existe; notas del release en `docs/RELEASE_NOTES.md` |
 | E1-3 | Instalador NSIS por usuario + actualizador de Tauri (en vez de Velopack; ADR-0003) | H0 | R | ✅ NSIS `currentUser` + actualizador (config); `latest.json` lo genera `scripts/release-manifest.mjs`, sin ejecutar aún en release |
 | E1-4 | `release.yml` por etiqueta `v*` sin pasos manuales | H0 | R | ✅ dos corridas completas (`v0.0.1`, `v0.0.2`); el único paso humano es la aprobación del entorno `release` |
@@ -72,7 +72,7 @@ No hay revisor experto de Rust equivalente a `dotnet-reviewer`: lo suyo lo cubre
 | T-3 | Capacidades mínimas por ventana; sin `remote` con comodín ni `shell` abierto | H0 | R+S | ✅ `src-tauri/capabilities/main-window.json` + `AppManifest::commands(&[])` |
 | T-4 | Cada comando valida sus argumentos; rutas desde un diálogo del sistema | 0.1 | R | pendiente |
 | T-5 | Ningún secreto en archivos de texto ni logs | 0.1 | R+S | pendiente |
-| T-6 | Actualizador con `pubkey`, HTTPS y llave privada solo en secretos de CI, con respaldo fuera del repo | H0 | R+U | 🟡 `pubkey` y HTTPS en config; llave verificada con simulacro y subida al entorno `release`; el respaldo fuera del repo queda como puerta de la 1.0 (decisión del dueño) |
+| T-6 | Actualizador con `pubkey`, HTTPS y llave privada solo en secretos de CI, con respaldo fuera del repo | H0 | R+U | 🟡 `pubkey` y HTTPS en config; llave verificada con simulacro y subida al entorno `release`; el respaldo fuera del repo es puerta de la 1.0 |
 | T-8 | Firma de código en Windows | 1.0 | U | pendiente (ADR-0004) |
 | T-9 | Ningún comando síncrono hace disco pesado (el KDF corre fuera del hilo de la interfaz) | 0.1 | R | pendiente |
 

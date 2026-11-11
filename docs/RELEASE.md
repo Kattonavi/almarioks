@@ -22,8 +22,8 @@
    más** (ADR-0003).
 3. **Puerta de la 1.0.** Verificación en dos pasos (2FA) en la cuenta que etiqueta y aprueba los releases.
 
-Las versiones 0.x salen como versiones de desarrollo con los puntos 2 y 3 aplazados por decisión del dueño. No se
-publica la 1.0 sin ellos.
+Los puntos 2 y 3 se comprueban antes de publicar la 1.0: sin ellos no sale. El punto 3 es además condición de
+SignPath para firmar (`docs/SIGNPATH.md`).
 
 ## Cada versión
 1. PR que sube la versión en `Cargo.toml` (`[workspace.package]`) y `package.json` (deben coincidir) y mueve

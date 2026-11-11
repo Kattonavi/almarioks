@@ -12,4 +12,5 @@ puedes comprobar que es el que publicamos:
 **Actualizaciones:** la app avisa cuando hay una versión nueva y solo la descarga si aceptas. Cada actualización va
 firmada y la app verifica la firma antes de instalar.
 
-Cambios: ver [CHANGELOG.md](https://github.com/Kattonavi/almarioks/blob/main/CHANGELOG.md).
+Cambios: ver [CHANGELOG.md](https://github.com/Kattonavi/almarioks/blob/main/CHANGELOG.md) ·
+[Code signing policy](https://github.com/Kattonavi/almarioks#firma-de-código-code-signing-policy).

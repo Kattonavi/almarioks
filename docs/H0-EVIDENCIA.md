@@ -1,8 +1,8 @@
 # H0 — evidencia (2026-11-11)
 
 Estado: **H0 cumplido en lo técnico.** `v0.0.1` y `v0.0.2` están publicadas por CI y la actualización de una a otra
-se probó contra GitHub Releases. Quedan abiertos: la prueba con un usuario estándar de Windows, y el respaldo de la
-llave y el endurecimiento de la cuenta, que el dueño aplazó a la 1.0 (`docs/RELEASE.md`).
+se probó contra GitHub Releases. Quedan abiertos: la prueba con un usuario estándar de Windows y las dos puertas de
+la 1.0 que son del dueño (`docs/RELEASE.md`).
 
 ## Criterios del H0 (`docs/PROYECTO.md`)
 | # | Criterio | Estado | Evidencia |
@@ -12,11 +12,11 @@ llave y el endurecimiento de la cuenta, que el dueño aplazó a la 1.0 (`docs/RE
 | 3 | Instala por usuario, sin administrador, en máquina limpia | ✅ | Job `installer` de CI en un runner limpio de GitHub: instala en `%LOCALAPPDATA%\AlmarioKS`, clave solo en `HKCU`, ninguna en `HKLM`, la app arranca y sigue viva 10 s. También el ensayo local. Falta solo repetirlo con un usuario estándar sin privilegios (el runner y la consola del ensayo son administradores) |
 | 4 | Actualiza N → N+1 con permiso; un paquete alterado se rechaza | ✅ | Actualización real 0.0.1 → 0.0.2 desde GitHub Releases (abajo). El rechazo del paquete alterado está probado en el ensayo local y en las pruebas `rf_h0_*` contra el plugin real, no contra GitHub (no se publica un release malo a propósito) |
 | 5 | Desinstalar no deja programa y no toca las bóvedas | ✅ | Job `installer` de CI (sin carpeta ni clave tras desinstalar) + ensayo local (bóveda del usuario con el mismo SHA-256). Queda la carpeta de datos de WebView2: ver hallazgos |
-| 6 | Requisitos [B] de `AMENAZAS.md` §4 | 🟡 | Ver tabla siguiente: todo cumplido salvo el respaldo de la llave, aplazado a la 1.0 por el dueño |
+| 6 | Requisitos [B] de `AMENAZAS.md` §4 | 🟡 | Ver tabla siguiente: todo cumplido salvo el respaldo de la llave, que es puerta de la 1.0 |
 
 | Requisito [B] del H0 | Estado | Evidencia |
 |---|---|---|
-| Llave del actualizador con contraseña, solo en el entorno `release`, respaldo en 2 lugares | 🟡 | Llave con contraseña, fuera del repo y subida solo al entorno `release` (2026-11-11); los dos releases se firmaron con ella en CI y la app instalada aceptó la firma. **Respaldo en 2 lugares: aplazado a la 1.0 por decisión del dueño** |
+| Llave del actualizador con contraseña, solo en el entorno `release`, respaldo en 2 lugares | 🟡 | Llave con contraseña, fuera del repo y subida solo al entorno `release` (2026-11-11); los dos releases se firmaron con ella en CI y la app instalada aceptó la firma. **Respaldo en 2 lugares: puerta de la 1.0** (`docs/RELEASE.md`) |
 | `.sig` alterado, otra llave y `http://` rechazados; sin clic no hay descarga | ✅ | `rf_h0_tampered_artifact_is_rejected`, `rf_h0_signature_from_another_key_is_rejected`, la de `http://` (solo falla en modo release: corrió así en local y está como paso de `release.yml`; el CI de PR la corre en depuración) y Vitest "sin clic no hay descarga"; además el ensayo local |
 | CSP sin `unsafe-*`, sin devtools en release, capacidades explícitas | ✅ | `src-tauri/tauri.conf.json`, `src-tauri/capabilities/main-window.json`, `AppManifest::commands(&[])` en `build.rs` |
 | `release.yml` solo por etiqueta protegida con aprobación; Actions por SHA | ✅ | Ruleset `release-tags` (`v*`), entorno `release` con revisor y solo etiquetas `v*` |
@@ -126,4 +126,4 @@ se corrigieron en el mismo PR.
 - `keepassxc-cli` no crea KDBX 4 (`db-create` e `import` dan 3.1): ver `docs/lab/kdbx-roundtrip/EXPERIMENTO.md`.
 
 ## Tiempo
-H0: ~2,5 h de trabajo de las 8 h (más la planeación previa, ~0,5 h), sin contar las esperas por las aprobaciones del dueño ni la caída de GitHub Actions. No se disparó el corte de las 4 h.
+H0: ~3,6 h de reloj de las 8 h (~1,4 h hasta dejar el PR #1 listo y ~2,2 h del primer release a la actualización real, con las esperas de aprobación y la caída de GitHub Actions adentro), más ~0,5 h de planeación previa. No se disparó el corte de las 4 h: a esa hora ya había un instalador que instalaba y abría.
