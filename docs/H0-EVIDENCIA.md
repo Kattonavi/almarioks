@@ -63,6 +63,29 @@ node scripts/release-manifest.mjs ...                   -> latest.json (windows-
 Lo que sigue sin ejecutarse nunca: el workflow en GitHub (subida y bajada de artefactos entre trabajos, atestación y
 `gh release create`).
 
+## Primer release público: `v0.0.1` (2026-11-11)
+Etiqueta sobre el commit de fusión del PR #1 con el CI de `main` en verde. Corrida de `release.yml`:
+`https://github.com/Kattonavi/almarioks/actions/runs/43093696078`.
+
+- **Intento 1:** `build` pasó pruebas en modo release, instalador y verificador, y falló al subir el artefacto
+  (`Failed to CreateArtifact … is not valid JSON`) durante una caída de GitHub Actions. No se firmó ni se publicó nada.
+- **Intento 2** (`gh run rerun --failed`): `build` completo; `publish` esperó la aprobación del dueño en el entorno
+  `release` y luego firmó, verificó la firma contra la `pubkey` de la app, atestó y publicó.
+
+Comprobado después, desde otro PC que el runner:
+```
+gh release view v0.0.1          -> draft=false prerelease=false · setup.exe, setup.exe.sig, latest.json, SHA256SUMS
+releases/latest/download/latest.json -> version 0.0.1 · windows-x86_64 · url .../download/v0.0.1/AlmarioKS_0.0.1_x64-setup.exe
+sha256sum del instalador        -> e129abb9…5f11, igual que SHA256SUMS
+gh attestation verify <instalador> -R Kattonavi/almarioks -> exit 0
+almarioks-release-verify tauri.conf.json <instalador> <sig> 0.0.1 -> OK ... signed for version 0.0.1 (exit 0)
+
+instalador (/S): codigo de salida = 0
+HKCU: AlmarioKS | 0.0.1 | Kattonavi      HKLM claves: 0
+-- ventana al abrir --            Versión 0.0.1 · [Buscar actualizaciones]
+-- clic "Buscar actualizaciones" -- "Tienes la versión más reciente."   (consulta real a GitHub por HTTPS)
+```
+
 ## Revisiones del lote
 `docs/revisiones/h0.md`: una ronda de `code-reviewer` y una de `security-engineer`, sin Críticos ni Altos; los Medios
 se corrigieron en el mismo PR.
