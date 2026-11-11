@@ -17,7 +17,8 @@ export default defineConfig({
     strictPort: true,
     host: host ?? false,
     hmr: host ? { protocol: "ws", host, port: 1421 } : undefined,
-    watch: { ignored: ["**/src-tauri/**"] },
+    // Rust sources and build output are not frontend files.
+    watch: { ignored: ["**/src-tauri/**", "**/target/**"] },
   },
   build: {
     // WebView2 on Windows 10/11 is evergreen Chromium.
