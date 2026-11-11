@@ -32,7 +32,7 @@ function statusText(state: UpdateState): string {
         ? "Descargando la actualización…"
         : `Descargando la actualización: ${String(Math.min(100, Math.floor((state.downloaded * 100) / state.total)))} %.`;
     case "installing":
-      return "Firma verificada. Instalando: AlmarioKS se cerrará y el instalador te guiará para abrirla de nuevo.";
+      return "Firma verificada. Instalando: AlmarioKS se cerrará y volverá a abrirse sola en la versión nueva.";
     case "error":
       return FAILURE_MESSAGES[state.failure];
     default:
@@ -76,7 +76,7 @@ export function UpdatePanel() {
     };
     try {
       // Downloads, verifies the signature against the bundled pubkey and runs the installer.
-      // On Windows the app exits here; the installer (basicUi) takes over.
+      // On Windows the app exits here; the installer (passive mode) shows progress and reopens the app.
       await update.downloadAndInstall(onEvent);
       setState({ kind: "installing" });
     } catch (error: unknown) {
