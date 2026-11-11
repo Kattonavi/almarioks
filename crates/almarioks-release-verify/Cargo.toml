@@ -1,0 +1,22 @@
+[package]
+name = "almarioks-release-verify"
+description = "Checks an AlmarioKS installer signature against the pubkey baked into tauri.conf.json before a release is published."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[dependencies]
+# Same verifier and encoding the updater plugin uses at runtime (tauri-plugin-updater 2.14.1).
+minisign-verify = "=0.3.0"
+base64 = "=0.22.1"
+serde_json = "1.0.149"
+
+[dev-dependencies]
+# Test-only keys, made the way the Tauri CLI 2.12 makes them.
+minisign = "=0.9.1"
+
+[lints]
+workspace = true
