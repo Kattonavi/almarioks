@@ -1,0 +1,35 @@
+[workspace]
+resolver = "3"
+members = ["crates/*"]
+
+[workspace.package]
+version = "0.0.1"
+edition = "2024"
+# Minimum required by tauri 2.12 (keepass 0.17 needs 1.89). Raised on purpose, never by accident.
+rust-version = "1.90"
+license = "GPL-3.0-only"
+repository = "https://github.com/Kattonavi/almarioks"
+publish = false
+
+[workspace.dependencies]
+almarioks-core = { path = "crates/almarioks-core" }
+keepass = { version = "=0.17.0", features = ["save_kdbx4"] }
+
+[workspace.lints.rust]
+unsafe_code = "forbid"         # only an `ffi` module may lower it, block by block
+
+[workspace.lints.clippy]
+unwrap_used = "deny"
+expect_used = "warn"
+await_holding_lock = "deny"
+string_slice = "deny"
+cast_possible_truncation = "deny"
+cast_sign_loss = "deny"
+float_arithmetic = "warn"
+dbg_macro = "deny"
+todo = "warn"
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = true

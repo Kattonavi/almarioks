@@ -1,0 +1,15 @@
+[package]
+name = "almarioks-core"
+description = "AlmarioKS domain core: KDBX vault, states, matching and generator. No Tauri, no network."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[dependencies]
+keepass.workspace = true
+
+[lints]
+workspace = true
