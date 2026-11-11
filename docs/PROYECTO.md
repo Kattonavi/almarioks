@@ -103,6 +103,7 @@ desinstalar.
 | Rebanada | Hecho | Falta | Horas usadas / apetito |
 |---|---|---|---|
 | Antes del plan | Contexto, lab 19 (KDBX sin pérdida), base de documentos, 5 ADR, arquitectura y modelo de amenazas | C++ Build Tools para empezar el H0 | ~0,5 h de reloj (09:15 a 09:45) más ~23 min de dos agentes en paralelo; cuenta dentro del H0 |
+| H0 (en curso) | Esqueleto Tauri con CSP y capacidades mínimas; núcleo con ida y vuelta KDBX (KeePass 2 y KeePassXC); actualizador con permiso; CI en verde; `release.yml`; entorno y etiquetas protegidos; ensayo local instalar → rechazar firma mala → actualizar → desinstalar (`docs/H0-EVIDENCIA.md`) | Subir secretos de firma y fusionar el PR (dueño); primer release `v0.0.1` y `v0.0.2` por CI; repetir la prueba contra GitHub y con usuario estándar; preparar solicitud a SignPath | ~1 h de reloj / 8 h |
 
 ## Stack (según estandares/decisiones-stack.md → "Rust")
 | Capa | Elección | Por qué / desviación |

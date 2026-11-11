@@ -43,6 +43,9 @@ jobs:
           fi
           echo "VERSION=$version" >> "$GITHUB_ENV"
       - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - name: Updater must reject http endpoints and bad signatures in release mode
+        run: cargo test -p almarioks --test updater_signature --release --locked
       - name: Build and sign the installer
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}

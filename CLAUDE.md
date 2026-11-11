@@ -15,6 +15,7 @@ Este archivo solo agrega o endurece; nunca relaja. Corto: lo que se deduce del c
 3. **Cada RF tiene una prueba que lo cita** (`rf_NN_…` en Rust, `it("RF-NN: …")` en TS) — `/especificar validar`.
 4. **Cero criptografía propia:** cifrado, KDF y formato salen de `keepass` y sus dependencias; ningún crate de
    cifrado en código nuestro fuera de `almarioks-core::kdbx` — `cargo deny check` + revisión del `Cargo.toml`.
+   (Las pruebas del actualizador usan `minisign` solo como `dev-dependency`, para fabricar llaves de prueba.)
 5. **Ida y vuelta sin pérdida:** lo que la app no edita, lo conserva — pruebas `roundtrip_*` de `almarioks-core`
    contra `tests/fixtures/` (KeePass 2 y KeePassXC).
 6. **Los secretos no cruzan a la interfaz:** ningún comando de Tauri devuelve una contraseña salvo `reveal_*`;
