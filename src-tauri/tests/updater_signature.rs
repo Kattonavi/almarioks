@@ -50,13 +50,21 @@ impl TestKey {
         base64::engine::general_purpose::STANDARD.encode(public_box)
     }
 
-    /// `signature` as it goes in latest.json: base64 of the `.sig` box the CLI writes.
+    /// `signature` as it goes in latest.json: base64 of the `.sig` box the CLI writes, with the
+    /// version the CLI 2.12 records in the trusted comment.
     fn sign(&self, data: &[u8]) -> String {
+        self.sign_with_comment(
+            data,
+            "timestamp:0\tfile:AlmarioKS_0.0.2_x64-setup.exe\tversion:0.0.2",
+        )
+    }
+
+    fn sign_with_comment(&self, data: &[u8], trusted_comment: &str) -> String {
         let signature = minisign::sign(
             None,
             &self.keypair.sk,
             Cursor::new(data),
-            Some("timestamp:0\tfile:AlmarioKS_0.0.2_x64-setup.exe\tversion:0.0.2"),
+            Some(trusted_comment),
             Some("signature from tauri secret key"),
         )
         .expect("sign test artifact");
@@ -131,6 +139,8 @@ fn app(pubkey: &str, allow_http: bool) -> App<MockRuntime> {
         serde_json::json!({
             "pubkey": pubkey,
             "dangerousInsecureTransportProtocol": allow_http,
+            // Same as src-tauri/tauri.conf.json (checked by tests/updater_config.rs).
+            "requireSignedVersion": true,
         }),
     );
     mock_builder()
@@ -223,7 +233,8 @@ fn rf_h0_same_or_older_version_is_not_offered() {
 
 /// With the production setting (no `dangerousInsecureTransportProtocol`), an `http://` endpoint is an
 /// error in release builds. Debug builds only print a warning (plugin `config.rs`, `validate_endpoints`),
-/// so this asserts both sides; CI runs the release side with `cargo nextest run --release`.
+/// so this asserts both sides. The PR CI runs the debug side; the release side runs in `release.yml`
+/// with `cargo test --release` (locally: `cargo test -p almarioks --test updater_signature --release`).
 #[test]
 fn rf_h0_http_endpoint_is_rejected_in_release() {
     let key = TestKey::generate();
@@ -238,5 +249,44 @@ fn rf_h0_http_endpoint_is_rejected_in_release() {
             matches!(result, Err(Error::InsecureTransportProtocol)),
             "release builds must reject http endpoints"
         );
+    }
+}
+
+#[test]
+fn rf_h0_signature_without_version_is_rejected() {
+    let key = TestKey::generate();
+    // A valid signature from the right key, but made without the version (pre-2.12 CLI style).
+    let signature =
+        key.sign_with_comment(ARTIFACT, "timestamp:0\tfile:AlmarioKS_0.0.2_x64-setup.exe");
+    let base = serve(manifest("0.0.2", signature), ARTIFACT.to_vec());
+    let app = app(&key.pubkey(), true);
+
+    let update = check(&app, &base).expect("0.0.2 is offered");
+    match download(&update) {
+        Err(Error::MissingSignedVersion) => {}
+        Err(other) => panic!("expected MissingSignedVersion, got: {other}"),
+        Ok(_) => panic!("a signature without version was accepted"),
+    }
+}
+
+#[test]
+fn rf_h0_signature_for_another_version_is_rejected() {
+    let key = TestKey::generate();
+    // Genuine artifact and key, but signed as 0.0.3 while the manifest announces 0.0.2
+    // (a replayed or relabeled release).
+    let signature = key.sign_with_comment(
+        ARTIFACT,
+        "timestamp:0\tfile:AlmarioKS_0.0.3_x64-setup.exe\tversion:0.0.3",
+    );
+    let base = serve(manifest("0.0.2", signature), ARTIFACT.to_vec());
+    let app = app(&key.pubkey(), true);
+
+    let update = check(&app, &base).expect("0.0.2 is offered");
+    match download(&update) {
+        Err(Error::SignedVersionMismatch { signed, announced }) => {
+            assert_eq!((signed.as_str(), announced.as_str()), ("0.0.3", "0.0.2"));
+        }
+        Err(other) => panic!("expected SignedVersionMismatch, got: {other}"),
+        Ok(_) => panic!("a signature for another version was accepted"),
     }
 }

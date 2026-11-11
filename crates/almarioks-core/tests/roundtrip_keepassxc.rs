@@ -40,6 +40,19 @@ fn attachment_of(group: &GroupRef<'_>, title: &str, attachment: &str) -> Option<
         .find_map(|child| attachment_of(&child, title, attachment))
 }
 
+/// Searches the whole tree and returns (username, password) of the entry titled `title`.
+fn credentials_of(group: &GroupRef<'_>, title: &str) -> Option<(String, String)> {
+    if let Some(entry) = group.entry_by_name(title) {
+        return Some((
+            entry.get_username()?.to_owned(),
+            entry.get_password()?.to_owned(),
+        ));
+    }
+    group
+        .groups()
+        .find_map(|child| credentials_of(&child, title))
+}
+
 #[test]
 fn roundtrip_keepassxc_both() {
     let key = key();
@@ -49,7 +62,14 @@ fn roundtrip_keepassxc_both() {
 
     let data = attachment_of(&original.root(), "Hecha en KeePassXC", "xc.txt")
         .expect("entry 'Hecha en KeePassXC' with attachment 'xc.txt'");
-    assert!(!data.is_empty(), "'xc.txt' has content");
+    assert_eq!(data.as_slice(), "contenido del adjunto".as_bytes());
+    assert_eq!(
+        credentials_of(&original.root(), "Hecha en KeePassXC"),
+        Some((
+            "xc@example.com".to_owned(),
+            "clave-desde-keepassxc".to_owned()
+        ))
+    );
 
     let mut saved = Vec::new();
     original
@@ -64,5 +84,12 @@ fn roundtrip_keepassxc_both() {
     assert_eq!(
         attachment_of(&reopened.root(), "Hecha en KeePassXC", "xc.txt"),
         Some(data)
+    );
+    assert_eq!(
+        credentials_of(&reopened.root(), "Hecha en KeePassXC"),
+        Some((
+            "xc@example.com".to_owned(),
+            "clave-desde-keepassxc".to_owned()
+        ))
     );
 }

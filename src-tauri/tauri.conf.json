@@ -69,6 +69,7 @@
       "endpoints": [
         "https://github.com/Kattonavi/almarioks/releases/latest/download/latest.json"
       ],
+      "requireSignedVersion": true,
       "windows": {
         "installMode": "passive"
       }
