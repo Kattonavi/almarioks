@@ -10,11 +10,17 @@ export type UpdateState =
   | { readonly kind: "upToDate" }
   | { readonly kind: "available"; readonly update: Update }
   | { readonly kind: "downloading"; readonly downloaded: number; readonly total: number | undefined }
+  | { readonly kind: "verifying" }
   | { readonly kind: "installing" }
   | { readonly kind: "error"; readonly failure: UpdateFailure };
 
 function assertNever(value: never): never {
   throw new Error(`Unexpected update state: ${JSON.stringify(value)}`);
+}
+
+/** The plugin sends `contentLength: null` when the server gives no Content-Length: treat it as unknown. */
+function knownLength(value: number | null | undefined): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : undefined;
 }
 
 function statusText(state: UpdateState): string {
@@ -28,10 +34,13 @@ function statusText(state: UpdateState): string {
     case "available":
       return `Hay una versión nueva: ${state.update.version}.`;
     case "downloading":
-      return state.total === undefined || state.total === 0
+      return state.total === undefined
         ? "Descargando la actualización…"
         : `Descargando la actualización: ${String(Math.min(100, Math.floor((state.downloaded * 100) / state.total)))} %.`;
+    case "verifying":
+      return "Descarga completa. Verificando la firma…";
     case "installing":
+      // Only reachable after `download()` resolved, which the plugin does only for a valid signature.
       return "Firma verificada. Instalando: AlmarioKS se cerrará y volverá a abrirse sola en la versión nueva.";
     case "error":
       return FAILURE_MESSAGES[state.failure];
@@ -60,7 +69,7 @@ export function UpdatePanel() {
     const onEvent = (event: DownloadEvent) => {
       switch (event.event) {
         case "Started":
-          total = event.data.contentLength;
+          total = knownLength(event.data.contentLength);
           setState({ kind: "downloading", downloaded, total });
           break;
         case "Progress":
@@ -68,24 +77,34 @@ export function UpdatePanel() {
           setState({ kind: "downloading", downloaded, total });
           break;
         case "Finished":
-          setState({ kind: "installing" });
+          // The plugin reports the end of the download BEFORE it verifies the signature.
+          setState({ kind: "verifying" });
           break;
         default:
           assertNever(event);
       }
     };
     try {
-      // Downloads, verifies the signature against the bundled pubkey and runs the installer.
+      // Resolves only if the package matches the signature and the pubkey bundled in the app.
+      await update.download(onEvent);
+    } catch (error: unknown) {
+      setState({ kind: "error", failure: classifyUpdateError(error) });
+      return;
+    }
+    setState({ kind: "installing" });
+    try {
       // On Windows the app exits here; the installer (passive mode) shows progress and reopens the app.
-      await update.downloadAndInstall(onEvent);
-      setState({ kind: "installing" });
+      await update.install();
     } catch (error: unknown) {
       setState({ kind: "error", failure: classifyUpdateError(error) });
     }
   }
 
   const busy =
-    state.kind === "checking" || state.kind === "downloading" || state.kind === "installing";
+    state.kind === "checking" ||
+    state.kind === "downloading" ||
+    state.kind === "verifying" ||
+    state.kind === "installing";
   const text = statusText(state);
 
   return (
