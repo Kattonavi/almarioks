@@ -53,8 +53,20 @@ La hipótesis era falsa: **no se perdió nada de lo medido**.
    con aviso, o abrirla en solo lectura.
 5. `Value::Protected` usa `secrecy::SecretBox` y `DatabaseKey` se borra al soltarse (`ZeroizeOnDrop`): sirve para E3-3.
 
+## Ampliación del mismo día: KeePassXC 2.8.0 (portable, suma SHA-256 verificada contra su `.DIGEST`)
+- **Abre lo que Rust escribe:** `keepassxc-cli ls`, `show` y `db-info` leen las bóvedas reescritas y la editada en Rust
+  (contraseña, solo archivo llave, ambos con ChaCha20 + Argon2id), con adjuntos, etiquetas y la contraseña con `ñ`.
+- **Ida y vuelta de un archivo escrito por KeePassXC:** una bóveda KDBX 4 a la que KeePassXC le agregó una entrada, un
+  adjunto y una versión de historial pasa por Rust (abrir + guardar) y `keepassxc-cli export -f xml` de antes y después
+  da 571 líneas en ambos. Comparadas sin importar el orden queda **1 línea distinta** (`<Generator>`); con orden, 46:
+  el crate guarda los datos propios en un `HashMap` y **no conserva el orden de los ítems de `CustomData`**. No se
+  pierde contenido.
+- **`keepassxc-cli` no crea KDBX 4:** `db-create` e `import` dan KDBX 3.1 con AES-KDF (2 intentos). El crate la abre
+  (`KDB3(1)`) y al guardar devuelve `UnsupportedVersion`, como decía el punto 4. Para tener un KDBX 4 escrito por
+  KeePassXC se parte de uno de KeePass 2 y se edita con `keepassxc-cli add/edit`.
+- El `.keyx` que genera KeePassXC trae la llave en hex con espacios y saltos de línea: el crate lo lee bien.
+
 ## Límites (lo que NO probé)
-- **KeePassXC:** no está instalado en este PC. Queda para el H0.
 - Elementos XML que KeePassLib no conoce (datos de plugins fuera de `CustomData`), bóvedas grandes y fuzzing (E3-4).
 - KDBX 3.1 y bóvedas con AES-KDF. Entradas en la papelera.
 
