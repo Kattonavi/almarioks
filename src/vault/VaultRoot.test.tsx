@@ -293,6 +293,9 @@ describe("P3 Desbloquear", () => {
     const answer = backend.hold("unlock_key_suggestion");
     render(<VaultRoot client={createClient(backend.transport)} />);
     await findUnlockScreen();
+    // The question was asked and its answer is still on the way: nothing is proposed yet.
+    await waitForTicks();
+    expect(backend.count("unlock_key_suggestion")).toBe(1);
     expect(screen.getByText("Ninguno")).toBeDefined();
 
     fireEvent.click(screen.getByRole("button", { name: "Elegir archivo llave…" }));
