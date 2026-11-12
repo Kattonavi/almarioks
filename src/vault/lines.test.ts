@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { GroupNode } from "../ipc/schemas";
-import { assignLines, initialOf, lineOfPath, LINES } from "./lines";
+import { assignLines, entryInitial, entryLine, initialOf, lineOfPath, LINES, NO_INITIAL } from "./lines";
 
 function group(id: string, children: GroupNode[] = [], kind: GroupNode["kind"] = "normal"): GroupNode {
   return { id, name: id, entryCount: 0, kind, children };
@@ -59,5 +59,20 @@ describe("line colours of the groups", () => {
     expect(initialOf("(sin nombre)")).toBe("S");
     expect(initialOf("2026")).toBe("2");
     expect(initialOf("···")).toBe("");
+  });
+
+  it("RF-42: the circle of an entry takes the initial of its title, and a neutral sign when there is none to show", () => {
+    expect(entryInitial("github")).toBe("G");
+    expect(entryInitial("")).toBe(NO_INITIAL);
+    expect(entryInitial("···")).toBe(NO_INITIAL);
+    // A protected title arrives as `null`: nothing of it is drawn.
+    expect(entryInitial(null)).toBe(NO_INITIAL);
+  });
+
+  it("RF-42: the circle of an entry is neutral outside a group of its own (the root, or a group that is gone)", () => {
+    expect(entryLine("2")).toBe("2");
+    expect(entryLine("neutral")).toBe("neutral");
+    expect(entryLine("station")).toBe("neutral");
+    expect(entryLine(undefined)).toBe("neutral");
   });
 });

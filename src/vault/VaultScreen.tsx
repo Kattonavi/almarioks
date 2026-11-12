@@ -4,13 +4,13 @@ import { assertNever } from "../assertNever";
 import type { VaultClient } from "../ipc/client";
 import { errorMessage, type AppError, type Result } from "../ipc/errors";
 import type { EntrySummary, GroupNode, SearchResult } from "../ipc/schemas";
-import { ListIcon, PlusIcon, SearchIcon, TrashIcon } from "../ui/icons";
+import { PlusIcon, SearchIcon } from "../ui/icons";
 import { EntryForm } from "./EntryForm";
 import { EntryPanel } from "./EntryPanel";
-import { findGroup, formatDate, formatDay, liveEntryCount, plural, shown, trailTo } from "./format";
+import { findGroup, formatDate, formatShortDay, plural, shortSite, shown, trailTo } from "./format";
 import { useGroupActions, type GroupChange } from "./GroupActions";
 import { GroupMenuButton, GroupRail } from "./GroupRail";
-import { assignLines, initialOf, lineOfPath, type GroupLine } from "./lines";
+import { assignLines, entryInitial, entryLine, lineOfPath, type GroupLine } from "./lines";
 import { NO_SAVE_SIGNAL, savingText, type SaveSignal } from "./saveSignal";
 
 /** RF-59: wait this long after the last keystroke before asking the core to search. */
@@ -51,13 +51,6 @@ type DetailState =
 type Notice = { readonly kind: "text"; readonly text: string } | { readonly kind: "created"; readonly since: number };
 
 const NO_NOTICE: Notice = { kind: "text", text: "" };
-
-/** What a group badge shows: the line colour of the group and its initial (the recycle bin shows its icon). */
-interface Badge {
-  readonly line: GroupLine;
-  readonly initial: string;
-  readonly bin: boolean;
-}
 
 /** The row whose value is on the clipboard, and the seconds left until the core clears it. */
 interface Stamped {
@@ -603,6 +596,24 @@ export function VaultScreen({
     }
   }
 
+  /** RF-38: the main action of the list. From "Todas las entradas", and from a search over it, the entry goes to the root. */
+  function newEntryButton(target: string) {
+    if (readOnly) return null;
+    return (
+      <button
+        type="button"
+        className="btn-primary"
+        onClick={() => {
+          setNotice(NO_NOTICE);
+          setDetail({ kind: "new", groupId: target });
+        }}
+      >
+        <PlusIcon />
+        Nueva entrada
+      </button>
+    );
+  }
+
   function renderGroup() {
     if (root === null) {
       return (
@@ -616,56 +627,28 @@ export function VaultScreen({
     /** `null`: "Todas las entradas" (RF-102). */
     const group = groupId === null ? null : (findGroup(root, groupId) ?? null);
     const inBin = group?.kind === "recycle_bin";
-    const badgeOfGroup = (id: string): Badge => {
-      const node = findGroup(root, id);
-      return {
-        line: lines.get(id) ?? "neutral",
-        initial: initialOf(shown(node?.name ?? "", "(sin nombre)")),
-        bin: node?.kind === "recycle_bin",
-      };
-    };
+    const groupName = group === null ? "Todas las entradas" : shown(group.name, "(sin nombre)");
     const current = currentList();
     const loaded = current?.result ?? null;
     const selectedId = detail.kind === "entry" ? detail.entry.id : null;
     return (
       <>
         <header className="list-head">
-          {group === null ? (
-            <span className="bullet" data-line="station" aria-hidden="true">
-              <ListIcon />
-            </span>
-          ) : (
-            <Bullet badge={badgeOfGroup(group.id)} />
-          )}
           <div className="list-title">
-            <h3 id="entries-title">
+            {/* One line, cut with an ellipsis: the whole name is in the `title`. */}
+            <h3 id="entries-title" title={groupName}>
               {group === null ? (
-                "Todas las entradas"
+                groupName
               ) : (
                 <>
                   {/* The space is its own text node: inside the hidden span it would be trimmed out of the name. */}
-                  <span className="sr-only">Entradas de</span> {shown(group.name, "(sin nombre)")}
+                  <span className="sr-only">Entradas de</span> {groupName}
                 </>
               )}
             </h3>
-            {loaded !== null && loaded.ok && loaded.value.length > 0 && (
-              <p role="status">{plural(loaded.value.length, "entrada", "entradas")}</p>
-            )}
+            {loaded !== null && loaded.ok && <p role="status">{plural(loaded.value.length, "entrada", "entradas")}</p>}
           </div>
-          {!readOnly && (
-            <button
-              type="button"
-              className="btn-primary"
-              onClick={() => {
-                setNotice(NO_NOTICE);
-                // RF-102: from "Todas las entradas" the new entry goes to the root.
-                setDetail({ kind: "new", groupId: group?.id ?? root.id });
-              }}
-            >
-              <PlusIcon />
-              Nueva entrada
-            </button>
-          )}
+          {newEntryButton(group?.id ?? root.id)}
         </header>
         {loaded === null ? (
           <p role="status" className="pane-state">
@@ -686,19 +669,20 @@ export function VaultScreen({
             </button>
           </div>
         ) : loaded.value.length === 0 ? (
-          liveEntryCount(root) === 0 && !inBin ? (
-            <p className="pane-state">
-              Esta bóveda todavía no tiene entradas. Con «Nueva entrada» guardas la primera cuenta.
-            </p>
-          ) : (
-            <p className="pane-state">{inBin ? "La papelera está vacía." : "Este grupo no tiene entradas."}</p>
-          )
+          <p className="pane-state">
+            {inBin
+              ? "La papelera está vacía."
+              : readOnly
+                ? "No hay entradas aquí."
+                : "No hay entradas aquí. Crea la primera con «Nueva entrada»."}
+          </p>
         ) : (
           <EntryTable
             items={loaded.value}
             groupPaths={null}
-            badgeOf={(index) =>
-              badgeOfGroup(current?.groupOf.get(loaded.value[index]?.id ?? "") ?? group?.id ?? root.id)
+            lineOf={(index) =>
+              // In "Todas las entradas" each row keeps the colour of the group it was asked from.
+              entryLine(lines.get(current?.groupOf.get(loaded.value[index]?.id ?? "") ?? group?.id ?? root.id))
             }
             stamped={stamped}
             selectedId={selectedId}
@@ -715,11 +699,12 @@ export function VaultScreen({
     return (
       <>
         <header className="list-head">
-          <span className="bullet" data-line="station" aria-hidden="true">
-            <SearchIcon />
-          </span>
           <div className="list-title">
-            <h3 id="entries-title">Resultados de la búsqueda</h3>
+            {/* It reads "Resultados"; its name stays "Resultados de la búsqueda". */}
+            <h3 id="entries-title">
+              {/* The space is its own text node: inside the hidden span it would be trimmed out of the name. */}
+              Resultados <span className="sr-only">de la búsqueda</span>
+            </h3>
             <div role="status" aria-live="polite">
               {search.kind === "searching" && <p>Buscando…</p>}
               {search.kind === "done" && (
@@ -731,6 +716,8 @@ export function VaultScreen({
               )}
             </div>
           </div>
+          {/* The new entry goes where it would go without the search: the group the rail had open, or the root. */}
+          {root !== null && newEntryButton(groupId ?? root.id)}
         </header>
         {search.kind === "failed" && (
           <p role="alert" className="error pane-state">
@@ -752,14 +739,10 @@ export function VaultScreen({
           <EntryTable
             items={search.items}
             groupPaths={search.items.map((item) => item.groupPath)}
-            badgeOf={(index) => {
-              const path = search.items[index]?.groupPath ?? [];
-              return {
-                line: root === null ? "neutral" : lineOfPath(root, lines, path),
-                initial: initialOf(path.at(-1) ?? ""),
-                bin: false,
-              };
-            }}
+            lineOf={(index) =>
+              // A result brings the names of its groups, not an id: the path is walked down the tree.
+              root === null ? "neutral" : entryLine(lineOfPath(root, lines, search.items[index]?.groupPath ?? []))
+            }
             stamped={stamped}
             selectedId={selectedId}
             onSelect={selectEntry}
@@ -771,29 +754,12 @@ export function VaultScreen({
   }
 }
 
-/**
- * The round badge of a group: decoration next to the group name, hidden from assistive technology. The initial is
- * drawn by CSS from `data-initial`, so the badge adds no text to the control it sits in.
- */
-function Bullet({ badge }: { readonly badge: Badge }) {
-  return (
-    <span
-      className="bullet"
-      data-line={badge.line}
-      data-initial={badge.bin ? undefined : badge.initial}
-      aria-hidden="true"
-    >
-      {badge.bin && <TrashIcon />}
-    </span>
-  );
-}
-
 interface EntryTableProps {
   readonly items: readonly EntrySummary[];
   /** Search results: the group path of each item, from the root down. */
   readonly groupPaths: readonly (readonly string[])[] | null;
-  /** The badge of the group each row sits in. */
-  readonly badgeOf: (index: number) => Badge;
+  /** The line colour of the group each row sits in. */
+  readonly lineOf: (index: number) => GroupLine;
   readonly stamped: Stamped | null;
   readonly selectedId: string | null;
   readonly onSelect: (entry: SelectedEntry) => void;
@@ -804,8 +770,11 @@ interface EntryTableProps {
 /**
  * RF-42: entries in the order the core sends (by title). The URL is text, never a link (RF-78, RF-49). It is a real
  * table drawn as a list of rows: the title button stretches over its row, and the header row stays for screen readers.
+ * Each row opens with a circle: the initial of the entry's own title on the colour of its group. It is decoration
+ * drawn by CSS from `data-initial`, so it adds no text to the row; a protected title never reaches it.
  */
-function EntryTable({ items, groupPaths, badgeOf, stamped, selectedId, onSelect, onRowKeyDown }: EntryTableProps) {
+function EntryTable({ items, groupPaths, lineOf, stamped, selectedId, onSelect, onRowKeyDown }: EntryTableProps) {
+  const today = new Date();
   return (
     <div className="table-scroll">
       <table className="entries" data-search={groupPaths === null ? undefined : ""}>
@@ -813,7 +782,7 @@ function EntryTable({ items, groupPaths, badgeOf, stamped, selectedId, onSelect,
           <tr>
             <th scope="col">Título</th>
             <th scope="col">Usuario</th>
-            <th scope="col">URL</th>
+            <th scope="col">Sitio</th>
             <th scope="col">Etiquetas</th>
             {groupPaths !== null && <th scope="col">Grupo</th>}
             <th scope="col">Modificada</th>
@@ -823,7 +792,12 @@ function EntryTable({ items, groupPaths, badgeOf, stamped, selectedId, onSelect,
           {items.map((entry, index) => (
             <tr key={entry.id} data-selected={entry.id === selectedId ? "" : undefined}>
               <th scope="row">
-                <Bullet badge={badgeOf(index)} />
+                <span
+                  className="bullet"
+                  data-line={lineOf(index)}
+                  data-initial={entryInitial(entry.title)}
+                  aria-hidden="true"
+                />
                 <button
                   type="button"
                   aria-current={entry.id === selectedId ? "true" : undefined}
@@ -838,7 +812,10 @@ function EntryTable({ items, groupPaths, badgeOf, stamped, selectedId, onSelect,
                 </button>
               </th>
               <td className="cell-user">{shown(entry.username)}</td>
-              <td className="cell-url">{shown(entry.url)}</td>
+              {/* The row shows the site without `https://`; the whole address is in the `title`. */}
+              <td className="cell-url" title={entry.url === null || entry.url === "" ? undefined : entry.url}>
+                {entry.url === null ? shown(entry.url) : shortSite(entry.url)}
+              </td>
               <td className="cell-tags">{entry.tags.join(", ")}</td>
               {groupPaths !== null && <td className="cell-group">{(groupPaths[index] ?? []).join(" › ")}</td>}
               <td className="cell-date">
@@ -847,7 +824,7 @@ function EntryTable({ items, groupPaths, badgeOf, stamped, selectedId, onSelect,
                   title={formatDate(entry.modified)}
                   className={stamped?.entryId === entry.id ? "sr-only" : undefined}
                 >
-                  {formatDay(entry.modified)}
+                  {formatShortDay(entry.modified, today)}
                 </time>
                 {stamped?.entryId === entry.id && <span className="stamp"><span className="stamp-word">Copiado</span> · {stamped.seconds} s</span>}
               </td>

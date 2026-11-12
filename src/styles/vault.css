@@ -1,16 +1,18 @@
 /* The two work zones of the open vault: the entry list and the detail of an entry. */
 
-/* ---- List header: the badge and the group name, large. ---- */
+/*
+ * ---- List header: the name of what the list shows on one line, how many entries under it, and the main action. ----
+ */
 .list-pane {
   container: list / inline-size;
 }
 
 .list-head {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
   gap: var(--space-3);
-  padding: var(--space-5) var(--space-6) var(--space-4);
+  padding: 14px var(--space-4);
+  border-bottom: 1px solid var(--rule);
 }
 
 .list-title {
@@ -18,26 +20,38 @@
   min-width: 0;
 }
 
+/* One line: a long name is cut with an ellipsis (the whole name is in its `title`). */
 .list-title h3 {
   margin: 0;
-  overflow-wrap: anywhere;
+  overflow: hidden;
   font-size: var(--text-xl);
-  line-height: 1;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .list-title p {
-  margin: var(--space-1) 0 0;
-  font-size: var(--text-control);
+  margin: 0;
+  font-size: var(--text-sm);
   color: var(--ink-muted);
 }
 
 .list-head > button {
   flex: none;
+  padding-inline: 14px;
+  font-size: var(--text-md);
+  white-space: nowrap;
+}
+
+.list-head > button > .icon {
+  width: 16px;
+  height: 16px;
 }
 
 /*
- * ---- Rows. A real table drawn as a list: the title button stretches over its row, the user and the address make
- * the second line, and the date (or the "copied" stamp) closes the row. ----
+ * ---- Rows of 60 px. A real table drawn as a list: the circle with the initial of the entry on the colour of its
+ * group, the title button stretched over the row, the user and the site on the second line, and the day it was
+ * modified (or the "copied" stamp) closing the row. ----
  */
 .entries,
 .entries tbody {
@@ -46,6 +60,8 @@
 }
 
 .entries tbody tr {
+  --entry-badge: 32px;
+
   position: relative;
   display: grid;
   grid-template-areas:
@@ -54,21 +70,21 @@
   grid-template-columns: minmax(0, auto) minmax(0, 1fr) max-content;
   align-content: center;
   align-items: center;
-  min-height: calc(var(--row-h) + var(--space-4));
-  padding: var(--space-2) var(--space-6) var(--space-2) calc(var(--space-6) + var(--bullet) + var(--space-3));
-  border-top: 1px solid var(--rule);
+  min-height: 60px;
+  padding: var(--space-2) var(--space-4) var(--space-2) calc(var(--space-4) + var(--entry-badge) + var(--space-3));
+  border-bottom: 1px solid var(--rule);
 }
 
 .entries tbody tr:hover {
   background: var(--hover);
 }
 
+/* The chosen one: the light plate, with its own inks. */
 .entries tbody tr[data-selected] {
   --focus: var(--on-panel);
 
   color: var(--on-panel);
   background: var(--panel);
-  border-color: var(--panel);
 }
 
 .entries tbody tr:has(button:focus-visible) {
@@ -86,7 +102,10 @@
 .entries .bullet {
   position: absolute;
   top: 50%;
-  left: var(--space-6);
+  left: var(--space-4);
+  width: var(--entry-badge);
+  height: var(--entry-badge);
+  font-size: var(--text-control);
   transform: translateY(-50%);
 }
 
@@ -97,6 +116,7 @@
   padding: 0;
   overflow: hidden;
   font-size: var(--text-md);
+  line-height: var(--leading);
   text-align: start;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -140,23 +160,22 @@
   grid-area: user;
 }
 
-.cell-url,
-.entries[data-search] .cell-group {
+.cell-url {
   grid-area: rest;
 }
 
 /* The separator belongs to the pair: it only shows when both sides have something. */
-.cell-user:not(:empty) ~ .cell-url:not(:empty)::before,
-.entries[data-search] .cell-user:not(:empty) ~ .cell-group:not(:empty)::before {
-  display: inline-block;
-  width: 1em;
-  text-align: center;
-  content: "·";
+.cell-user:not(:empty) ~ .cell-url:not(:empty)::before {
+  white-space: pre;
+  content: " · ";
 }
 
-/* In the list the tags stay for screen readers; search results show the group instead of the address. */
+/*
+ * The tags and, in the search results, the path of the group stay in the table for screen readers: the row says the
+ * group with the colour of its circle.
+ */
 .cell-tags,
-.entries[data-search] .cell-url {
+.cell-group {
   position: absolute;
   width: 1px;
   height: 1px;
@@ -169,8 +188,6 @@
   grid-area: date;
   padding-inline-start: var(--space-3);
   overflow: visible;
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
 }
 
 /* The copied state is stamped on the row and stays while the clipboard holds the value. */
@@ -211,7 +228,7 @@
   padding-block: var(--space-1);
 }
 
-[data-density="compact"] .entries :is(.cell-url, .cell-group) {
+[data-density="compact"] .entries .cell-url {
   display: none;
 }
 
