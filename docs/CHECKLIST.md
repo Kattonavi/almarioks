@@ -91,7 +91,7 @@ No hay revisor experto de Rust equivalente a `dotnet-reviewer`: lo suyo lo cubre
 | Requisito | Fase | Resp. | Evidencia |
 |---|---|---|---|
 | Mock de la pantalla clave aprobado por el usuario antes de construir interfaz | antes de la 0.1 | Impeccable + U | 🟡 el dueño dio una autorización general tras leer la recomendación, sin nombrar la dirección (`docs/diseno/direcciones.md`): se aplicó "Señalética" y queda por confirmar |
-| Matriz pantalla × estado de `docs/UX.md` con cada celda construida | 0.1 | F+Q | 🟡 construida y con prueba por celda en la interfaz (247 pruebas); en la ventana real: flujo principal, matriz de completitud y 7 estados de error. Sin ver en la ventana real: guardado fallido, cambio externo y solo lectura |
+| Matriz pantalla × estado de `docs/UX.md` con cada celda construida | 0.1 | F+Q | 🟡 construida y con prueba por celda en la interfaz (353 pruebas); en la ventana real: flujo principal, matriz de completitud y 7 estados de error. Sin ver en la ventana real: guardado fallido, cambio externo y solo lectura |
 | Texto escalable al 150 % y movimiento reducido respetado | 1.0 | Q | pendiente |
 | Evaluación heurística de Nielsen sin críticos abiertos | 1.0 | Q | pendiente |
 

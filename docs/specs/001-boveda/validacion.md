@@ -10,12 +10,31 @@ contraseñas reales: no lleva firma de Windows ni revisión externa.
 ## De dónde sale cada prueba
 | Fuente | Qué cubre | Resultado |
 |---|---|---|
-| Pruebas del implementador (`rf_NN_*` en Rust, `it("RF-NN: …")` en la interfaz) | Los 95 requisitos, salvo los tres recortables no hechos | 420 pruebas Rust y 247 de interfaz en verde (incluye las independientes de la fila siguiente) |
+| Pruebas del implementador (`rf_NN_*` en Rust, `it("RF-NN: …")` en la interfaz) | Los 95 requisitos, salvo los tres recortables no hechos | 442 pruebas Rust y 353 de interfaz en verde (tras el pase de interacción) (incluye las independientes de la fila siguiente) |
 | Pruebas independientes desde la spec, sin ver la implementación (`spec_rf_NN_*`) — `validacion-nucleo.md` | Núcleo: bloqueo, guardado, secretos, entradas, grupos, búsqueda, abrir y crear, generador, ajustes | 83 pruebas; 1 defecto (RF-94), corregido |
 | Prueba en la ventana real con la app instalada — `validacion-app.md` | Flujo principal, matriz de completitud, portapapeles real, bloqueo automático, errores visibles, rastro en disco, superficie de navegador | Hito cumplido. Cinco corridas: la primera halló 2 defectos de integración bloqueantes y 6 menores; la de release, el menú contextual y las teclas de navegador de WebView2 (D-9 a D-12); la última comprobó la capa nativa aislada y el valor mostrado no seleccionable. Todos corregidos y reverificados en la app de release |
 | Revisión de código — `docs/revisiones/0.1-codigo.md` | Fidelidad a la spec, constitución regla por regla, preparación para producción | Apta con condiciones; 1 Alto (C-1), corregido |
 | Revisión de seguridad — `docs/revisiones/0.1-seguridad.md` | Requisitos [B] del modelo de amenazas, frontera ventana–núcleo, memoria, archivo, configuración, dependencias | Apta con condiciones; sin Críticos ni Altos; S-1 y S-3 corregidos, S-2 al backlog. Reverificación del delta de la superficie de navegador: D-9 era Alto (corregido); R-1 (¿la capa nativa surte efecto en frío?) no se confirmó en la ventana real: surte efecto; R-4 (valor mostrado seleccionable) corregido y verificado; Bajos e Info al backlog |
 | Revisión de diseño — `docs/revisiones/0.1-diseno.md` | Resultado contra el contrato de dirección | Ver ese archivo |
+
+## Pase de interacción (2026-11-12): RF-96 a RF-104
+Encargo y resultado en `docs/revisiones/0.1-ux-dueno.md`; revisión de seguridad del delta al final de
+`docs/revisiones/0.1-seguridad.md`.
+
+| Requisito | Prueba | En la app instalada |
+|---|---|---|
+| RF-96 nombre de la bóveda al crearla | `RF-96` ×3 (`CreateScreen.test.tsx`) | "Familia" en la app y en KeePassLib 2.62. Sin ejercitar: archivo con nombre distinto al de la bóveda; KeePassXC |
+| RF-97 ubicación propuesta | `rf_97_*` (núcleo y comandos), `RF-97` ×5 | Creó `Documentos\AlmarioKS\Familia.kdbx` y la carpeta en el PC real |
+| RF-98 no reemplaza si ya existe | `rf_98_*`, `RF-98` ×2 | Se niega; los dos archivos quedan idénticos (sha256) |
+| RF-99 archivo llave junto a la bóveda, con contraseña obligatoria | `rf_99_*`, `RF-99` ×3 | Crea `Familia.keyx`; sin contraseña maestra se niega y no escribe nada |
+| RF-100 entrada en un diálogo modal | `RF-100` (`EntryDialog.test.tsx`, `EntryPanel.test.tsx`) | Foco en Título; Esc repetido (10 ráfagas) no pierde el borrador |
+| RF-101 "Generar" llena el campo | `RF-101` | Un clic en Generar y uno en Guardar, 14 de 14 |
+| RF-102 "Todas las entradas" | `RF-102` ×5 | Lista y total coinciden (13) |
+| RF-103 tema oscuro siempre | `rf_103_*` (`webview_config.rs`) | Las tres pantallas |
+| RF-104 ventana mínima 1000 × 640 | `rf_104_*` (`webview_config.rs`) | No se intentó achicar la ventana a mano |
+
+Sin revisión de código independiente de este delta. La ventana a 1280 × 800 solo se vio para "Crear bóveda" y el
+diálogo (la pantalla del PC de pruebas no da para capturar la bóveda entera a ese tamaño).
 
 ## Requisitos sin prueba automática
 - **Recortables no hechos:** RF-37 (bloqueo inmediato al bloquear la sesión de Windows), RF-85 (ver el historial),

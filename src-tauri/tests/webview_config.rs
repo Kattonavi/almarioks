@@ -52,3 +52,68 @@ fn rf_77_no_window_is_created_outside_the_configuration() {
         "a window built in code must set incognito(true) and general_autofill_enabled(false); update this test with it"
     );
 }
+
+#[test]
+fn rf_104_no_window_can_shrink_below_the_three_column_layout() {
+    // The approved layout is a bar and three columns with no narrower composition: below 1000 x 640 it would
+    // just be cut (owner's interaction pass, `docs/revisiones/0.1-ux-dueno.md`).
+    let config = config();
+    let windows = config["app"]["windows"].as_array().expect("windows array");
+    for window in windows {
+        let label = window["label"].as_str().unwrap_or("<no label>");
+        let min_width = window["minWidth"].as_u64().unwrap_or(0);
+        let min_height = window["minHeight"].as_u64().unwrap_or(0);
+        assert!(
+            min_width >= 1000,
+            "window `{label}` must not go under 1000 wide (it is {min_width})"
+        );
+        assert!(
+            min_height >= 640,
+            "window `{label}` must not go under 640 tall (it is {min_height})"
+        );
+        let width = window["width"].as_u64().unwrap_or(0);
+        let height = window["height"].as_u64().unwrap_or(0);
+        assert!(
+            width >= min_width && height >= min_height,
+            "window `{label}` opens at {width} x {height}, under its own minimum"
+        );
+    }
+}
+
+#[test]
+fn rf_103_the_dark_theme_is_always_loaded() {
+    // The app is always dark: the dark roles are imported with no media condition, after the base tokens.
+    let styles = std::fs::read_to_string(
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("..")
+            .join("src")
+            .join("styles.css"),
+    )
+    .expect("read src/styles.css");
+    let imports: Vec<&str> = styles
+        .lines()
+        .map(str::trim)
+        .filter(|line| line.starts_with("@import"))
+        .collect();
+    let tokens = imports.iter().position(|line| line.contains("tokens.css"));
+    let dark = imports
+        .iter()
+        .position(|line| line.contains("theme-dark.css"));
+    assert!(
+        tokens.is_some() && dark.is_some(),
+        "styles.css must import the tokens and the dark theme"
+    );
+    assert!(
+        tokens < dark,
+        "the dark theme redefines the roles, so it comes after the tokens"
+    );
+    for line in imports
+        .iter()
+        .filter(|line| line.contains("theme-dark.css"))
+    {
+        assert_eq!(
+            *line, r#"@import "./styles/theme-dark.css";"#,
+            "the dark theme must be imported without a condition"
+        );
+    }
+}
