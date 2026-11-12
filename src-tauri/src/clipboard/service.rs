@@ -86,6 +86,17 @@ impl ClipboardService {
         }
     }
 
+    /// The service over the real Windows clipboard and the system clock.
+    ///
+    /// # Errors
+    /// [`ClipboardError::Unavailable`] if the hidden owner window cannot be created.
+    #[cfg(windows)]
+    pub fn system() -> Result<Self, ClipboardError> {
+        let clipboard =
+            super::ffi::WindowsClipboard::new().map_err(|_| ClipboardError::Unavailable)?;
+        Ok(Self::new(clipboard, super::SystemClock))
+    }
+
     /// Puts `secret` in the clipboard, out of the history and the cloud (RF-71, RF-72), and starts the count
     /// of `clear_after_seconds` (RF-73). A new copy replaces the previous count. The value is dropped, and
     /// with it wiped, before returning.
