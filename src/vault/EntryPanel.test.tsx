@@ -213,6 +213,19 @@ describe("P5 Entrada — ver, mostrar y copiar", () => {
     expect(within(detailZone()).getByRole("button", { name: "Mostrar contraseña" })).toBeDefined();
   });
 
+  it("RF-74: copiar y cerrar la ventana antes de que conteste el núcleo deja igual el aviso con su cuenta en la lista", async () => {
+    const { backend } = await setup();
+    await openEntry("Trabajo", "GitHub");
+
+    const release = backend.hold("entry_copy");
+    fireEvent.click(within(detailZone()).getByRole("button", { name: "Copiar contraseña" }));
+    closeWindow();
+    release();
+
+    // The value is in the clipboard, so the list says it and counts down, though the window is gone.
+    expect(await screen.findByText(/Contraseña copiada\. Se borra del portapapeles en \d+ s/)).toBeDefined();
+  });
+
   it("RF-44: mostrar pide solo ese campo, lo oculta con el botón y al cambiar de entrada", async () => {
     const { backend } = await setup();
     await openEntry("Trabajo", "GitHub");

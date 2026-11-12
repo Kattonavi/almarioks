@@ -334,6 +334,9 @@ export function VaultScreen({
   }
 
   function clearSearch() {
+    // The focus stays in the search: a pending "focus the copy button of the new entry" must not take it away
+    // when the list comes back (code review, I-3).
+    focusCopy.current = null;
     onQueryChange("");
     searchRef.current?.focus();
   }

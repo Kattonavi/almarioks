@@ -91,3 +91,10 @@ Lo que no cabe en la fase va aquí, un renglón por ítem: `- [origen] qué · s
 - [recorrido ronda 2] En "Nueva entrada", al teclear la contraseña aparece el medidor y baja el campo Sitio unos 25 px: un clic inmediato cae fuera y lo tecleado se pierde sin aviso (con 0,6 s de espera no pasa). Reservar el alto del medidor cambia la distribución del prototipo: decidir · Bajo
 - [recorrido ronda 2] El aviso "Contraseña copiada…" de una copia anterior se ve dentro de la ventana de otra entrada abierta después · Bajo
 - [recorrido ronda 2] El rótulo MODIFICADA sobresale 3 px de su columna de 80 px (no se corta ni toca nada); en resultados de búsqueda la columna Grupo existe solo para el lector de pantalla · Bajo
+- [código ronda 2, I-8] La exigencia de contraseña con "Crear uno nuevo" (RF-99) vive solo en la ventana: `vault_create` acepta una llave generada sin contraseña. Llevarla al comando obliga a ajustar dos pruebas existentes que crean una bóveda de solo llave nueva · Bajo
+- [código ronda 2, I-2] Un refresco fallido del árbol de grupos desmonta el formulario de entrada con su borrador (hoy solo falla al bloquear): conservar el último árbol bueno · Bajo
+- [código ronda 2, I-4] Un "Mostrar" se descarta en silencio si otro campo se oculta mientras el núcleo contesta (el contador es global): contador por campo · Bajo
+- [código ronda 2, I-5] "Todas las entradas" pide `entry_list` por cada grupo en cada refresco: un comando del núcleo que liste todo, o conservar la lista anterior mientras carga · Bajo
+- [código ronda 2, I-6] `unlockKeySuggestion` y su esquema solo los usan las pruebas (la pantalla usa `unlockKeyProposal`): quitarlos · Bajo
+- [código ronda 2, I-7] Enviar el desbloqueo antes de que llegue la propuesta de llave lo manda sin llave (ventana de milisegundos) · Bajo
+- [diseño ronda 2] Los círculos de las tres opciones de archivo llave usan un color de línea (`--line-2`) como color de selección, contra la regla de que las líneas solo nombran grupos (así está en el prototipo); `--list-w` y `--detail-min-w` quedaron sin uso en `tokens.css`; las fechas van en Overpass y no en mono · Bajo

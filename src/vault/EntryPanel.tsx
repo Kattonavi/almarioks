@@ -391,14 +391,13 @@ export function EntryPanel({
     setActionError(null);
     say("");
     const result = await client.entryCopy(entryId, field);
+    // Told here, not from an effect, and before looking at whether the window is still open: the value is in the
+    // clipboard all the same, so the notice and its countdown must reach the list even if the person closed the
+    // window while the core was answering (code review, I-1). The core says whether the clipboard clears by itself
+    // (a protected field) and in how long.
+    if (result.ok) onCopied?.(copyNoticeOf(field, result.value.clearsInSeconds));
     if (!mounted.current) return;
-    if (!result.ok) {
-      setActionError(result.error);
-      return;
-    }
-    // Told here, not from an effect: this panel goes away with its entry, and the notice must stay. The core says
-    // whether the clipboard clears by itself (a protected field) and in how long.
-    onCopied?.(copyNoticeOf(field, result.value.clearsInSeconds));
+    if (!result.ok) setActionError(result.error);
   }
 
   async function openUrl() {

@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-11-12T17:54:28Z",
+  "generatedAt": "2026-11-12T21:23:56Z",
   "title": "Design System: AlmarioKS",
   "extensions": {
     "colorMeta": {
@@ -742,12 +742,16 @@
     },
     "typographyMeta": {
       "entry-title": {
-        "displayName": "Título de entrada",
-        "purpose": "Título de la entrada en el detalle, 28 px; también títulos de pantallas de acceso y crear."
+        "displayName": "Título de la entrada",
+        "purpose": "Título de la ventana de la entrada, 24 px (valor propio en vault.css)."
+      },
+      "screen-title": {
+        "displayName": "Título de pantalla",
+        "purpose": "Títulos de las pantallas de acceso y de crear bóveda, 28 px."
       },
       "list-title": {
         "displayName": "Título de lista",
-        "purpose": "Encabezado del grupo en la lista, título de diálogos de formulario, 20 px."
+        "purpose": "Encabezado del grupo sobre la tabla, título de diálogos de formulario, 20 px."
       },
       "heading": {
         "displayName": "Encabezado",
@@ -771,11 +775,11 @@
       },
       "caption": {
         "displayName": "Pie",
-        "purpose": "Pie de estado, atajo Ctrl K, etiquetas."
+        "purpose": "Pie de estado, atajo Ctrl K, rótulos de columna de la tabla."
       },
       "data": {
         "displayName": "Dato",
-        "purpose": "Monoespaciada para fechas, conteos, secretos, rutas."
+        "purpose": "Monoespaciada para conteos, secretos, máscara de la tabla, casilla de longitud, rutas. Las fechas van en Overpass."
       }
     },
     "shadows": [
@@ -809,11 +813,7 @@
       },
       {
         "name": "window-minimum",
-        "value": "1000 x 640 (una sola composición: riel 232 | lista 340 | detalle min 420)"
-      },
-      {
-        "name": "container-detail-mask",
-        "value": "max-width 25rem (barra de oculto de 5 periodos)"
+        "value": "1000 x 640 (una sola composición: riel 232 | lista ancha; tabla de 756 mínimos en 768)"
       },
       {
         "name": "create-short",
@@ -875,20 +875,20 @@
       "css": ".ds-rail{width:216px;padding:8px;background:#0c0d10;color:#fff;font-family:'Overpass Variable','Segoe UI',system-ui,sans-serif;}.ds-ri{display:flex;align-items:center;gap:10px;min-height:44px;padding:0 12px;border-radius:4px;font-size:.9375rem}.ds-ri b{margin-left:auto;font:600 .8125rem 'Overpass Mono Variable',Consolas,monospace}.ds-dot{width:12px;height:12px;border-radius:50%;background:#f26a1b}.ds-d1{background:#6aa5ff}.ds-open{color:#16181d;background:#f2f2ee}"
     },
     {
-      "name": "Entry Row (selected)",
+      "name": "Entry Table Row (selected)",
       "kind": "card",
       "refersTo": "entry-row-selected",
-      "description": "Fila de lista seleccionada como placa clara; distintivo con la inicial del título.",
-      "html": "<div class=\"ds-row\"><span class=\"ds-b\">G</span><div><strong>GitHub</strong><div class=\"ds-sub\">ana@example.com · github.com</div></div><span class=\"ds-date\">12 nov</span></div>",
-      "css": ".ds-row{font-family:'Overpass Variable','Segoe UI',system-ui,sans-serif;position:relative;display:grid;grid-template-columns:1fr auto;align-items:center;gap:0 12px;padding:8px 16px 8px 60px;min-height:60px;color:#16181d;background:#f2f2ee}.ds-b{position:absolute;left:16px;top:50%;transform:translateY(-50%);display:grid;place-items:center;width:32px;height:32px;border-radius:50%;background:#f26a1b;color:#16181d;font:800 .875rem/1 sans-serif}.ds-sub{font-size:.8125rem;color:#4a4f59}.ds-date{font-size:.8125rem;color:#4a4f59}"
+      "description": "Fila de la tabla elegida como placa clara, con las dos acciones de 44 px al extremo; el resto de filas guarda ese sitio vacío.",
+      "html": "<div class=\"ds-tbl\"><div class=\"ds-th\"><span class=\"ds-c1\">TÍTULO</span><span class=\"ds-c2\">USUARIO</span><span class=\"ds-c3\">CONTRASEÑA</span><span class=\"ds-c4\">MODIFICADA</span><span class=\"ds-c5\"></span></div><div class=\"ds-tr ds-sel\"><span class=\"ds-c1\"><span class=\"ds-b\">G</span>GitHub</span><span class=\"ds-c2\">ana@example.com</span><span class=\"ds-c3 ds-mk\">••••••••</span><span class=\"ds-c4\">12 nov</span><span class=\"ds-c5\"><button class=\"ds-cp\" aria-label=\"Copiar contraseña\"></button></span></div></div>",
+      "css": ".ds-tbl{width:620px;font-family:'Overpass Variable','Segoe UI',system-ui,sans-serif;background:#20232a;color:#f2f2ee}.ds-th,.ds-tr{display:flex;align-items:center;gap:8px;padding:0 16px;border-bottom:1px solid #343842}.ds-th{height:36px;font-size:.75rem;letter-spacing:.04em;color:#a7adba}.ds-tr{height:52px;font-size:.9375rem}.ds-tr>span,.ds-th>span{padding:0 8px}.ds-c1{flex:1.6 1 160px;display:flex;align-items:center;gap:12px}.ds-c2{flex:1.2 1 120px}.ds-c3{flex:0 0 112px}.ds-c4{flex:0 0 80px;font-size:.8125rem}.ds-c5{flex:0 0 92px}.ds-mk{font-family:'Overpass Mono Variable',Consolas,monospace;font-size:.875rem;letter-spacing:.08em;color:#a7adba}.ds-sel{color:#16181d;background:#f2f2ee}.ds-sel .ds-mk,.ds-sel .ds-c4{color:#4a4f59}.ds-b{display:grid;place-items:center;width:32px;height:32px;border-radius:50%;background:#f26a1b;color:#16181d;font:800 .875rem/1 sans-serif}.ds-cp{width:44px;height:44px;border:0;border-radius:4px;background:#16181d}.ds-cp:hover{background:#2a2d35}.ds-cp:focus-visible{outline:3px solid #16181d;outline-offset:2px}"
     },
     {
-      "name": "Detail Card Row",
+      "name": "Entry Window Card Row",
       "kind": "custom",
       "refersTo": "card-row",
-      "description": "Etiqueta | valor | botones de icono de 44; el secreto oculto es una barra de ancho fijo.",
+      "description": "Fila de la tarjeta de la ventana de la entrada: etiqueta | valor | botones de icono de 44; el secreto oculto es una barra de ancho fijo.",
       "html": "<div class=\"ds-field\"><span class=\"ds-dt\">Contraseña</span><span class=\"ds-mask\"></span><button class=\"ds-ic\" aria-label=\"Copiar contraseña\"></button></div>",
-      "css": ".ds-field{font-family:'Overpass Variable','Segoe UI',system-ui,sans-serif;display:grid;grid-template-columns:104px 1fr auto;column-gap:12px;align-items:center;min-height:56px;padding:4px 8px 4px 16px;background:#20232a;border:1px solid #343842;border-radius:6px;color:#f2f2ee}.ds-dt{font-size:.8125rem;color:#a7adba}.ds-mask{display:inline-block;width:156px;height:14px;border-radius:2px;background:repeating-linear-gradient(90deg,#f2f2ee 0 9px,transparent 9px 13px)}.ds-ic{width:44px;height:44px;border-radius:4px;border:1px solid transparent;background:#f2f2ee}"
+      "css": ".ds-field{font-family:'Overpass Variable','Segoe UI',system-ui,sans-serif;display:grid;grid-template-columns:104px 1fr auto;column-gap:12px;align-items:center;min-height:56px;padding:4px 8px 4px 16px;background:#191b21;border:1px solid #343842;border-radius:6px;color:#f2f2ee}.ds-dt{font-size:.8125rem;color:#a7adba}.ds-mask{display:inline-block;width:156px;height:14px;border-radius:2px;background:repeating-linear-gradient(90deg,#f2f2ee 0 9px,transparent 9px 13px)}.ds-ic{width:44px;height:44px;border-radius:4px;border:1px solid transparent;background:#f2f2ee}"
     },
     {
       "name": "Copy Toast",
@@ -921,16 +921,24 @@
       "description": "Diálogo modal de 560 px: cabecera, campos sobre el fondo de trabajo y pie con acciones.",
       "html": "<div class=\"ds-dlg\"><div class=\"ds-dh\">Nueva entrada</div><div class=\"ds-db\"><label>Título</label><input class=\"ds-di\" value=\"GitHub\"></div><div class=\"ds-df\"><button class=\"ds-bs\">Cancelar</button><button class=\"ds-bp\">Guardar entrada</button></div></div>",
       "css": ".ds-dlg{font-family:'Overpass Variable','Segoe UI',system-ui,sans-serif;width:480px;background:#20232a;color:#f2f2ee;border-radius:8px;box-shadow:0 12px 32px rgb(0 0 0 / 50%)}.ds-dh{padding:16px 12px 12px 24px;border-bottom:1px solid #343842;font-size:1.25rem;font-weight:800}.ds-db{display:flex;flex-direction:column;gap:6px;padding:20px 24px}.ds-db label{font-size:.875rem;font-weight:600}.ds-di{min-height:44px;padding:0 12px;color:#f2f2ee;background:#191b21;border:1px solid #6b7280;border-radius:4px;font:inherit}.ds-df{display:flex;gap:8px;justify-content:flex-end;padding:12px 24px 20px}.ds-df button{min-height:44px;padding:0 16px;font:600 .9375rem sans-serif;border-radius:4px;cursor:pointer}.ds-bs{color:#f2f2ee;background:#20232a;border:1px solid #6b7280}.ds-bp{color:#16181d;background:#f2f2ee;border:1px solid #f2f2ee}"
+    },
+    {
+      "name": "Entry Window",
+      "kind": "custom",
+      "refersTo": "entry-window",
+      "description": "Ventana modal de 600 px para abrir una entrada: cabecera con distintivo de 48, título de 24 px, acciones y tarjeta de filas sobre el fondo.",
+      "html": "<div class=\"ds-win\"><div class=\"ds-wh\"><span class=\"ds-wb\">G</span><div><div class=\"ds-wt\">GitHub</div><div class=\"ds-wg\">Trabajo</div></div><button class=\"ds-we\">Editar</button></div><div class=\"ds-wc\"><div class=\"ds-wr\"><span>Usuario</span><span>ana@example.com</span></div></div></div>",
+      "css": ".ds-win{width:560px;padding-bottom:20px;font-family:'Overpass Variable','Segoe UI',system-ui,sans-serif;background:#20232a;color:#f2f2ee;border-radius:8px;box-shadow:0 12px 32px rgb(0 0 0 / 50%)}.ds-wh{display:flex;align-items:center;gap:14px;padding:20px 12px 16px 24px}.ds-wb{display:grid;place-items:center;width:48px;height:48px;border-radius:50%;background:#f26a1b;color:#16181d;font:800 1.25rem/1 sans-serif}.ds-wh>div{flex:1}.ds-wt{font-size:1.5rem;font-weight:800;line-height:1.15}.ds-wg{font-size:.8125rem;color:#a7adba}.ds-we{min-height:44px;padding:0 14px;font:600 .9375rem sans-serif;color:#f2f2ee;background:#20232a;border:1px solid #6b7280;border-radius:4px}.ds-we:focus-visible{outline:3px solid #f2f2ee;outline-offset:2px}.ds-wc{margin:0 24px;background:#191b21;border:1px solid #343842;border-radius:6px}.ds-wr{display:grid;grid-template-columns:104px 1fr;column-gap:12px;align-items:center;min-height:56px;padding:6px 8px 5px 16px}.ds-wr span:first-child{font-size:.8125rem;color:#a7adba}"
     }
   ],
   "narrative": {
     "northStar": "La señalética del andén",
-    "overview": "**Creative North Star: \"La señalética del andén\"**\n\nAlmarioKS se dibuja como la señalización de una estación de transporte: un armazón de señal casi negro (barra superior y riel de grupos) que orienta, y un fondo de trabajo oscuro donde se lee. Cada grupo de la bóveda es una línea con su color; una cuenta se encuentra como se encuentra un andén. La app es siempre oscura (`styles.css` importa `theme-dark.css` sin condición); los valores claros siguen en `tokens.css` sin uso en pantalla. Lo único claro es lo seleccionado y la acción principal: una placa de señal. El mundo rechaza el arreglo por defecto de la categoría (barra lateral gris, un acento azul, escudos y llaves).\n\nLa composición es de herramienta de uso diario y única (la ventana no baja de 1000 × 640): una barra de 56 px arriba y, debajo, tres columnas a toda la altura: riel que solo navega | lista de entradas | detalle en tarjeta. Crear y editar una entrada es un diálogo modal con el generador dentro del campo de contraseña; el detalle nunca aloja formularios. Tipografía de señalización (Overpass) con su monoespaciada solo para datos, controles de 44 px, bordes de 1 px y una sola regla gruesa (2 px, tinta) bajo los títulos de los formularios de acceso y de los diálogos nativos. La profundidad es tonal; la sombra solo la llevan las superficies flotantes (diálogos y menús).\n\nEl sistema se verificó con las capturas de la app instalada a 1120 × 720 (bóveda, crear bóveda, nueva entrada); los huecos conocidos están al final. El contrato de dirección de `.impeccable/surfaces/` quedó desactualizado en composición (describe la distribución anterior); esta página manda.",
+    "overview": "**Creative North Star: \"La señalética del andén\"**\n\nAlmarioKS se dibuja como la señalización de una estación de transporte: un armazón de señal casi negro (barra superior y riel de grupos) que orienta, y un fondo de trabajo oscuro donde se lee. Cada grupo de la bóveda es una línea con su color; una cuenta se encuentra como se encuentra un andén. La app es siempre oscura (`styles.css` importa `theme-dark.css` sin condición); los valores claros siguen en `tokens.css` sin uso en pantalla. Lo único claro es lo seleccionado y la acción principal: una placa de señal. El mundo rechaza el arreglo por defecto de la categoría (barra lateral gris, un acento azul, escudos y llaves).\n\nLa composición es de herramienta de uso diario y única (la ventana no baja de 1000 × 640): una barra de 56 px arriba y, debajo, dos columnas a toda la altura: riel que solo navega | lista ancha en tabla. No hay panel de detalle: la entrada se abre en una ventana modal de 600 px (doble clic en el título o su botón de la fila elegida). Crear y editar una entrada es otro diálogo modal con el generador dentro del campo de contraseña. Tipografía de señalización (Overpass) con su monoespaciada solo para datos, controles de 44 px, bordes de 1 px y una sola regla gruesa (2 px, tinta) bajo los títulos de los formularios de acceso y de los diálogos nativos. La profundidad es tonal; la sombra solo la llevan las superficies flotantes (diálogos y menús).\n\nEl sistema se verificó con las capturas de la app instalada a 1120 × 720 (bóveda, entrada abierta, crear bóveda, nueva entrada con las opciones del generador); los huecos conocidos están al final. El contrato de dirección de `.impeccable/surfaces/` quedó desactualizado en composición (describe la distribución anterior, con tres columnas); esta página manda.",
     "keyCharacteristics": [
-      "Armazón de señal negro; placa clara de señal solo para lo seleccionado y la acción principal (fila de entrada, grupo del riel, \"Copiar\", \"Guardar entrada\", aviso de copiado).",
+      "Armazón de señal negro; placa clara de señal solo para lo seleccionado y la acción principal (fila de entrada elegida, grupo del riel, \"Copiar contraseña\", \"Guardar entrada\", aviso de copiado, opción elegida de archivo llave).",
       "Cuatro colores de línea que nombran grupos; rojo solo para peligro; verde solo para confirmar.",
-      "Distintivo redondo con la inicial (del título de la entrada en la lista y el detalle) sobre el color de su grupo; el riel marca cada grupo con un punto de ese color.",
-      "Datos (fechas, conteos, secretos, atajos, nombres de archivo) en monoespaciada; todo lo demás en Overpass.",
+      "Distintivo redondo con la inicial (del título de la entrada en la fila y en la ventana de la entrada) sobre el color de su grupo; el riel marca cada grupo con un punto de ese color.",
+      "Datos (conteos, secretos, atajos, nombres de archivo) en monoespaciada; todo lo demás en Overpass.",
       "Estado leído por palabras, forma o trama, nunca por color solo."
     ],
     "rules": [
@@ -983,7 +991,7 @@
       "**Do** usar Overpass Mono solo para datos; iconos propios de un solo trazo (1.8) en `currentColor`.",
       "**Do** mantener el CSS sin estilos en línea (CSP `style-src 'self'`): todo valor dinámico viaja por clases o atributos `data-*`.",
       "**Do** dar a todo destino táctil 44 px (36 px solo para el botón dentro de un campo, cuyo destino llega a 44 con su marco).",
-      "**Do** llevar crear y editar una entrada a un diálogo modal, nunca al panel de detalle."
+      "**Do** llevar abrir, crear y editar una entrada a un diálogo modal sobre la lista; la bóveda no tiene panel de detalle."
     ],
     "donts": [
       "**Don't** usar un color de línea como acento, estado o decoración.",

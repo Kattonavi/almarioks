@@ -54,6 +54,11 @@ colors:
 typography:
   entry-title:
     fontFamily: "Overpass Variable, Segoe UI, system-ui, sans-serif"
+    fontSize: "1.5rem"
+    fontWeight: 800
+    lineHeight: 1.15
+  screen-title:
+    fontFamily: "Overpass Variable, Segoe UI, system-ui, sans-serif"
     fontSize: "1.75rem"
     fontWeight: 800
     lineHeight: 1.15
@@ -114,9 +119,17 @@ spacing:
   "10": "40px"
   bar-height: "56px"
   rail-width: "232px"
-  list-width: "340px"
-  detail-min-width: "420px"
   dialog-width: "560px"
+  entry-window-width: "600px"
+  table-head-height: "36px"
+  table-row-height: "52px"
+  table-min-width: "756px"
+  entry-badge-list: "32px"
+  entry-badge-window: "48px"
+  password-column: "112px"
+  date-column: "80px"
+  actions-column: "92px"
+  generator-exact-width: "80px"
   brand-panel-width: "240px"
   create-column-width: "520px"
   badge: "26px"
@@ -149,14 +162,24 @@ components:
     rounded: "{rounded.round}"
     size: "{spacing.badge}"
     typography: "{typography.label}"
+  table-head:
+    backgroundColor: "{colors.dark-surface}"
+    textColor: "{colors.dark-ink-muted}"
+    height: "{spacing.table-head-height}"
+    padding: "0 16px"
   entry-row:
     backgroundColor: "{colors.dark-surface}"
     textColor: "{colors.dark-ink}"
-    height: "60px"
-    padding: "8px 16px 8px 60px"
+    height: "{spacing.table-row-height}"
+    padding: "0 16px"
   entry-row-selected:
     backgroundColor: "{colors.dark-panel}"
     textColor: "{colors.dark-on-panel}"
+  row-copy:
+    backgroundColor: "{colors.dark-on-panel}"
+    textColor: "{colors.dark-panel}"
+    rounded: "{rounded.md}"
+    size: "{spacing.control-comfortable}"
   entry-card:
     backgroundColor: "{colors.dark-surface}"
     textColor: "{colors.dark-ink}"
@@ -215,6 +238,11 @@ components:
     textColor: "{colors.dark-ink}"
     rounded: "{rounded.dialog}"
     width: "{spacing.dialog-width}"
+  entry-window:
+    backgroundColor: "{colors.dark-surface}"
+    textColor: "{colors.dark-ink}"
+    rounded: "{rounded.dialog}"
+    width: "{spacing.entry-window-width}"
 ---
 
 # Design System: AlmarioKS
@@ -225,15 +253,15 @@ components:
 
 AlmarioKS se dibuja como la señalización de una estación de transporte: un armazón de señal casi negro (barra superior y riel de grupos) que orienta, y un fondo de trabajo oscuro donde se lee. Cada grupo de la bóveda es una línea con su color; una cuenta se encuentra como se encuentra un andén. La app es siempre oscura (`styles.css` importa `theme-dark.css` sin condición); los valores claros siguen en `tokens.css` sin uso en pantalla. Lo único claro es lo seleccionado y la acción principal: una placa de señal. El mundo rechaza el arreglo por defecto de la categoría (barra lateral gris, un acento azul, escudos y llaves).
 
-La composición es de herramienta de uso diario y única (la ventana no baja de 1000 × 640): una barra de 56 px arriba y, debajo, tres columnas a toda la altura: riel que solo navega | lista de entradas | detalle en tarjeta. Crear y editar una entrada es un diálogo modal con el generador dentro del campo de contraseña; el detalle nunca aloja formularios. Tipografía de señalización (Overpass) con su monoespaciada solo para datos, controles de 44 px, bordes de 1 px y una sola regla gruesa (2 px, tinta) bajo los títulos de los formularios de acceso y de los diálogos nativos. La profundidad es tonal; la sombra solo la llevan las superficies flotantes (diálogos y menús).
+La composición es de herramienta de uso diario y única (la ventana no baja de 1000 × 640): una barra de 56 px arriba y, debajo, dos columnas a toda la altura: riel que solo navega | lista ancha en tabla. No hay panel de detalle: la entrada se abre en una ventana modal de 600 px (doble clic en el título o su botón de la fila elegida). Crear y editar una entrada es otro diálogo modal con el generador dentro del campo de contraseña. Tipografía de señalización (Overpass) con su monoespaciada solo para datos, controles de 44 px, bordes de 1 px y una sola regla gruesa (2 px, tinta) bajo los títulos de los formularios de acceso y de los diálogos nativos. La profundidad es tonal; la sombra solo la llevan las superficies flotantes (diálogos y menús).
 
-El sistema se verificó con las capturas de la app instalada a 1120 × 720 (bóveda, crear bóveda, nueva entrada); los huecos conocidos están al final. El contrato de dirección de `.impeccable/surfaces/` quedó desactualizado en composición (describe la distribución anterior); esta página manda.
+El sistema se verificó con las capturas de la app instalada a 1120 × 720 (bóveda, entrada abierta, crear bóveda, nueva entrada con las opciones del generador); los huecos conocidos están al final. El contrato de dirección de `.impeccable/surfaces/` quedó desactualizado en composición (describe la distribución anterior, con tres columnas); esta página manda.
 
 **Key Characteristics:**
-- Armazón de señal negro; placa clara de señal solo para lo seleccionado y la acción principal (fila de entrada, grupo del riel, "Copiar", "Guardar entrada", aviso de copiado).
+- Armazón de señal negro; placa clara de señal solo para lo seleccionado y la acción principal (fila de entrada elegida, grupo del riel, "Copiar contraseña", "Guardar entrada", aviso de copiado, opción elegida de archivo llave).
 - Cuatro colores de línea que nombran grupos; rojo solo para peligro; verde solo para confirmar.
-- Distintivo redondo con la inicial (del título de la entrada en la lista y el detalle) sobre el color de su grupo; el riel marca cada grupo con un punto de ese color.
-- Datos (fechas, conteos, secretos, atajos, nombres de archivo) en monoespaciada; todo lo demás en Overpass.
+- Distintivo redondo con la inicial (del título de la entrada en la fila y en la ventana de la entrada) sobre el color de su grupo; el riel marca cada grupo con un punto de ese color.
+- Datos (conteos, secretos, atajos, nombres de archivo) en monoespaciada; todo lo demás en Overpass.
 - Estado leído por palabras, forma o trama, nunca por color solo.
 
 ## Colors
@@ -241,7 +269,7 @@ El sistema se verificó con las capturas de la app instalada a 1120 × 720 (bóv
 Paleta de dos mundos: un armazón de señal casi negro y un fondo de trabajo gris oscuro, con cuatro colores de línea saturados como única voz cromática. Los tokens se nombran por rol, no por matiz; los componentes leen roles, y `theme-dark.css` los redefine (los valores que se ven son los `dark-*` del esquema; los claros viven en `tokens.css` sin uso en pantalla).
 
 ### Primary
-- **Placa de señal** (`dark-panel` #f2f2ee, texto `dark-on-panel` #16181d; claro `panel` #16181d): fila de entrada seleccionada, acción principal ("Copiar contraseña", "Guardar entrada", "Crear bóveda"), aviso de copiado y opción elegida del archivo llave. Su texto secundario es `dark-on-panel-muted` (#4a4f59).
+- **Placa de señal** (`dark-panel` #f2f2ee, texto `dark-on-panel` #16181d; claro `panel` #16181d): fila de la tabla elegida, acción principal ("Copiar contraseña", "Guardar entrada", "Crear bóveda"), aviso de copiado y opción elegida del archivo llave. Su texto secundario es `dark-on-panel-muted` (#4a4f59).
 - **Placa del riel** (`dark-signal-panel` #f2f2ee, texto `on-signal-panel` #16181d): grupo abierto en el riel y "Todas las entradas"; la misma placa clara que en el trabajo.
 
 ### Secondary: familia de líneas
@@ -255,7 +283,7 @@ Paleta de dos mundos: un armazón de señal casi negro y un fondo de trabajo gri
 - **Confirmación sobre placa** (`dark-on-panel-ok` #157a52; claro `on-panel-ok` #4cc38a): la marca verde del aviso de copiado, sobre la placa clara. Rol nuevo (`--on-panel-ok`): el verde que se lee sobre la placa, que invierte con el tema.
 
 ### Neutral
-- **Fondo de trabajo** (`dark-work-ground` #191b21) y **Superficie** (`dark-surface` #20232a): fondo de pantalla y de detalle; lista, tarjeta, menús y diálogos. Los campos de formulario del diálogo de entrada y el de la contraseña van sobre el fondo, no la superficie.
+- **Fondo de trabajo** (`dark-work-ground` #191b21) y **Superficie** (`dark-surface` #20232a): fondo de pantalla; la lista (`--surface`), menús y diálogos. En la ventana de la entrada la tarjeta de filas va sobre el fondo (`--ground`), no la superficie, y en el diálogo de entrada también los campos, el de la contraseña y las opciones del generador.
 - **Tinta** (`dark-ink` #f2f2ee) y **Tinta secundaria** (`dark-ink-muted` #a7adba).
 - **Regla** (`dark-rule` #343842) y **Borde de control** (`dark-control-border` #6b7280).
 - **Armazón**: `dark-signal` #0c0d10, `dark-signal-raised` #1c1f26, `dark-signal-rule` #2a2d36, `signal-border` #6b7280, `on-signal` #ffffff, `on-signal-muted` #c3cae0.
@@ -280,15 +308,16 @@ Paleta de dos mundos: un armazón de señal casi negro y un fondo de trabajo gri
 **Character:** tipografía de señalización: pesos extremos (800 para títulos, 400 para lectura, 600 para controles), cuerpo de 15 px, sin serifas ni display ornamental.
 
 ### Hierarchy
-- **Entry title** (800, 1.75rem/28 px, 1.15; `--text-2xl`): título de la entrada en el detalle y de las pantallas de acceso y de crear bóveda (acceso: interlineado 1.05 y -0.01em).
-- **List title** (800, 1.25rem/20 px, 1.2; `--text-xl`): encabezado del grupo en la lista, título de los diálogos de formulario y nombre de la marca en el tótem.
+- **Entry title** (800, 1.5rem/24 px, 1.15): título de la ventana de la entrada (`.entry-title`, valor propio en `vault.css`, no un token).
+- **Screen title** (800, 1.75rem/28 px, 1.15; `--text-2xl`): títulos de las pantallas de acceso y de crear bóveda (acceso: interlineado 1.05 y -0.01em).
+- **List title** (800, 1.25rem/20 px, 1.2; `--text-xl`): encabezado del grupo sobre la tabla, título de los diálogos de formulario, inicial del distintivo de 48 px y nombre de la marca en el tótem.
 - **Heading** (800, 1.5rem, 1.1): h1/h2 por defecto.
 - **Title** (800, 1.125rem/18 px, 1.1): h3/h4, nombre de la marca en la barra con la bóveda abierta; el nombre de la bóveda en el riel es de 1.0625rem (17 px).
 - **Body** (400, 0.9375rem/15 px, 1.45): lectura general, filas del riel y de la lista, valores de la tarjeta.
-- **Control** (600, 0.875rem/14 px, 1.2): botones por defecto; en barra, diálogo y detalle los botones suben a 15 px (`--text-md`).
-- **Label** (600, 0.8125rem/13 px): textos de apoyo, inicial del distintivo (800); las etiquetas de campo del diálogo van a 14 px/600.
-- **Caption** (0.75rem/12 px): pie de estado, atajo `Ctrl K`, etiquetas.
-- **Data** (Mono 400, 13 px; tabulares): fechas, conteos del riel (600), secretos, ruta de archivo, atajos.
+- **Control** (600, 0.875rem/14 px, 1.2): botones por defecto; en barra, diálogos y ventana de la entrada los botones suben a 15 px (`--text-md`).
+- **Label** (600, 0.8125rem/13 px): textos de apoyo, fechas de la tabla y de la ventana, ayuda del pie (`--text-sm`), inicial del distintivo (800); las etiquetas de campo del diálogo van a 14 px/600.
+- **Caption** (0.75rem/12 px): pie de estado, atajo `Ctrl K`, fila de rótulos de la tabla (mayúscula con 0.04em, ver Known gaps).
+- **Data** (Mono 400, 13 px; tabulares): conteos del riel (600), secretos, la máscara de la tabla (14 px, 0.08em), la casilla de longitud del generador, ruta de archivo, atajos. La fecha de la tabla ("12 nov") va en Overpass 13 px en gris, no en mono.
 
 ### Named Rules
 **The Mono-Only-For-Data Rule.** La monoespaciada es para datos que se leen carácter a carácter o se alinean dígito bajo dígito; nunca para títulos ni etiquetas.
@@ -299,16 +328,15 @@ Paleta de dos mundos: un armazón de señal casi negro y un fondo de trabajo gri
 
 Una sola rejilla de 4 px (pasos 4, 8, 12, 16, 20, 24, 32, 40). Ventana por defecto 1120 × 720 y mínimo 1000 × 640 (`tauri.conf.json`); no hay composición más estrecha. El `.app` es una rejilla de tres filas (barra de `--bar-h` 56 px, trabajo, franja de estado); con la bóveda abierta la franja de estado desaparece y la barra de bóveda se tiende sobre la barra de la app desde el borde del riel hasta el final.
 
-- **Tres columnas:** riel de `--rail-w` 232 px | lista de `--list-w` 340 px fija | detalle de `minmax(--detail-min-w 420 px, 1fr)`; 232 + 340 + 420 = 992 ≤ 1000.
+- **Dos columnas:** `.open-vault` es la rejilla `--rail-w` 232 px | `minmax(0, 1fr)`; la lista toma todo lo que deja el riel (768 px en la ventana mínima). Ya no hay columna de detalle.
 - **Barra:** marca de 26 px y nombre de 18 px (16 px de margen) sobre el riel; la búsqueda empieza donde acaba el riel (alto 44 px, hasta 520 px, atajo `Ctrl K` en `kbd`), y al extremo la cuenta regresiva en dato, "Bloquear" (con candado) y Ajustes como icono de 44 px.
 - **Riel:** solo navega. Cabecera con la etiqueta y el nombre de la bóveda, "Todas las entradas" con su conteo, grupos con su `+` y, al pie y fijas, la papelera y el estado de guardado; solo la lista de grupos se desplaza (con sombra de pista en el borde donde hay más). Los subgrupos se sangran 20 px por nivel (hasta tres). Lo que se puede pedir de un grupo está en su menú ("más acciones", 36 × 44).
-- **Lista:** encabezado con título de 20 px, conteo y "Nueva entrada"; filas de 60 px mínimo: distintivo de 32 px, título, usuario · dirección y fecha al cierre.
-- **Detalle:** columna con relleno de 24 × 32 px y bloques a 20 px: cabecera (distintivo de 48 px, título de 28 px con su grupo debajo, "Editar" y menú de 44 px), tarjeta, fechas. El aviso de copiado se pega al pie de la zona.
-- **Tarjeta:** filas de 56 px: etiqueta (104 px) | valor | botones de icono de 44 alineados en una columna al extremo.
-- **Diálogo de entrada:** 560 px (máx. ancho de ventana − 48 px), cabecera y pie quietos, cuerpo con scroll; los campos toman el ancho de la hoja menos dos márgenes de 24 px.
+- **Lista:** columna en tres partes: encabezado (nombre del grupo en 20 px, conteo y "Nueva entrada", relleno 14 × 24 px, regla inferior), tabla que se desplaza y pie fijo. La tabla es una tabla real de filas flexibles: fila de rótulos de 36 px (`--entry-head-h`, fija al desplazarse), filas de 52 px (`--entry-row-h`) con regla inferior; columnas Título (flex 1.6, mín. 160) / Usuario (1.2, mín. 120) / Contraseña (112, máscara fija) / Sitio (1.2, mín. 120) / Modificada (80) / Acciones (92), con 16 px a cada extremo y 8 px entre columnas: mínimo de 756 px (`.entries`), que cabe en los 768 de la ventana mínima; el envoltorio solo se desplaza de lado como red de seguridad. Nada en una fila toma dos líneas: el texto largo se corta con puntos suspensivos. Las etiquetas y la ruta del grupo existen en la fila solo para lectores, fuera del flujo.
+- **Pie de la lista:** lo que dejó la última orden, el aviso de copiado mientras no hay ventana abierta y una línea de ayuda del doble clic (regla superior, 13 px, relleno 10 × 24 px): título abre la entrada, usuario o contraseña copian, sitio lo abre en el navegador.
+- **Ventana de la entrada:** `dialog[data-layout="entry"]`, 600 px (máx. ancho de ventana − 48 px), radio 8. Cabecera (relleno 20 / 12 / 16 / 24 px): distintivo de 48 px, título de 24 px con su grupo y punto de 8 px debajo, "Editar", menú "más" y "Cerrar" de 44 px. Tarjeta a 24 px de cada lado sobre `--ground`, filas de 56 px: etiqueta (104 px) | valor | botones de icono de 44 al extremo; debajo, ambas fechas con hora (13 px, separador de punto dibujado) y, dentro de la ventana, el aviso de copiado pegado al pie. Relleno inferior de 20 px.
+- **Diálogo de entrada (nueva/editar):** 560 px (máx. ancho de ventana − 48 px), cabecera y pie quietos, cuerpo con scroll; los campos toman el ancho de la hoja menos dos márgenes de 24 px.
 - **Crear bóveda:** panel de marca de 240 px a la izquierda (marca de 56 px, nombre de 26 px, lema) y formulario en una columna centrada de 520 px, a 20 px entre bloques; con alto ≤ 760 px el espaciado baja un paso y las acciones se pegan al pie. Bienvenida y desbloqueo conservan el tótem del riel (232 px, marca de 72 px).
-- **Contenedores:** el detalle (`detail`) acorta la barra de oculto a 5 periodos cuando mide 25rem o menos, que es el caso en la ventana mínima.
-- **Densidad:** cómoda (activa): fila y control 44 px. Compacta (`data-density="compact"`): fila y control 32 px, una línea por fila. La compacta existe en el CSS pero ningún control la activa.
+- **Densidad:** cómoda (activa): fila de riel y control 44 px, fila de tabla 52 px. Compacta (`data-density="compact"`): fila de riel y control 32 px (la fila de la tabla baja a 36 px y el distintivo a 24 px). La compacta existe en el CSS pero ningún control la activa.
 - **Foco:** contorno de 3 px (`--focus`, tinta; blanca sobre señal; `on-panel` sobre placas), desplazado 2 px; en filas y menús, hacia dentro.
 - **Movimiento:** solo `transform` y `opacity`: el botón cede 1 px al pulsarse y la barra de progreso indeterminada marcha en 700 ms lineales; `prefers-reduced-motion` lo reduce a 0.01 ms. Los menús cuelgan de su botón por posicionamiento por ancla (`position-anchor`) y se abren hacia arriba si no hay sitio abajo.
 
@@ -321,27 +349,27 @@ Plano por defecto. La profundidad es tonal: el armazón (#0c0d10) contra el fond
 
 ## Shapes
 
-Esquinas contenidas en tres pasos: 4 px (`--radius`) en botones, campos, el aviso estándar y el diálogo nativo de confirmación; 6 px (`--radius-card`) en la tarjeta del detalle, menús, opciones del generador y el aviso de crear; 8 px (`--radius-dialog`) en el diálogo de entrada; 3 px (`--radius-sm`) en etiquetas y atajos; 0 en los avisos de franja del trabajo. Lo redondo (50 %) es del distintivo, los puntos de color y la marca. Los subgrupos son un aro (2.5 px) en el color de la línea; la estación es blanca con aro oscuro de 2 px. La marca del grupo en el riel es un punto de 12 px; en detalle, uno de 8 px.
+Esquinas contenidas en tres pasos: 4 px (`--radius`) en botones, campos, el aviso estándar y el diálogo nativo de confirmación; 6 px (`--radius-card`) en la tarjeta de la ventana de la entrada, menús, opciones del generador y el aviso de crear; 8 px (`--radius-dialog`) en el diálogo de entrada y en la ventana de la entrada; 3 px (`--radius-sm`) en etiquetas y atajos; 0 en los avisos de franja del trabajo. Lo redondo (50 %) es del distintivo, los puntos de color y la marca. Los subgrupos son un aro (2.5 px) en el color de la línea; la estación es blanca con aro oscuro de 2 px. La marca del grupo en el riel es un punto de 12 px; en la ventana de la entrada, uno de 8 px.
 
 ## Components
 
 ### Barra de señal y riel de grupos
 Armazón oscuro (`signal`); dentro de él los mismos roles apuntan a la paleta de señal, de modo que botones, campos y errores se adaptan sin reglas aparte. Barra: marca de 26 px, nombre en una tinta, búsqueda con lupa y atajo, cuenta regresiva de bloqueo en dato monoespaciado, "Bloquear" con candado y sin placa, Ajustes como icono. Riel: grupos de 44 px con punto, nombre y conteo (mono, tabular), el abierto sobre la placa clara; "más acciones" por fila y menú desplegable.
 
-### Lista de entradas
-Una tabla real dibujada como lista: título, usuario · dirección (separador dibujado) y fecha al cierre. La fila seleccionada es la placa clara con tintas propias; el foco se dibuja hacia dentro. Distintivo de 32 px con la inicial del título sobre el color del grupo.
+### Lista de entradas (tabla)
+Una tabla de verdad: rótulos de columna en 12 px mayúscula `--ink-muted` sobre `--surface`, fijos; filas de 52 px sin placa en reposo, con velo de tinta (`--hover`) bajo el puntero. Título con su distintivo de 32 px (inicial sobre el color del grupo); usuario y sitio en 15 px; contraseña como ocho marcas fijas en la cara de datos (no revela la longitud ni el valor); fecha en gris. La fila elegida es la placa clara (`--panel`) con sus tintas propias y, en la última celda, dos botones de icono de 44: "Copiar contraseña" sobre una placa de la tinta de la fila (`.row-copy`) y "Abrir la entrada" sin placa; las demás filas guardan esos 92 px vacíos. El foco de la fila se dibuja hacia dentro. Doble clic: ver Layout, pie de la lista.
 
-### Detalle
-Cabecera con distintivo de 48 px, título y grupo con su punto; tarjeta de filas etiqueta | valor | botones de icono de 44. **Barra de oculto:** un secreto oculto es una barra de ancho fijo (12 periodos de 13 px: marca de 9 px y hueco de 4 px; 5 periodos en detalle estrecho), así no revela la longitud ni termina en una astilla. "Copiar contraseña" es el único icono con placa (principal). **Aviso de copiado:** placa clara centrada al pie de la zona, con marca verde (`on-panel-ok`) y palabras; sigue a la zona al desplazarse.
+### Ventana de la entrada
+Hoja modal de 600 px con cabecera propia (distintivo de 48 px, título de 24 px, grupo con punto, "Editar" con borde sobre `--surface`, menú "más" y "Cerrar" sin placa) y la tarjeta de filas etiqueta | valor | iconos de 44. **Barra de oculto:** un secreto oculto es una barra de ancho fijo (12 periodos de 13 px: marca de 9 px y hueco de 4 px, 156 px); así no revela la longitud ni termina en una astilla. "Copiar contraseña" es el único icono de la tarjeta con placa (principal). Las notas cierran la tarjeta con sus saltos de línea. **Aviso de copiado:** placa clara centrada, con marca verde (`on-panel-ok`) y palabras; dentro de la ventana, pegado al pie mientras esta se desplaza.
 
 ### Diálogo de entrada
-`<dialog>` modal de 560 px, radio 8, cabecera (título de 20 px, "En el grupo …" con su punto, cerrar de 44) separada del cuerpo por una regla de 1 px; campos Título, Usuario o correo, Contraseña, Sitio y Notas; pie con "Cancelar" (secundario) y "Guardar entrada" (placa). La contraseña comparte una caja con el ojo y "Generar" (36 px, dentro del campo); las opciones del generador se pliegan debajo y la fortaleza se lee en palabras con una barra de 120 × 6 px.
+`<dialog>` modal de 560 px, radio 8, cabecera (título de 20 px, "En el grupo …" con su punto, cerrar de 44) separada del cuerpo por una regla de 1 px; campos Título, Usuario o correo, Contraseña, Sitio y Notas; pie con "Cancelar" (secundario) y "Guardar entrada" (placa). La contraseña comparte una caja con el ojo y "Generar" (36 px, dentro del campo); las opciones del generador se pliegan debajo (enlace "Mostrar/Ocultar opciones del generador") en un panel de `--ground` con radio 6: "Longitud" con un deslizante (8 a 64) y una casilla numérica de 80 px en la cara de datos con el número a la derecha (hasta 500; ayuda debajo: "El deslizante llega a 64. En la casilla puedes escribir hasta 500."), cuatro casillas de tipo y "Evitar caracteres parecidos". La fortaleza se lee en palabras con una barra de 120 × 6 px.
 
 ### Fortaleza
 Barra de 120 × 6 px, relleno proporcional al nivel (de 20 % a 100 %), siempre junto a su texto ("Fortaleza: muy buena (4 de 4)"); nunca solo color. En crear bóveda es tinta sobre regla; en el diálogo de entrada, `--ok` sobre regla. Las tres tramas rayadas de `base.css` (`meter`) siguen definidas pero la pantalla de crear las sobreescribe (Known gaps).
 
 ### Botones
-- **Secundario (por defecto):** transparente o sobre la superficie en detalle, diálogo y crear; borde de 1 px `control-border`, 4 px de radio, 44 px de alto, 600/14 px (15 px en barra, detalle y pies); hover con velo de tinta.
+- **Secundario (por defecto):** transparente o sobre la superficie en la ventana de la entrada, diálogo y crear; borde de 1 px `control-border`, 4 px de radio, 44 px de alto, 600/14 px (15 px en barra, ventana de la entrada y pies); hover con velo de tinta.
 - **Primario:** placa (`panel` con `on-panel`); es "Copiar contraseña", "Guardar entrada" y "Crear bóveda".
 - **Peligro:** texto y borde `danger`; con el puntero se rellena. Solo dentro de la papelera y sus diálogos; en menús, la opción de peligro es solo texto rojo.
 - **Icono:** cuadrado de 44 px sin placa, icono propio de un solo trazo (1.8, `currentColor`, rejilla de 24 px, 16–18 px en pantalla); lleva nombre y `title`. El de Ajustes es solo icono con su nombre para lectores.
@@ -358,7 +386,7 @@ Superficie flotante de `min-width` 208 px (224 px en el de la entrada), radio 6,
 `<dialog>` modal, 30rem, superficie y radio 4 px, título sobre una regla de 2 px en tinta, texto de qué hace, acciones al final. La acción destructiva nunca es la predeterminada.
 
 ### Pantallas de acceso (bienvenida, crear, desbloquear)
-El armazón se vuelve tótem de estación: panel de señal en el lugar del riel con la marca y el nombre (72 px en bienvenida y desbloqueo; 56 px y 240 px de ancho en crear, con su lema); la tarea va en el fondo de trabajo, en una columna bajo una regla de 2 px (30rem; 520 px en crear). Las bóvedas recientes son filas como las de la lista. En crear: nombre de la bóveda, dónde se guarda, contraseña maestra con ojo y fortaleza, repetirla, tres tarjetas de archivo llave (la elegida es una placa clara) y el aviso de que no hay recuperación.
+El armazón se vuelve tótem de estación: panel de señal en el lugar del riel con la marca y el nombre (72 px en bienvenida y desbloqueo; 56 px y 240 px de ancho en crear, con su lema); la tarea va en el fondo de trabajo, en una columna bajo una regla de 2 px (30rem; 520 px en crear). Las bóvedas recientes son filas como las del riel. En desbloquear, el archivo llave propuesto muestra su nombre (o su ruta completa si salió de otra carpeta) y una línea que dice de dónde salió ("junto a la bóveda" o "recordada"); se cambia con "Elegir archivo llave…" y se quita con "Quitar archivo llave". En crear: nombre de la bóveda, dónde se guarda, contraseña maestra con ojo y fortaleza, repetirla, "Archivo llave (opcional)" como tres tarjetas de opción en una fila, con "Sin archivo llave" primero y elegida por defecto, luego "Crear uno nuevo" y "Usar uno mío" (la elegida es una placa clara; su círculo de opción toma `--line-2`, ver Known gaps), con una línea de ayuda debajo y el aviso de que no hay recuperación.
 
 ## Do's and Don'ts
 
@@ -370,7 +398,7 @@ El armazón se vuelve tótem de estación: panel de señal en el lugar del riel 
 - **Do** usar Overpass Mono solo para datos; iconos propios de un solo trazo (1.8) en `currentColor`.
 - **Do** mantener el CSS sin estilos en línea (CSP `style-src 'self'`): todo valor dinámico viaja por clases o atributos `data-*`.
 - **Do** dar a todo destino táctil 44 px (36 px solo para el botón dentro de un campo, cuyo destino llega a 44 con su marco).
-- **Do** llevar crear y editar una entrada a un diálogo modal, nunca al panel de detalle.
+- **Do** llevar abrir, crear y editar una entrada a un diálogo modal sobre la lista; la bóveda no tiene panel de detalle.
 
 ### Don't:
 - **Don't** usar un color de línea como acento, estado o decoración.
@@ -383,12 +411,16 @@ El armazón se vuelve tótem de estación: panel de señal en el lugar del riel 
 
 ## Known gaps (no resueltos)
 
-- **Verificado solo a 1120 × 720** (capturas de la app instalada: bóveda, crear, nueva entrada). Sin captura a 1000 × 640 (mínimo): ahí el detalle mide 428 px y la barra de oculto baja a 5 periodos, por lectura del CSS; el diálogo de editar, los menús desplegados, el desbloqueo y la bienvenida no se revisaron en esta pasada.
-- **El contrato de dirección de `.impeccable/surfaces/` describe la distribución anterior** (riel con acciones, lista 2fr/3fr, formulario en el detalle, tema claro); no es verdad de composición. Lo vigente es este archivo y `docs/revisiones/0.1-ux-dueno.md`.
+- **Verificado solo a 1120 × 720** (capturas de la app instalada: bóveda, entrada abierta, crear, nueva entrada con opciones). Sin captura a 1000 × 640 (mínimo): que la tabla (756 px mínimos) quepa en los 768 de la lista sale de la lectura del CSS; el diálogo de editar, los menús desplegados, el desbloqueo con la llave propuesta y la bienvenida no se vieron en captura en esta pasada; la franja de la tabla a ese ancho con barra de desplazamiento vertical tampoco.
+- **El contrato de dirección de `.impeccable/surfaces/` describe la distribución anterior** (riel con acciones, lista 2fr/3fr o tres columnas, formulario en el detalle, tema claro); no es verdad de composición. Lo vigente es este archivo y `docs/revisiones/0.1-ux-dueno.md` y `0.1-ronda-2-dueno.md`.
 - **Reglas inalcanzables en el CSS:** `gate.css` aún tiene reglas para ventanas menores de 720 y 1100 px; `.back-to-list` está oculto; la densidad compacta no la activa ningún control y nunca se verificó.
 - **El punto de "Guardado" del riel usa `--line-3`** (un color de línea como estado), contra la Line-Names-Groups Rule; no se canoniza.
-- **Etiquetas en mayúscula pequeña con espaciado** ("BÓVEDA", "GRUPOS" en el riel, 12 px/0.04em) son un rótulo tipo eyebrow que la build lleva; no es regla del sistema y no debe heredarse en pantallas nuevas.
-- **Fortaleza rayada de `base.css` sin uso visible** (crear la reemplaza por una barra sólida); y no se muestra en el detalle (el núcleo no la entrega sin revelar la contraseña).
+- **Etiquetas en mayúscula pequeña con espaciado** ("BÓVEDA", "GRUPOS" en el riel; los rótulos de columna de la tabla, 12 px/0.04em) son un rótulo tipo eyebrow que la build lleva; los de la tabla nombran columnas reales, pero la forma no es regla del sistema y no debe heredarse como rótulo suelto en pantallas nuevas.
+- **Un color de línea como acento de control:** el círculo de las tarjetas de archivo llave usa `accent-color: var(--line-2)` (naranja, visible en captura), contra la Line-Names-Groups Rule; no se canoniza.
+- **Tokens sin uso tras la ronda 2:** `--list-w` (340 px) y `--detail-min-w` (420 px) siguen en `tokens.css` pero nada los lee; no son parte del sistema. El título de 24 px de la ventana de la entrada es un valor suelto (`1.5rem`), sin token.
+- **Fecha de la tabla fuera de la mono:** el sistema decía "fechas en monoespaciada"; la tabla las pone en Overpass 13 px, y la ventana de la entrada también. No verificado si es intención o deriva.
+- **Valores sueltos fuera de escala (detector, sin token):** nombre de marca de 1.625rem/26 px en crear (`gate.css`), nombre de la bóveda en el riel de 1.0625rem/17 px (`rail.css`), radio de 2 px de la barra de oculto (`vault.css`); tres colores literales en `src/preview.tsx` (vista previa solo de desarrollo, fuera del bundle).
+- **Fortaleza rayada de `base.css` sin uso visible** (crear la reemplaza por una barra sólida); y no se muestra en la ventana de la entrada (el núcleo no la entrega sin revelar la contraseña).
 - **Radio del aviso estándar y del diálogo de confirmación (4 px)** frente al de 6/8 del resto de superficies flotantes: no se unificó.
 - **Armazón tira a azul** (`dark-signal` #0c0d10 y grises con matiz frío) frente al "negro de señal" del contrato original.
-- **Sin revisar:** búsqueda y "sin resultados", cuenta regresiva en captura, grupo vacío, quinto grupo (vuelve a la línea 1), diálogos de renombrar y mover, panel de actualización, tema claro (existe, sin selector).
+- **Sin revisar:** búsqueda y "sin resultados" en la tabla (columna de ruta del grupo), cuenta regresiva en captura, grupo vacío, quinto grupo (vuelve a la línea 1), diálogos de renombrar y mover, panel de actualización, tema claro (existe, sin selector)..
