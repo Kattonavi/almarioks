@@ -25,6 +25,12 @@ real) → commit → marcar. Las pruebas citan el RF (`rf_NN_…`, `it("RF-NN: �
 - [ ] T8. Guardado: cifrar a bytes, temporal, relectura, reemplazo atómico, `.bak`, cambio externo, disco de prueba
       que falla o corta en cada paso, cola de guardados; ida y vuelta sin pérdida tras editar. (RF-21 a RF-25, RF-27, RF-89)
       Hecho cuando: esas `rf_*` en verde, incluido el ejemplo 6; las pruebas `roundtrip_*` siguen en verde.
+      Avance (2026-11-11): `storage` listo (disco como trait, `read_vault`, `save_vault`, `save_vault_as`,
+      `write_recovery`, `SaveQueue`) con `rf_21`–`rf_24`, `rf_27`, `rf_33`, `rf_89`, `rf_95` y el ejemplo 6 en verde.
+      Falta: RF-25 tras EDITAR una entrada (depende de T6 y `OpenedVault::to_bytes`) y conectar la cola en la sesión
+      (T9). Decisiones pendientes: archivo borrado por otra app = `CambioExterno`; fallo al promover el `.bak` = guardado
+      hecho con `backup_updated = false`; hora del nombre de recuperación en UTC o local; `PermissionDenied` viaja como
+      causa de `GuardadoFallido`, no como código nuevo.
 - [ ] T9. Sesión: `Closed` / `Locked` / `Open`, desbloqueo único, bloqueo que no espera al disco, recuperación desde
       bytes ya cifrados, aviso al desbloquear. (RF-28, RF-30, RF-33 a RF-36, RF-88)
       Hecho cuando: esas `rf_*` en verde con el disco colgado y con el disco que falla; en ambos el estado queda `Locked` en < 1 s.

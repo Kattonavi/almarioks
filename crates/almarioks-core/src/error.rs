@@ -91,6 +91,12 @@ pub enum CoreError {
     /// Another app changed the vault file since it was opened (RF-24).
     #[error("Otra app cambió el archivo de la bóveda. Recárgala antes de seguir.")]
     CambioExterno,
+    /// The vault file is not at the given path (RF-95).
+    #[error("No se encontró la bóveda en esa ubicación. Puede que se haya movido o borrado.")]
+    ArchivoNoEncontrado,
+    /// The key file is not at the given path (RF-95).
+    #[error("No se encontró el archivo llave en esa ubicación. Elige dónde está ahora.")]
+    ArchivoLlaveNoEncontrado,
 }
 
 impl CoreError {
@@ -121,6 +127,8 @@ impl CoreError {
             Self::ReglasImposibles => "ReglasImposibles",
             Self::GuardadoFallido => "GuardadoFallido",
             Self::CambioExterno => "CambioExterno",
+            Self::ArchivoNoEncontrado => "ArchivoNoEncontrado",
+            Self::ArchivoLlaveNoEncontrado => "ArchivoLlaveNoEncontrado",
         }
     }
 
