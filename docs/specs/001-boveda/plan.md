@@ -106,8 +106,10 @@ muestra "(protegido)".
 21. `unlock_key_suggestion{path}` (RF-110): solo lectura. Responde `{key_file_path, key_file}` si junto a `X.kdbx`
     existe el archivo `X.keyx`, o `null`. Solo contesta si `path` es la bóveda bloqueada de la sesión, una reciente
     de ajustes o la última ruta que devolvió `pick_vault_to_open` en esta ejecución; para cualquier otra responde
-    `null` sin mirar el disco (no es un oráculo de rutas). No abre el archivo ni sigue enlaces. `null` no significa
-    que la bóveda no use llave.
+    `null` sin mirar el disco. No abre el archivo ni sigue enlaces. `null` no significa que la bóveda no use llave.
+    Límite conocido (revisión de seguridad, Q-1): una ventana comprometida puede volver "conocida" una ruta sin
+    gesto del usuario (un bloqueo durante `vault_open`, o `vault_create`/`save_as`/`convert`, que la meten en
+    recientes); no gana capacidad, porque `vault_open` ya responde si una ruta existe. Se cierra con el punto 2 de S-2.
 22. El resumen de una entrada (`entry_list`, `search`, y dentro del detalle) lleva `has_password` (RF-105): si el
     campo de contraseña existe y no está vacío. Nunca el valor ni su longitud.
 

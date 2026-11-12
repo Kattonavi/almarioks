@@ -501,11 +501,13 @@ Nuevos:
   fuente, y lo dirá con un código propio (`GeneradorNoDisponible`), dejando el campo como estaba.
 - RF-110: CUANDO el dueño va a desbloquear una bóveda `X.kdbx` y junto a ella existe `X.keyx`, EL SISTEMA traerá ese
   archivo llave ya elegido y dirá que lo eligió solo; el dueño puede quitarlo o cambiarlo. EL SISTEMA solo responde
-  esto para la bóveda que se está desbloqueando o una reciente, nunca para una ruta cualquiera.
+  esto para la bóveda bloqueada, una reciente o la última elegida con el diálogo de abrir.
 - RF-111: EL SISTEMA recordará, por cada bóveda reciente, la ruta (solo la ruta) del último archivo llave con el que
   se abrió, y la traerá elegida la próxima vez; la recordada gana a la que está junto a la bóveda. SI ese archivo ya
   no existe, ENTONCES lo dirá y pedirá elegirlo (o usará el que está junto a la bóveda, si existe).
-  [condicionado a la revisión de seguridad; es lo último en entrar]
+  Solo se recuerda si el desbloqueo llevó también contraseña, y solo rutas locales con letra de unidad; la llave que
+  está junto a la bóveda no se guarda. [aprobado por seguridad con diez condiciones: `docs/revisiones/0.1-seguridad.md`,
+  "Segunda ronda del dueño"]
 - RF-112: SI el desbloqueo falla, ENTONCES EL SISTEMA dirá "La contraseña o el archivo llave no coinciden. Si esta
   bóveda usa archivo llave, elígelo.", sin afirmar si la bóveda usa archivo llave.
 - RF-113: DONDE el dueño marque "Crear uno nuevo", EL SISTEMA mostrará antes de crear dónde quedará el archivo llave

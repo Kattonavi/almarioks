@@ -79,3 +79,7 @@ Lo que no cabe en la fase va aquí, un renglón por ítem: `- [origen] qué · s
 - [recorrido del pase] Una entrada creada con contraseña tecleada quedó una vez sin su sitio; al repetir, lo guardó. Sin explicar (¿app o guion de prueba?): reproducir a mano · por verificar
 - [diseño del pase] Tres medidas del prototipo están como número suelto y el detector las marca: 26 px (marca en crear), 17 px (nombre de la bóveda en el riel), radio de 2 px (barra de oculto): pasarlas a tokens · Bajo
 - [diseño del pase] El contrato de dirección de `.impeccable/surfaces/` quedó desactualizado en composición; manda `DESIGN.md` y `docs/revisiones/0.1-ux-dueno.md` · Info
+- [seguridad ronda 2, Q-1] `unlock_key_suggestion` puede contestar para una ruta que una ventana comprometida volvió "conocida" sin gesto (no agrega capacidad sobre `vault_open`): se cierra con el punto 2 de S-2 · Bajo
+- [seguridad ronda 2, Q-6] Las pruebas estadísticas del generador miden solo frecuencias marginales: no ven dependencia entre caracteres consecutivos ni posiciones intermedias; los subconjuntos de tipos van a ±3 % · Info
+- [seguridad ronda 2, Q-7] Una contraseña guardada sin proteger en el archivo da `has_password: true` sin estar en `protected_fields`: revisar cómo la muestra la ventana de la entrada · Info
+- [ronda 2] RF-111: una letra de unidad mapeada a una carpeta de red no se distingue de un disco local sin código nativo nuevo · residuo declarado
