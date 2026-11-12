@@ -49,9 +49,10 @@
   --content-width: 40rem;
 }
 
-/* A dialog is always a work surface, even when it is mounted inside the signal frame: it takes the colour roles again. */
+/* A dialog or a menu is always a work surface, even when it is mounted inside the signal frame: it takes the colour roles again. */
 :root,
-dialog {
+dialog,
+.menu {
   color-scheme: light;
 
   /* ---- Work area. ---- */

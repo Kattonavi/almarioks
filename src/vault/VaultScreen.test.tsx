@@ -27,6 +27,7 @@ async function setup(options: FakeOptions = { groups: SAMPLE_GROUPS, entries: SA
 }
 
 const groupButton = (name: string) => screen.findByRole("button", { name: new RegExp(`^${name} `) });
+const allButton = () => screen.findByRole("button", { name: /^Todas las entradas / });
 const searchField = () => screen.getByRole<HTMLInputElement>("searchbox", { name: "Buscar en la bóveda" });
 
 function entriesTable() {
@@ -57,9 +58,11 @@ describe("P4 Bóveda", () => {
   it("RF-50: muestra el árbol de grupos con el conteo de cada uno y la papelera diferenciada", async () => {
     await setup();
 
-    const root = await groupButton("Cuentas");
-    expect(root.getAttribute("aria-current")).toBe("true");
-    expect(root.textContent).toBe("Cuentas · 0 entradas");
+    // RF-102: the root is not a group of the rail; "Todas las entradas" opens first and is the marked one.
+    const all = await allButton();
+    expect(all.getAttribute("aria-current")).toBe("true");
+    expect(all.textContent).toBe("Todas las entradas · 6 entradas");
+    expect(screen.queryByRole("button", { name: /^Cuentas / })).toBeNull();
     expect((await groupButton("Personal")).textContent).toBe("Personal · 3 entradas");
     expect((await groupButton("Trabajo")).textContent).toBe("Trabajo · 2 entradas");
     expect((await groupButton("Clientes")).textContent).toBe("Clientes · 1 entrada");
@@ -329,5 +332,91 @@ describe("P4 Bóveda", () => {
     expect(screen.queryByRole("searchbox")).toBeNull();
     expect(await screen.findByRole("heading", { name: "Desbloquear cuentas.kdbx" })).toBeDefined();
     expect(screen.queryByText("Banco")).toBeNull();
+  });
+});
+
+describe("P4 Bóveda — «Todas las entradas»", () => {
+  it("RF-102: al abrir queda elegido «Todas las entradas», con las entradas de todos los grupos por título y sin la papelera", async () => {
+    const { backend } = await setup();
+
+    expect(await screen.findByRole("heading", { name: "Todas las entradas" })).toBeDefined();
+    await waitFor(() => {
+      expect(rowTitles()).toEqual(["Años", "Banana", "Banco", "Canción favorita", "GitHub", "VPN"]);
+    });
+    expect(screen.getByText("6 entradas")).toBeDefined();
+    expect(screen.queryByText("Canción borrada")).toBeNull();
+    // The core has no command for it: the window asks for each group outside the bin, and never for the bin.
+    const asked = backend.calls.filter((call) => call.command === "entry_list").map((call) => call.args);
+    for (const id of ["group-root", "group-personal", "group-work", "group-clients", "group-archive"]) {
+      expect(asked).toContainEqual({ group_id: id });
+    }
+    expect(asked).not.toContainEqual({ group_id: "group-bin" });
+  });
+
+  it("RF-102: el total suma los grupos fuera de la papelera y el grupo raíz no aparece como un grupo más", async () => {
+    await setup({
+      groups: SAMPLE_GROUPS,
+      entries: [...SAMPLE_ENTRIES, { id: "entry-root", groupId: "group-root", title: "Wifi de casa" }],
+    });
+
+    expect((await allButton()).textContent).toBe("Todas las entradas · 7 entradas");
+    // The entries that hang from the root itself are seen here, and only here.
+    await waitFor(() => {
+      expect(rowTitles()).toContain("Wifi de casa");
+    });
+    expect(screen.queryByRole("button", { name: /^Cuentas / })).toBeNull();
+    // It is the first element of the rail, before every group.
+    const rail = screen.getByRole("navigation", { name: "Grupos" });
+    expect(within(rail).getAllByRole("button")[0]).toBe(await allButton());
+
+    await openGroup("Personal");
+    expect(rowTitles()).not.toContain("Wifi de casa");
+    fireEvent.click(await allButton());
+    await screen.findByRole("heading", { name: "Todas las entradas" });
+    await waitFor(() => {
+      expect(rowTitles()).toHaveLength(7);
+    });
+  });
+
+  it("RF-102: «Nueva entrada» desde «Todas las entradas» crea la entrada en la raíz y la lista sigue en «Todas las entradas»", async () => {
+    const { backend } = await setup();
+    await screen.findByRole("heading", { name: "Todas las entradas" });
+
+    fireEvent.click(screen.getByRole("button", { name: "Nueva entrada" }));
+    fireEvent.change(await screen.findByLabelText("Título"), { target: { value: "Wifi de casa" } });
+    fireEvent.click(screen.getByRole("button", { name: "Guardar entrada" }));
+
+    await waitFor(() => {
+      expect(backend.calls.filter((call) => call.command === "entry_create").at(-1)?.args).toMatchObject({
+        group_id: "group-root",
+        title: "Wifi de casa",
+      });
+    });
+    await waitFor(() => {
+      expect(rowTitles()).toContain("Wifi de casa");
+    });
+    expect(screen.getByRole("heading", { name: "Todas las entradas" })).toBeDefined();
+    expect((await allButton()).textContent).toBe("Todas las entradas · 7 entradas");
+  });
+
+  it("RF-102: mientras se busca nada queda marcado en el riel, y elegir un grupo o «Todas las entradas» termina la búsqueda", async () => {
+    await setup();
+    await openGroup("Personal");
+
+    await searchFor("git");
+    expect((await groupButton("Personal")).getAttribute("aria-current")).toBeNull();
+    expect((await allButton()).getAttribute("aria-current")).toBeNull();
+
+    fireEvent.click(await groupButton("Trabajo"));
+    await screen.findByRole("heading", { name: "Entradas de Trabajo" });
+    expect(searchField().value).toBe("");
+    expect((await groupButton("Trabajo")).getAttribute("aria-current")).toBe("true");
+
+    await searchFor("banco");
+    fireEvent.click(await allButton());
+    await screen.findByRole("heading", { name: "Todas las entradas" });
+    expect(searchField().value).toBe("");
+    expect((await allButton()).getAttribute("aria-current")).toBe("true");
+    expect((await groupButton("Trabajo")).getAttribute("aria-current")).toBeNull();
   });
 });

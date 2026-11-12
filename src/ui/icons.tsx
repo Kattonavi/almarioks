@@ -200,3 +200,20 @@ export function InfoIcon() {
     </Icon>
   );
 }
+
+export function ListIcon() {
+  return (
+    <Icon>
+      <path d="M4 6h16M4 12h16M4 18h16" />
+    </Icon>
+  );
+}
+
+/** Three dots: "more actions". Each dot is a round stroke, so it follows the colour like every other icon. */
+export function MoreIcon() {
+  return (
+    <Icon>
+      <path d="M5 12h.01M12 12h.01M19 12h.01" strokeWidth="3.4" />
+    </Icon>
+  );
+}

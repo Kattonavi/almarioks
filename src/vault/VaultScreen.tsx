@@ -4,11 +4,12 @@ import { assertNever } from "../assertNever";
 import type { VaultClient } from "../ipc/client";
 import { errorMessage, type AppError, type Result } from "../ipc/errors";
 import type { EntrySummary, GroupNode, SearchResult } from "../ipc/schemas";
-import { PlusIcon, SearchIcon, TrashIcon } from "../ui/icons";
+import { ListIcon, PlusIcon, SearchIcon, TrashIcon } from "../ui/icons";
 import { EntryForm } from "./EntryForm";
 import { EntryPanel } from "./EntryPanel";
-import { findGroup, formatDate, formatDay, liveEntryCount, plural, shown } from "./format";
-import { GroupActions, type GroupChange } from "./GroupActions";
+import { findGroup, formatDate, formatDay, liveEntryCount, plural, shown, trailTo } from "./format";
+import { useGroupActions, type GroupChange } from "./GroupActions";
+import { GroupMenuButton, GroupRail } from "./GroupRail";
 import { assignLines, initialOf, lineOfPath, type GroupLine } from "./lines";
 import { NO_SAVE_SIGNAL, savingText, type SaveSignal } from "./saveSignal";
 
@@ -27,9 +28,12 @@ type SearchState =
   | { readonly kind: "failed"; readonly error: AppError };
 
 interface ListState {
-  readonly groupId: string;
+  /** The groups it was asked for (see `listKey`). */
+  readonly key: string;
   readonly attempt: number;
   readonly result: Result<EntrySummary[]>;
+  /** The group each entry came from: in "Todas las entradas" every row keeps the colour of its own group. */
+  readonly groupOf: ReadonlyMap<string, string>;
 }
 
 interface SelectedEntry {
@@ -63,6 +67,51 @@ interface Stamped {
 
 const NO_LINES: ReadonlyMap<string, GroupLine> = new Map();
 
+/** Between the group ids of a list key. An id never has a line break in it. */
+const KEY_SEPARATOR = "\n";
+
+/** RF-102: every group outside the recycle bin, the root first. */
+function liveGroupIds(node: GroupNode): string[] {
+  if (node.kind === "recycle_bin") return [];
+  return [node.id, ...node.children.flatMap(liveGroupIds)];
+}
+
+/**
+ * A title the way the core compares it (`text::fold` of the core): lower case, NFKD, without combining marks, and
+ * twice, because a lower case can bring a mark of its own.
+ */
+function foldTitle(title: string | null): string {
+  const once = (text: string) => text.toLowerCase().normalize("NFKD").replace(/\p{M}/gu, "");
+  return once(once(title ?? ""));
+}
+
+/** RF-102: several groups put together go by title, like the entries of one group; the id settles equal titles. */
+function byTitle(a: EntrySummary, b: EntrySummary): number {
+  const ta = foldTitle(a.title);
+  const tb = foldTitle(b.title);
+  if (ta !== tb) return ta < tb ? -1 : 1;
+  return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+}
+
+/** One list out of the lists of `ids`: the first failure, or every entry with the group it came from. */
+function mergeLists(
+  ids: readonly string[],
+  results: readonly Result<EntrySummary[]>[],
+): Pick<ListState, "result" | "groupOf"> {
+  const groupOf = new Map<string, string>();
+  const entries: EntrySummary[] = [];
+  for (const [index, result] of results.entries()) {
+    if (!result.ok) return { result, groupOf };
+    for (const entry of result.value) {
+      groupOf.set(entry.id, ids[index] ?? "");
+      entries.push(entry);
+    }
+  }
+  // One group arrives in the order of the core; only several put together are ordered here.
+  if (ids.length > 1) entries.sort(byTitle);
+  return { result: { ok: true, value: entries }, groupOf };
+}
+
 interface VaultScreenProps {
   readonly client: VaultClient;
   /** RF-14: nothing that changes the vault is offered; the notice above the screen says why. */
@@ -71,17 +120,17 @@ interface VaultScreenProps {
   readonly saveSignal?: SaveSignal;
   /** Frame slots, filled by whoever owns the open vault: the end of the top bar (lock, settings)… */
   readonly barEnd?: ReactNode;
-  /** …the head of the group rail (name and file of the vault)… */
+  /** …the head of the group rail (the name of the vault)… */
   readonly railHead?: ReactNode;
   /** …and the notices above the work area (read-only, save problems). */
   readonly banner?: ReactNode;
 }
 
 /**
- * P4: the open vault (RF-42, RF-50, RF-59, RF-64, RF-78, RF-92), with P5 in the detail zone. A signal frame (top bar
- * with the search, rail with the groups) around two work zones: entries of the chosen group or search results, and
- * the detail. Every vault datum is rendered as a React text child, never as HTML or as a link (RF-78). All its data
- * is local state, so a lock, which unmounts this screen, drops it at once (RF-32).
+ * P4: the open vault (RF-42, RF-50, RF-59, RF-64, RF-78, RF-92, RF-102), with P5 in the detail zone. A signal frame
+ * (top bar with the search, rail with the groups) around two work zones: entries of what the rail has open or search
+ * results, and the detail. Every vault datum is rendered as a React text child, never as HTML or as a link (RF-78).
+ * All its data is local state, so a lock, which unmounts this screen, drops it at once (RF-32).
  */
 export function VaultScreen({
   client,
@@ -93,6 +142,7 @@ export function VaultScreen({
 }: VaultScreenProps) {
   const [tree, setTree] = useState<TreeState>({ kind: "loading" });
   const [treeAttempt, setTreeAttempt] = useState(0);
+  /** The group the rail has open; `null` is "Todas las entradas", which is how the vault opens (RF-102). */
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   const [list, setList] = useState<ListState | null>(null);
   const [listAttempt, setListAttempt] = useState(0);
@@ -168,19 +218,29 @@ export function VaultScreen({
     groupsTitleRef.current?.focus();
   }, [tree]);
 
-  const selectedExists =tree.kind === "ready" && selectedGroupId !== null && findGroup(tree.root, selectedGroupId);
-  const groupId = tree.kind === "ready" ? (selectedExists ? selectedGroupId : tree.root.id) : null;
+  const root = tree.kind === "ready" ? tree.root : null;
+  const selected = root !== null && selectedGroupId !== null ? findGroup(root, selectedGroupId) : undefined;
+  /**
+   * The group the list shows; `null` is "Todas las entradas" (RF-102). The root is never a group of its own, and a
+   * chosen group that is gone falls back here too.
+   */
+  const groupId = selected !== undefined && selected.kind !== "root" ? selected.id : null;
+  /** The groups whose entries the list asks for, as one text: the list is asked again only when they change. */
+  const listKey = root === null ? null : (groupId ?? liveGroupIds(root).join(KEY_SEPARATOR));
+  const groupActions = useGroupActions(client, root, onGroupChange);
 
   useEffect(() => {
-    if (groupId === null) return;
+    if (listKey === null) return;
     let active = true;
-    void client.entryList(groupId).then((result) => {
-      if (active) setList({ groupId, attempt: listAttempt, result });
+    // RF-102: the core has no "every entry" command, so "Todas las entradas" asks for each group and puts them together.
+    const ids = listKey.split(KEY_SEPARATOR);
+    void Promise.all(ids.map((id) => client.entryList(id))).then((results) => {
+      if (active) setList({ key: listKey, attempt: listAttempt, ...mergeLists(ids, results) });
     });
     return () => {
       active = false;
     };
-  }, [client, groupId, listAttempt, listRefresh]);
+  }, [client, listKey, listAttempt, listRefresh]);
 
   // The stamp on the copied row counts down with the clipboard and goes away when the core clears it.
   useEffect(() => {
@@ -220,7 +280,7 @@ export function VaultScreen({
     setQuery(value);
     cancelSearch();
     openFirst.current = false;
-    // RF-92: an empty query (after trimming) does not filter: back to the current group.
+    // RF-92: an empty query (after trimming) does not filter: back to what the rail has open.
     if (value.trim() === "") {
       setSearch({ kind: "idle" });
       return;
@@ -243,9 +303,11 @@ export function VaultScreen({
     searchRef.current?.focus();
   }
 
-  function selectGroup(id: string) {
+  /** A group, or `null` for "Todas las entradas". Choosing in the rail ends a search: the list shows what was chosen. */
+  function selectGroup(id: string | null) {
     setSelectedGroupId(id);
     setDetail({ kind: "none" });
+    if (query !== "") onQueryChange("");
   }
 
   /** After a change: the tree (counts), the list and an active search, without unmounting the detail. */
@@ -257,8 +319,14 @@ export function VaultScreen({
 
   /** P7: the core answered with the new tree. */
   function onGroupChange(change: GroupChange) {
+    // The list was showing the group that left its place, or one inside it: back to "Todas las entradas".
+    const lost =
+      change.gone !== null &&
+      root !== null &&
+      selectedGroupId !== null &&
+      (trailTo(root, selectedGroupId) ?? []).some((group) => group.id === change.gone);
     setTree({ kind: "ready", root: change.root });
-    setSelectedGroupId(change.select);
+    if (lost) setSelectedGroupId(null);
     setListRefresh((value) => value + 1);
     if (query.trim() !== "") onQueryChange(query);
     if (change.removed) {
@@ -284,10 +352,15 @@ export function VaultScreen({
     return [...(listPaneRef.current?.querySelectorAll<HTMLButtonElement>("table.entries tbody th button") ?? [])];
   }
 
-  /** The entries the list shows right now, in order: the search results or the loaded group. */
+  /** The list that answers what is asked right now, or `null` while it is on its way. */
+  function currentList(): ListState | null {
+    return list !== null && list.key === listKey && list.attempt === listAttempt ? list : null;
+  }
+
+  /** The entries the list shows right now, in order: the search results or what the rail has open. */
   function shownItems(): readonly EntrySummary[] {
     if (searching) return search.kind === "done" ? search.items : [];
-    const loaded = list !== null && list.groupId === groupId && list.attempt === listAttempt ? list.result : null;
+    const loaded = currentList()?.result ?? null;
     return loaded?.ok === true ? loaded.value : [];
   }
 
@@ -385,11 +458,12 @@ export function VaultScreen({
       </div>
 
       <div className="rail">
-        {railHead !== undefined && <div className="rail-head">{railHead}</div>}
+        <div className="rail-head">
+          {railHead !== undefined && <div className="rail-vault">{railHead}</div>}
+          {/* The root is not a row of the rail (RF-102): what can still be asked of it (its name) is asked here. */}
+          {root !== null && !readOnly && <GroupMenuButton root={root} group={root} onOrder={groupActions.start} />}
+        </div>
         <nav aria-labelledby="groups-title" className="rail-nav">
-          <h3 id="groups-title" ref={groupsTitleRef} tabIndex={-1}>
-            Grupos
-          </h3>
           {renderTree()}
         </nav>
       </div>
@@ -477,47 +551,60 @@ export function VaultScreen({
     switch (tree.kind) {
       case "loading":
         return (
-          <p role="status" className="pane-state">
-            Cargando los grupos…
-          </p>
+          <>
+            <h3 id="groups-title">Grupos</h3>
+            <p role="status" className="pane-state">
+              Cargando los grupos…
+            </p>
+          </>
         );
       case "failed":
         return (
-          <div className="pane-state">
-            <p role="alert" className="error">
-              {errorMessage(tree.error)}
-            </p>
-            <button
-              type="button"
-              onClick={() => {
-                setTree({ kind: "loading" });
-                setTreeAttempt((value) => value + 1);
-              }}
-            >
-              Reintentar
-            </button>
-          </div>
-        );
-      case "ready": {
-        const group = groupId === null ? undefined : findGroup(tree.root, groupId);
-        return (
           <>
-            <GroupList nodes={[tree.root]} selectedId={groupId} lines={lines} depth={0} onSelect={selectGroup} />
-            {readOnly ? (
-              <p className="path">Solo lectura: los grupos no se pueden crear, renombrar, mover ni borrar.</p>
-            ) : group !== undefined && (
-              <GroupActions client={client} root={tree.root} group={group} onChange={onGroupChange} />
-            )}
+            <h3 id="groups-title">Grupos</h3>
+            <div className="pane-state">
+              <p role="alert" className="error">
+                {errorMessage(tree.error)}
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  setTree({ kind: "loading" });
+                  setTreeAttempt((value) => value + 1);
+                }}
+              >
+                Reintentar
+              </button>
+            </div>
           </>
         );
-      }
+      case "ready":
+        return (
+          <GroupRail
+            root={tree.root}
+            lines={lines}
+            selectedId={groupId}
+            marked={!searching}
+            readOnly={readOnly}
+            titleRef={groupsTitleRef}
+            onSelect={selectGroup}
+            onOrder={groupActions.start}
+          >
+            {readOnly && (
+              <p className="path rail-note">
+                Solo lectura: los grupos no se pueden crear, renombrar, mover ni borrar.
+              </p>
+            )}
+            {groupActions.view}
+          </GroupRail>
+        );
       default:
         return assertNever(tree);
     }
   }
 
   function renderGroup() {
-    if (tree.kind !== "ready" || groupId === null) {
+    if (root === null) {
       return (
         <header className="list-head">
           <div className="list-title">
@@ -526,23 +613,40 @@ export function VaultScreen({
         </header>
       );
     }
-    const group = findGroup(tree.root, groupId) ?? tree.root;
-    const name = shown(group.name, "(sin nombre)");
-    const badge: Badge = {
-      line: lines.get(group.id) ?? "neutral",
-      initial: initialOf(name),
-      bin: group.kind === "recycle_bin",
+    /** `null`: "Todas las entradas" (RF-102). */
+    const group = groupId === null ? null : (findGroup(root, groupId) ?? null);
+    const inBin = group?.kind === "recycle_bin";
+    const badgeOfGroup = (id: string): Badge => {
+      const node = findGroup(root, id);
+      return {
+        line: lines.get(id) ?? "neutral",
+        initial: initialOf(shown(node?.name ?? "", "(sin nombre)")),
+        bin: node?.kind === "recycle_bin",
+      };
     };
-    const loaded = list !== null && list.groupId === groupId && list.attempt === listAttempt ? list.result : null;
+    const current = currentList();
+    const loaded = current?.result ?? null;
     const selectedId = detail.kind === "entry" ? detail.entry.id : null;
     return (
       <>
         <header className="list-head">
-          <Bullet badge={badge} />
+          {group === null ? (
+            <span className="bullet" data-line="station" aria-hidden="true">
+              <ListIcon />
+            </span>
+          ) : (
+            <Bullet badge={badgeOfGroup(group.id)} />
+          )}
           <div className="list-title">
             <h3 id="entries-title">
-              {/* The space is its own text node: inside the hidden span it would be trimmed out of the name. */}
-              <span className="sr-only">Entradas de</span> {name}
+              {group === null ? (
+                "Todas las entradas"
+              ) : (
+                <>
+                  {/* The space is its own text node: inside the hidden span it would be trimmed out of the name. */}
+                  <span className="sr-only">Entradas de</span> {shown(group.name, "(sin nombre)")}
+                </>
+              )}
             </h3>
             {loaded !== null && loaded.ok && loaded.value.length > 0 && (
               <p role="status">{plural(loaded.value.length, "entrada", "entradas")}</p>
@@ -554,7 +658,8 @@ export function VaultScreen({
               className="btn-primary"
               onClick={() => {
                 setNotice(NO_NOTICE);
-                setDetail({ kind: "new", groupId: group.id });
+                // RF-102: from "Todas las entradas" the new entry goes to the root.
+                setDetail({ kind: "new", groupId: group?.id ?? root.id });
               }}
             >
               <PlusIcon />
@@ -581,20 +686,20 @@ export function VaultScreen({
             </button>
           </div>
         ) : loaded.value.length === 0 ? (
-          liveEntryCount(tree.root) === 0 && group.kind !== "recycle_bin" ? (
+          liveEntryCount(root) === 0 && !inBin ? (
             <p className="pane-state">
               Esta bóveda todavía no tiene entradas. Con «Nueva entrada» guardas la primera cuenta.
             </p>
           ) : (
-            <p className="pane-state">
-              {group.kind === "recycle_bin" ? "La papelera está vacía." : "Este grupo no tiene entradas."}
-            </p>
+            <p className="pane-state">{inBin ? "La papelera está vacía." : "Este grupo no tiene entradas."}</p>
           )
         ) : (
           <EntryTable
             items={loaded.value}
             groupPaths={null}
-            badgeOf={() => badge}
+            badgeOf={(index) =>
+              badgeOfGroup(current?.groupOf.get(loaded.value[index]?.id ?? "") ?? group?.id ?? root.id)
+            }
             stamped={stamped}
             selectedId={selectedId}
             onSelect={selectEntry}
@@ -607,7 +712,6 @@ export function VaultScreen({
 
   function renderSearch() {
     const selectedId = detail.kind === "entry" ? detail.entry.id : null;
-    const root = tree.kind === "ready" ? tree.root : null;
     return (
       <>
         <header className="list-head">
@@ -671,74 +775,16 @@ export function VaultScreen({
  * The round badge of a group: decoration next to the group name, hidden from assistive technology. The initial is
  * drawn by CSS from `data-initial`, so the badge adds no text to the control it sits in.
  */
-function Bullet({ badge, sub = false }: { readonly badge: Badge; readonly sub?: boolean }) {
+function Bullet({ badge }: { readonly badge: Badge }) {
   return (
     <span
       className="bullet"
       data-line={badge.line}
       data-initial={badge.bin ? undefined : badge.initial}
-      data-sub={sub ? "" : undefined}
       aria-hidden="true"
     >
       {badge.bin && <TrashIcon />}
     </span>
-  );
-}
-
-interface GroupListProps {
-  readonly nodes: readonly GroupNode[];
-  readonly selectedId: string | null;
-  readonly lines: ReadonlyMap<string, GroupLine>;
-  /** 0: the root group; 1: the groups that own a line; deeper: stops on that line. */
-  readonly depth: number;
-  readonly onSelect: (id: string) => void;
-}
-
-/** RF-50: nested lists of buttons; Tab moves, Enter or Space opens the group, `aria-current` marks the open one. */
-function GroupList({ nodes, selectedId, lines, depth, onSelect }: GroupListProps) {
-  return (
-    <ul className="groups">
-      {nodes.map((node) => {
-        const name = shown(node.name, "(sin nombre)");
-        const bin = node.kind === "recycle_bin";
-        return (
-          <li key={node.id}>
-            <button
-              type="button"
-              className="rail-item"
-              title={name}
-              aria-current={node.id === selectedId ? "true" : undefined}
-              onClick={() => {
-                onSelect(node.id);
-              }}
-            >
-              <Bullet
-                badge={{ line: lines.get(node.id) ?? "neutral", initial: initialOf(name), bin }}
-                sub={depth > 1}
-              />
-              {/*
-                The text of the button stays "Nombre · N entradas" (its accessible name): the parts that are not
-                drawn are hidden, and every space is its own text node so it is not trimmed out of the name.
-              */}
-              <span className="rail-name">{name}</span>
-              {bin && " "}
-              {bin && <span className="sr-only">(papelera)</span>} <span className="sr-only">·</span>{" "}
-              <span className="rail-count">{node.entryCount}</span>{" "}
-              <span className="sr-only">{node.entryCount === 1 ? "entrada" : "entradas"}</span>
-            </button>
-            {node.children.length > 0 && (
-              <GroupList
-                nodes={node.children}
-                selectedId={selectedId}
-                lines={lines}
-                depth={depth + 1}
-                onSelect={onSelect}
-              />
-            )}
-          </li>
-        );
-      })}
-    </ul>
   );
 }
 

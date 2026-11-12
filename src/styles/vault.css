@@ -35,20 +35,6 @@
   flex: none;
 }
 
-@container list (max-width: 22rem) {
-  .list-head {
-    padding: var(--space-4) var(--space-4) var(--space-3);
-  }
-
-  .list-title h3 {
-    font-size: 1.5rem;
-  }
-
-  .list-head > button {
-    width: 100%;
-  }
-}
-
 /*
  * ---- Rows. A real table drawn as a list: the title button stretches over its row, the user and the address make
  * the second line, and the date (or the "copied" stamp) closes the row. ----
@@ -214,38 +200,6 @@
   from {
     opacity: 0;
     transform: rotate(-2deg) scale(1.3);
-  }
-}
-
-@container list (max-width: 22rem) {
-  .entries tbody tr {
-    padding-inline: calc(var(--space-4) + var(--bullet) + var(--space-3)) var(--space-4);
-  }
-
-  .entries .bullet {
-    left: var(--space-4);
-  }
-
-  /* A narrow row has no room for the address: it stays for screen readers, and the user closes the line. */
-  .entries:not([data-search]) .cell-url,
-  .entries .cell-date:not(:has(.stamp)) {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip-path: inset(50%);
-  }
-
-  /* A narrow list gives the stamp its own line under the row. */
-  .entries tbody tr:has(.stamp) {
-    grid-template-areas:
-      "title title title"
-      "user  rest  rest"
-      "date  date  date";
-  }
-
-  .entries .cell-date:has(.stamp) {
-    padding: var(--space-1) 0 0;
   }
 }
 
@@ -708,38 +662,7 @@
   }
 }
 
-/*
- * A short window (the smallest is 480 × 360): the main action, "Copiar" the password, must show without scrolling. The
- * route and the dates tighten, and only "Modificada" stays in view ("Creada" stays for screen readers).
- */
-@media (max-height: 480px) {
-  .entry-route {
-    margin-bottom: var(--space-2);
-  }
-
-  .entry-title {
-    margin-bottom: var(--space-1);
-  }
-
-  .entry-meta {
-    margin-bottom: var(--space-3);
-  }
-
-  .entry-meta > div:first-child {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip-path: inset(50%);
-    white-space: nowrap;
-  }
-
-  .entry-fields > div {
-    min-height: calc(var(--row-h) + var(--space-2));
-    padding-block: var(--space-1);
-  }
-
-  .back-to-list {
-    margin-bottom: var(--space-2);
-  }
+/* The way back from the detail to the list belonged to the one-column window, which no longer exists (RF-104). */
+.back-to-list {
+  display: none;
 }

@@ -4,7 +4,7 @@ import { assertNever } from "../assertNever";
 import type { Unlisten, VaultClient } from "../ipc/client";
 import { errorMessage, type AppError, type Result } from "../ipc/errors";
 import type { Recovery, SaveState, VaultStatus } from "../ipc/schemas";
-import { InfoIcon, WarningIcon } from "../ui/icons";
+import { InfoIcon, LockIcon, WarningIcon } from "../ui/icons";
 import { Dialog } from "./Dialog";
 import { RecoveryNotice } from "./RecoveryNotice";
 import type { SaveSignal } from "./saveSignal";
@@ -354,7 +354,9 @@ export function OpenVault(props: OpenVaultProps) {
             {props.lockDeadline !== undefined && (
               <LockCountdown key={props.lockDeadline} deadline={props.lockDeadline} />
             )}
-            <button type="button" className="btn-primary" onClick={props.onLock}>
+            {/* A bar action without a plate: the weight of the bar is the search. */}
+            <button type="button" className="btn-bar" onClick={props.onLock}>
+              <LockIcon />
               Bloquear
             </button>
             {props.tools}
@@ -362,19 +364,18 @@ export function OpenVault(props: OpenVaultProps) {
         }
         railHead={
           <>
-            <h2 id="vault-title" ref={titleRef} tabIndex={-1}>
+            <p className="rail-label">Bóveda</p>
+            {/* The rail shows no paths: the file of the vault is in this `title` and in Settings. */}
+            <h2 id="vault-title" ref={titleRef} tabIndex={-1} title={vault.path}>
               {props.name === "" ? vault.fileName : props.name}
             </h2>
-            <p className="path mono" title={vault.path}>
-              {vault.path}
-            </p>
           </>
         }
         banner={notices}
       />
 
       {/* Outside the vault screen on purpose: this live region must not be remounted with it after a reload. */}
-      <div aria-live="polite" className="save-state">
+      <div aria-live="polite" className="save-state" data-state={save.kind}>
         {politeText(save, notice) !== "" && <p>{politeText(save, notice)}</p>}
       </div>
 

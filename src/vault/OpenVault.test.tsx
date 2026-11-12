@@ -113,7 +113,9 @@ describe("P4 Bóveda — guardado", () => {
     expect(backend.calls.filter((call) => call.command === "vault_save_as")).toEqual([
       { command: "vault_save_as", args: { path: NEW_PATH } },
     ]);
-    expect(screen.getByText(NEW_PATH)).toBeDefined();
+    // The rail shows no paths: the file of the vault is in the `title` of its name.
+    expect(screen.getByRole("heading", { level: 2 }).title).toBe(NEW_PATH);
+    expect(screen.queryByText(NEW_PATH)).toBeNull();
   });
 
   it("RF-24: error — `external-change` ofrece guardar en otro lugar o recargar, confirmando qué se pierde", async () => {
@@ -173,7 +175,8 @@ describe("P4 Bóveda — solo lectura y protección débil", () => {
     fireEvent.click(await screen.findByRole("button", { name: /^Personal / }));
     await screen.findByRole("heading", { name: "Entradas de Personal" });
     expect(screen.queryByRole("button", { name: "Nueva entrada" })).toBeNull();
-    expect(screen.queryByRole("group", { name: /Acciones del grupo/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /^Más acciones de / })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Nuevo grupo" })).toBeNull();
 
     fireEvent.click(await screen.findByRole("button", { name: "Banco" }));
     await screen.findByRole("heading", { name: "Banco", level: 4 });
@@ -198,7 +201,9 @@ describe("P4 Bóveda — solo lectura y protección débil", () => {
     ]);
     expect(screen.queryByRole("heading", { name: "Bóveda en solo lectura" })).toBeNull();
     expect(await screen.findByRole("button", { name: "Nueva entrada" })).toBeDefined();
-    expect(screen.getByText(NEW_PATH)).toBeDefined();
+    // The rail shows no paths: the file of the vault is in the `title` of its name.
+    expect(screen.getByRole("heading", { level: 2 }).title).toBe(NEW_PATH);
+    expect(screen.queryByText(NEW_PATH)).toBeNull();
   });
 
   it("RF-15: error — si la conversión falla lo dice junto al botón y la bóveda sigue en solo lectura", async () => {
@@ -220,7 +225,7 @@ describe("P4 Bóveda — solo lectura y protección débil", () => {
     fireEvent.click(await screen.findByRole("button", { name: /^Personal / }));
     await screen.findByRole("heading", { name: "Entradas de Personal" });
 
-    fireEvent.click(screen.getByRole("button", { name: "Nuevo grupo…" }));
+    fireEvent.click(screen.getByRole("button", { name: "Nuevo grupo" }));
     const dialog = await screen.findByRole("dialog");
     fireEvent.change(within(dialog).getByLabelText("Nombre del grupo"), { target: { value: "Nuevo" } });
     fireEvent.click(within(dialog).getByRole("button", { name: "Crear grupo" }));

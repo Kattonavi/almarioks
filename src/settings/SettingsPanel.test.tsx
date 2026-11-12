@@ -184,3 +184,26 @@ describe("Precisiones del contrato (plan.md 15 y 16)", () => {
     });
   });
 });
+
+describe("P8 Ajustes — el archivo de la bóveda", () => {
+  it("RF-102: la ruta del archivo de la bóveda abierta se ve en Ajustes, en una fila de solo lectura, y no sin bóveda", async () => {
+    const backend = createFakeBackend({ status: OPEN, groups: SAMPLE_GROUPS, entries: SAMPLE_ENTRIES });
+    render(<VaultRoot client={createClient(backend.transport)} />);
+    const name = await screen.findByRole("heading", { name: "Cuentas", level: 2 });
+    // The rail shows no paths: the file is in the `title` of the name of the vault…
+    expect(name.title).toBe(PATH);
+    expect(screen.queryByText(PATH)).toBeNull();
+
+    // …and in Settings.
+    fireEvent.click(screen.getByRole("button", { name: "Ajustes y Acerca de" }));
+    const dialog = await screen.findByRole("dialog", { name: "Ajustes y Acerca de" });
+    expect(within(dialog).getByText("Archivo de la bóveda")).toBeDefined();
+    expect(within(dialog).getByText(PATH)).toBeDefined();
+    expect(within(dialog).queryByDisplayValue(PATH)).toBeNull();
+
+    cleanup();
+    setup();
+    await screen.findByLabelText("Limpiar el portapapeles tras (segundos)");
+    expect(screen.queryByText("Archivo de la bóveda")).toBeNull();
+  });
+});
