@@ -312,6 +312,74 @@ y https://docs.rs/zeroize/1.9.1/zeroize/. Hecho por el hilo principal.
 
 ---
 
+## P1. Portapapeles fuera de Win+V y de la nube (RF-71 a RF-75, RF-90)
+
+**Fuente:** https://learn.microsoft.com/windows/win32/dataxchg/clipboard-formats#cloud-clipboard-and-clipboard-history-formats,
+https://learn.microsoft.com/windows/win32/api/winuser/nf-winuser-getclipboardsequencenumber y
+https://learn.microsoft.com/uwp/api/windows.applicationmodel.datatransfer.clipboard. Ejercicio escrito por
+`rust-engineer` y corrido por el hilo principal (pisa el portapapeles de quien lo corra; solo usa canarios falsos).
+
+### Respuestas
+- **Cómo se marca.** En la misma apertura del portapapeles, antes del texto, se ponen tres formatos registrados con
+  `RegisterClipboardFormatW`: `ExcludeClipboardContentFromMonitorProcessing` (basta su presencia),
+  `CanIncludeInClipboardHistory` = `DWORD` 0 y `CanUploadToCloudClipboard` = `DWORD` 0. Luego `CF_UNICODETEXT`.
+- **"Sigue siendo lo nuestro" sin leer el secreto:** `GetClipboardSequenceNumber()` justo después de `CloseClipboard`.
+  Una copia nuestra con 4 formatos sube el número en 8, así que no se predice: se lee. La limpieza abre el
+  portapapeles, compara el número **con el portapapeles abierto** (nadie puede cambiarlo entre la comparación y
+  `EmptyClipboard`) y solo entonces vacía.
+- **Hace falta una ventana dueña.** `OpenClipboard(NULL)` + `EmptyClipboard` funcionó aquí aunque la documentación dice
+  que `SetClipboardData` falla sin dueño; no se confía en eso: se usa una ventana oculta de solo mensajes
+  (`HWND_MESSAGE`), que además sirve para P2.
+- **El historial de Win+V sí se puede verificar por programa** con WinRT (`Clipboard::GetHistoryItemsAsync`): el
+  canario marcado no aparece y el de control (sin marcas) sí. Con solo `CanIncludeInClipboardHistory = 0` tampoco
+  aparece, pero se ponen los tres. La nube no se pudo verificar (la sincronización está apagada en este PC).
+- Los búferes intermedios (UTF-16 y bytes) se borran con `zeroize` después de entregarlos.
+
+### Salida real (`cargo run --release --bin p1_clipboard`)
+```
+== P1 portapapeles ==
+  formatos registrados: Exclude...=0xc266 CanIncludeInClipboardHistory=0xc24e CanUploadToCloudClipboard=0xc24d
+
+  [1] OpenClipboard(NULL) + EmptyClipboard + SetClipboardData (la doc dice que falla):
+    resultado: Ok(860) | hay texto: true | dueño NULL: true
+
+  [2] Copia marcada con dueño = ventana oculta de solo mensajes:
+    secuencia antes 860 -> despues de CloseClipboard 868 (+8 por 1 copia con 4 formatos)
+    dueño = nuestra ventana: true | hay texto: true
+
+  [3] (a) nadie mas copia: limpieza condicional
+    clear_if_ours -> Cleared | hay texto despues: false | secuencia ahora 869
+
+  [4] (b) otra app copia antes de la limpieza
+    otro proceso (cmd + clip.exe) copio "CANARIO-AJENO-hola": Ok(true)
+    secuencia nuestra 877, ahora 882 | dueño = nuestra ventana: false
+    clear_if_ours -> NotOurs { now: 882 }
+    el portapapeles conserva lo ajeno: Some("CANARIO-AJENO-hola")
+
+  [5] (c) copiamos otra contraseña antes de la limpieza: vale solo la ultima secuencia
+    limpieza vieja (secuencia 890) -> NotOurs { now: 898 }
+    limpieza nueva (secuencia 898) -> Cleared | hay texto: false
+
+  [6] Historial de Win+V por programa (WinRT Clipboard):
+    IsHistoryEnabled = Ok(true) | IsRoamingEnabled = Ok(false)
+      (canario de control borrado del historial: Ok(true))
+    control (sin marcas de historial) en el historial: Ok(true)
+    marcado (3 formatos) en el historial:              Ok(false)
+    solo CanIncludeInClipboardHistory=0:              Ok(false)
+    limpieza del historial (restos del lab, incluido el canario ajeno): Ok(0) elementos
+
+  portapapeles vaciado al salir: hay texto = false
+```
+
+### Qué cambia en el diseño
+- `src-tauri::clipboard` (módulo `ffi`, único con `unsafe`): ventana oculta de solo mensajes como dueña, copia con los
+  tres formatos, y limpieza por número de secuencia comparado con el portapapeles abierto. Un `trait` de portapapeles
+  permite probar la lógica (ejemplo 1 de la spec) con uno falso y reloj inyectable; el real se prueba con este canario.
+- RF-72 deja de ser solo manual: la prueba de la app puede consultar el historial por WinRT cuando está activado.
+- Dependencia: `windows` =0.62.2 (MIT o Apache-2.0), solo en `src-tauri`.
+
+---
+
 ## Pendiente de este laboratorio
-P1 (portapapeles: `src/bin/p1_clipboard.rs` escrito, sin correr ni documentar), P2 (sesión de Windows) y P6 (Tauri:
+P2 (sesión de Windows) y P6 (Tauri:
 comandos asíncronos, instancia única, diálogos, recarga de la webview). Se retoman antes de las tareas T13 a T16.
