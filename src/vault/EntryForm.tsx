@@ -1,12 +1,21 @@
 import { useEffect, useId, useRef, useState, type SubmitEvent } from "react";
 
-import type { EntryFields, EntryPatch, VaultClient } from "../ipc/client";
+import type { EntryFields, VaultClient } from "../ipc/client";
 import { errorMessage, type AppError } from "../ipc/errors";
 import type { EntryDetail } from "../ipc/schemas";
 import { GenerateIcon, WarningIcon } from "../ui/icons";
+import {
+  buildInput,
+  fieldOf,
+  initialValues,
+  saveEntry,
+  take,
+  type EntryTextField as TextField,
+  type EntryValues as Values,
+} from "./entryDraft";
 import { shown, strengthLabel } from "./format";
 import { Generator } from "./Generator";
-import { checkEntry, entryFieldOf, parseTags, problemText, type EntryFieldKey, type FieldProblem } from "./rules";
+import { checkEntry, problemText, type EntryFieldKey, type FieldProblem } from "./rules";
 
 /** RF-70: wait this long after the last keystroke before asking the core for the strength. */
 export const ENTRY_STRENGTH_DELAY_MS = 150;
@@ -14,16 +23,6 @@ export const ENTRY_STRENGTH_DELAY_MS = 150;
 export type EntryFormMode =
   | { readonly kind: "create"; readonly groupId: string; readonly groupName: string }
   | { readonly kind: "edit"; readonly entry: EntryDetail };
-
-type TextField = "title" | "username" | "url" | "notes";
-
-interface Values {
-  readonly title: string;
-  readonly username: string;
-  readonly url: string;
-  readonly notes: string;
-  readonly tags: string;
-}
 
 type Phase =
   | {
@@ -52,61 +51,13 @@ const LABELS: Readonly<Record<EntryFieldKey, string>> = {
   tags: "Etiquetas (una por línea)",
 };
 
-/** Reads a secret field and empties it at once: the value lives only in the caller's stack (ADR-0002). */
-function take(field: HTMLInputElement | null): string {
-  const value = field?.value ?? "";
-  if (field !== null) field.value = "";
-  return value;
-}
-
-function initialValues(mode: EntryFormMode): Values {
-  if (mode.kind === "create") return { title: "", username: "", url: "", notes: "", tags: "" };
-  const { entry } = mode;
-  // A protected field (`null`) is never preloaded: like the password, it is sent only if something is written.
-  return {
-    title: entry.title ?? "",
-    username: entry.username ?? "",
-    url: entry.url ?? "",
-    notes: entry.notes ?? "",
-    tags: entry.tags.join("\n"),
-  };
-}
-
-/**
- * Which core error belongs to which field when the core rejects what the window let through. The core names the field
- * and the limit (plan.md, precision 15); the window's own deduction is the fallback when it does not.
- */
-function fieldOf(error: AppError, input: Partial<EntryFields>): FieldProblem | null {
-  const local = (): FieldProblem | null => {
-    const found = checkEntry(input);
-    return found !== null && found.code === error.code ? found : null;
-  };
-  switch (error.code) {
-    case "TituloVacio":
-      return { field: "title", code: "TituloVacio" };
-    case "EtiquetaInvalida":
-      return { field: entryFieldOf(error.field) ?? "tags", code: "EtiquetaInvalida" };
-    case "CampoMuyLargo": {
-      const field = entryFieldOf(error.field);
-      if (field === null) return local();
-      return { field, code: "CampoMuyLargo", ...(error.limit === undefined ? {} : { limit: error.limit }) };
-    }
-    case "CaracterNoPermitido": {
-      const field = entryFieldOf(error.field);
-      return field === null ? local() : { field, code: "CaracterNoPermitido" };
-    }
-    default:
-      return null;
-  }
-}
-
 /**
  * P5, create and edit (RF-38 to RF-41, RF-45, RF-70, RF-91). Text fields are controlled; the password is not React
  * state: it is read and emptied right before the call. An edit is a patch: only what the owner changed travels, and
  * the password only if a new one was written or generated (example 8).
  */
 export function EntryForm({ client, mode, onSaved, onCancel }: EntryFormProps) {
-  const [values, setValues] = useState<Values>(() => initialValues(mode));
+  const [values, setValues] = useState<Values>(() => initialValues(mode.kind === "edit" ? mode.entry : null));
   const [phase, setPhase] = useState<Phase>({ kind: "editing", problem: null, error: null, passwordLost: false });
   const [score, setScore] = useState<number | null>(null);
   const [generatorOpen, setGeneratorOpen] = useState(false);
@@ -176,30 +127,10 @@ export function EntryForm({ client, mode, onSaved, onCancel }: EntryFormProps) {
     setValues((current) => ({ ...current, [field]: value }));
   }
 
-  /** What travels: everything on create; on edit, only what changed (RF-45). */
-  function buildInput(password: string): Partial<EntryFields> {
-    const tags = parseTags(values.tags);
-    if (editing === null) return { ...values, tags, password };
-    const changed = (field: TextField) => {
-      const before = editing[field];
-      return before === null ? values[field] !== "" : values[field] !== before;
-    };
-    // Compared as written, like the other fields: tags the owner did not touch are not sent again.
-    const tagsChanged = values.tags !== editing.tags.join("\n");
-    return {
-      ...(changed("title") ? { title: values.title } : {}),
-      ...(changed("username") ? { username: values.username } : {}),
-      ...(password === "" ? {} : { password }),
-      ...(changed("url") ? { url: values.url } : {}),
-      ...(changed("notes") ? { notes: values.notes } : {}),
-      ...(tagsChanged ? { tags } : {}),
-    };
-  }
-
   function onSubmit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     if (phase.kind !== "editing") return;
-    const input = buildInput(passwordRef.current?.value ?? "");
+    const input = buildInput(values, editing, passwordRef.current?.value ?? "");
     const problem = checkEntry(input);
     if (problem !== null) {
       setPhase({ kind: "editing", problem, error: null, passwordLost: false });
@@ -219,17 +150,11 @@ export function EntryForm({ client, mode, onSaved, onCancel }: EntryFormProps) {
   }
 
   async function save(input: Partial<EntryFields>, hadPassword: boolean) {
-    const result =
-      mode.kind === "create"
-        ? await client.entryCreate(mode.groupId, {
-            title: input.title ?? "",
-            username: input.username ?? "",
-            password: input.password ?? "",
-            url: input.url ?? "",
-            notes: input.notes ?? "",
-            tags: input.tags ?? [],
-          })
-        : await client.entryUpdate(mode.entry.id, input satisfies EntryPatch);
+    const result = await saveEntry(
+      client,
+      mode.kind === "create" ? { kind: "create", groupId: mode.groupId } : { kind: "edit", id: mode.entry.id },
+      input,
+    );
     if (!mounted.current) return;
     if (result.ok) {
       onSaved(result.value, true);
