@@ -53,8 +53,10 @@ const WAKE: u32 = WM_APP;
 /// Another app may hold the clipboard open for an instant: try a few times, far below the 1 s of RF-30.
 const OPEN_ATTEMPTS: u32 = 10;
 const OPEN_RETRY_DELAY: Duration = Duration::from_millis(5);
-/// The owner thread answers in at most `OPEN_ATTEMPTS * OPEN_RETRY_DELAY`; past this it is taken for dead.
-const REPLY_TIMEOUT: Duration = Duration::from_secs(1);
+/// The owner thread answers in about `OPEN_ATTEMPTS * OPEN_RETRY_DELAY` at worst; past this it is taken for dead.
+/// Short on purpose: a lock waits for a copy in flight and then for its own clear, and both must fit in the
+/// 1 s of RF-30. A false timeout fails safe: the owner thread takes back a copy nobody waited for.
+const REPLY_TIMEOUT: Duration = Duration::from_millis(250);
 /// Requests waiting for the owner thread. The service sends one at a time; a full queue is an error, not a wait.
 const QUEUE: usize = 8;
 
@@ -353,10 +355,6 @@ fn set_marked_text(
     formats: &ExclusionFormats,
     text: &[u16],
 ) -> Result<SequenceNumber, SystemClipboardError> {
-    if current_sequence().0 == 0 {
-        // Without access to the clipboard we could never tell later whether the content is still ours.
-        return Err(win32(ERROR_ACCESS_DENIED));
-    }
     open_clipboard(Some(window)).map_err(os_error)?;
     let no: [u32; 1] = [0];
     // SAFETY: the clipboard is open by this thread for `window`; `EmptyClipboard` makes `window` the owner
@@ -376,6 +374,12 @@ fn set_marked_text(
     close_clipboard();
     written.map_err(os_error)?;
     let sequence = current_sequence();
+    if sequence.0 == 0 {
+        // 0 after a write means the session cannot read the number: we could never tell later whether the
+        // content is still ours, so the copy is taken back now (0 is what a clear would read as well).
+        let _ = clear_if_sequence_is(window, sequence);
+        return Err(win32(ERROR_ACCESS_DENIED));
+    }
     // The number was read after closing, so another app could have written in between. If it did, it also took
     // the ownership: checking the owner AFTER reading the number proves the number is ours.
     // SAFETY: no preconditions.
@@ -415,7 +419,7 @@ fn win32(code: WIN32_ERROR) -> SystemClipboardError {
 #[doc(hidden)]
 pub mod probe {
     use windows::Win32::{
-        Foundation::{ERROR_ACCESS_DENIED, HGLOBAL},
+        Foundation::HGLOBAL,
         System::{
             Com::{COINIT_APARTMENTTHREADED, CoInitializeEx},
             DataExchange::GetClipboardData,
@@ -426,7 +430,7 @@ pub mod probe {
 
     use super::{
         CAN_INCLUDE_IN_HISTORY, CAN_UPLOAD_TO_CLOUD, EXCLUDE_FROM_MONITORS, close_clipboard,
-        current_sequence, open_clipboard, os_error, register_clipboard_format, win32,
+        open_clipboard, os_error, register_clipboard_format,
     };
     use crate::clipboard::SystemClipboardError;
 
@@ -448,11 +452,8 @@ pub mod probe {
     /// Whether this session has a clipboard that can be opened.
     ///
     /// # Errors
-    /// The operating system's reason: no access to the clipboard, or it cannot be opened.
+    /// The operating system's reason why the clipboard cannot be opened.
     pub fn availability() -> Result<(), SystemClipboardError> {
-        if current_sequence().0 == 0 {
-            return Err(win32(ERROR_ACCESS_DENIED));
-        }
         open_clipboard(None).map_err(os_error)?;
         close_clipboard();
         Ok(())

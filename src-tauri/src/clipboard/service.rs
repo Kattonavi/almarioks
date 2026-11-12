@@ -119,10 +119,14 @@ impl ClipboardService {
         if !(MIN_CLEAR_SECONDS..=MAX_CLEAR_SECONDS).contains(&clear_after_seconds) {
             return Err(CoreError::ArgumentoInvalido.into());
         }
-        let sequence = self
-            .clipboard
-            .set_secret(&secret)
-            .map_err(|_| ClipboardError::Unavailable)?;
+        let sequence = match self.clipboard.set_secret(&secret) {
+            Ok(sequence) => sequence,
+            // `Bloqueada` wins over any other reason (spec, "Códigos de error").
+            Err(_) if self.lock_requested_since(lock_requests_seen) => {
+                return Err(CoreError::Bloqueada.into());
+            }
+            Err(_) => return Err(ClipboardError::Unavailable),
+        };
         drop(secret);
         let clear_at = self.clock.now() + Duration::from_secs(u64::from(clear_after_seconds));
         *pending = Some(Pending { sequence, clear_at });

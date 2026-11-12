@@ -81,22 +81,25 @@ impl FakeClipboard {
 
 impl SystemClipboard for FakeClipboard {
     fn set_secret(&self, secret: &SecretString) -> Result<SequenceNumber, SystemClipboardError> {
-        let (sequence, hold) = {
+        let (written, hold) = {
             let mut state = self.0.lock().unwrap();
-            if std::mem::take(&mut state.fail_set) {
-                return Err(SystemClipboardError::new(5));
-            }
-            state.text = Some(secret.expose_secret().to_owned());
-            // The real clipboard moves several steps per copy (one per format): the number is read, not guessed.
-            state.sequence += 8;
-            state.sets += 1;
-            (state.sequence, state.hold.take())
+            let written = if std::mem::take(&mut state.fail_set) {
+                Err(SystemClipboardError::new(5))
+            } else {
+                state.text = Some(secret.expose_secret().to_owned());
+                // The real clipboard moves several steps per copy (one per format): the number is read, not
+                // guessed.
+                state.sequence += 8;
+                state.sets += 1;
+                Ok(SequenceNumber(state.sequence))
+            };
+            (written, state.hold.take())
         };
         if let Some((inside, release)) = hold {
             inside.send(()).unwrap();
             release.recv_timeout(PATIENCE).unwrap();
         }
-        Ok(SequenceNumber(sequence))
+        written
     }
 
     fn sequence_number(&self) -> SequenceNumber {
@@ -368,6 +371,7 @@ fn rf_75_exit_leaves_alone_what_another_app_copied() {
 fn copy_in_flight_then_lock(
     clipboard: &FakeClipboard,
     service: ClipboardService,
+    in_flight: Option<&str>,
 ) -> (
     Result<CopyReceipt, ClipboardError>,
     Result<ClearOutcome, ClipboardError>,
@@ -383,8 +387,8 @@ fn copy_in_flight_then_lock(
     hold.inside.recv_timeout(PATIENCE).unwrap();
     assert_eq!(
         clipboard.text().as_deref(),
-        Some(GITHUB),
-        "the copy is in flight: the value is already in the clipboard"
+        in_flight,
+        "what the clipboard has while the copy is in flight"
     );
 
     let locker = {
@@ -407,7 +411,7 @@ fn copy_in_flight_then_lock(
 fn rf_90_a_copy_that_finishes_after_the_lock_was_requested_leaves_nothing_and_answers_bloqueada() {
     let (clipboard, _clock, service) = setup();
 
-    let (copied, locked, service) = copy_in_flight_then_lock(&clipboard, service);
+    let (copied, locked, service) = copy_in_flight_then_lock(&clipboard, service, Some(GITHUB));
 
     assert_eq!(code(copied), Some("Bloqueada"));
     assert_eq!(clipboard.text(), None, "nothing is left in the clipboard");
@@ -420,11 +424,23 @@ fn rf_90_if_the_late_copy_cannot_take_its_value_back_the_lock_behind_it_does() {
     let (clipboard, _clock, service) = setup();
     clipboard.fail_next_clears(1);
 
-    let (copied, locked, _service) = copy_in_flight_then_lock(&clipboard, service);
+    let (copied, locked, _service) = copy_in_flight_then_lock(&clipboard, service, Some(GITHUB));
 
     assert_eq!(code(copied), Some("Bloqueada"));
     assert_eq!(locked, Ok(ClearOutcome::Cleared));
     assert_eq!(clipboard.text(), None, "nothing is left in the clipboard");
+}
+
+#[test]
+fn rf_90_a_late_copy_the_system_refused_still_answers_bloqueada() {
+    let (clipboard, _clock, service) = setup();
+    clipboard.fail_next_set();
+
+    let (copied, locked, _service) = copy_in_flight_then_lock(&clipboard, service, None);
+
+    assert_eq!(code(copied), Some("Bloqueada"), "Bloqueada wins");
+    assert_eq!(locked, Ok(ClearOutcome::NothingPending));
+    assert_eq!(clipboard.text(), None);
 }
 
 #[test]
