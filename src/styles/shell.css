@@ -254,12 +254,37 @@
   grid-area: 1 / 1;
   min-height: 0;
   padding: var(--space-4) var(--space-3) var(--space-3);
-  overflow-y: auto;
+  /* D-6: the rail shares its height out; only the group list scrolls, so its actions never fall off the foot. */
+  overflow: hidden;
   border-top: 1px solid var(--rule);
 }
 
 .rail-head {
+  flex: none;
   padding: 0 10px var(--space-4);
+}
+
+.rail-nav {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.rail-nav > h3,
+.rail-nav > .path,
+.rail-nav > .pane-state,
+.group-actions {
+  flex: none;
+}
+
+/* The top list scrolls on its own; a little room at the foot keeps the focus ring of the last group whole. */
+.rail-nav > .groups {
+  flex: 0 1 auto;
+  min-height: 0;
+  padding-bottom: var(--space-1);
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .rail-head h2 {
