@@ -267,6 +267,65 @@ pub fn create_named_vault_file(
     Ok(opened)
 }
 
+/// Converts a KDBX 3.x vault into the bytes of a KDBX 4 vault (RF-15, lab `docs/lab/boveda-0.1` P4 e): the same
+/// content (groups, entries, history, attachments, metadata) with the format and KDF of a new vault (RF-2:
+/// Argon2id, [`NEW_VAULT_MEMORY_BYTES`], `kdf`'s iterations) and the same key. The input is only read.
+///
+/// The result is checked before it is returned: it reopens with the key, is KDBX 4, has the KDF asked for and
+/// the same number of entries and groups.
+///
+/// # Errors
+/// - Those of [`open::open`] for the input (`LlaveIncorrecta`, `ArchivoDanado`, ...).
+/// - [`CoreError::ArgumentoInvalido`] if the input is already KDBX 4: there is nothing to convert (decision
+///   pending: the spec only defines converting 3.x).
+/// - [`CoreError::GuardadoFallido`] if the library cannot write it or the result does not check.
+pub fn convert_to_kdbx4(bytes: &[u8], key: &VaultKey, kdf: NewVaultKdf) -> CoreResult<Vec<u8>> {
+    let opened = open::open(bytes, key)?;
+    if !opened.is_read_only() {
+        return Err(CoreError::ArgumentoInvalido);
+    }
+    let mut db = opened.db;
+    db.config = database_config(kdf)?;
+    let mut converted = Vec::new();
+    db.save(&mut converted, key.to_database_key()?)
+        .map_err(|_| CoreError::GuardadoFallido)?;
+    let back = open::open(&converted, key).map_err(|_| CoreError::GuardadoFallido)?;
+    if back.is_read_only()
+        || back.kdf() != kdf.params()
+        || back.entry_count() != db.num_entries()
+        || back.group_count() != db.num_groups()
+    {
+        return Err(CoreError::GuardadoFallido);
+    }
+    Ok(converted)
+}
+
+/// [`convert_to_kdbx4`] written to a NEW file at `target`, like [`create_vault_file`]: nothing at `target` is
+/// overwritten, the file is created with `create_new`, read back and reopened before the conversion counts as
+/// done, and removed if any of that fails. The original is the caller's bytes; its file is never touched (RF-15).
+///
+/// # Errors
+/// - [`CoreError::ArchivoExiste`] if anything is at `target` (checked first, before deriving any key).
+/// - Those of [`convert_to_kdbx4`].
+/// - [`CoreError::GuardadoFallido`]: the disk refused, or what was read back does not reopen.
+pub fn convert_vault_file(
+    source: &[u8],
+    target: &Path,
+    key: &VaultKey,
+    kdf: NewVaultKdf,
+) -> CoreResult<OpenedVault> {
+    storage::ensure_absent(target)?;
+    let converted = convert_to_kdbx4(source, key, kdf)?;
+    let mut created = storage::CreatedFiles::default();
+    let mut file = created.create_new(target)?;
+    storage::write_and_sync(&mut file, &converted)?;
+    drop(file);
+    let opened =
+        open::open(&storage::read(target)?, key).map_err(|_| CoreError::GuardadoFallido)?;
+    created.keep();
+    Ok(opened)
+}
+
 /// A new `.keyx` version 2 (KeePass 2 format, as in `docs/lab/kdbx-roundtrip`): 32 bytes from the operating
 /// system's generator in hexadecimal, and the first 4 bytes of their SHA-256 as `Hash` (RF-5).
 pub(crate) fn new_key_file() -> CoreResult<KeyFile> {
