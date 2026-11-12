@@ -272,7 +272,7 @@ pub enum End {
 pub struct LockParts {
     /// The clipboard, if it could start.
     pub clipboard: Option<Arc<ClipboardService>>,
-    /// The settings: the minutes of inactivity are read at every evaluation.
+    /// The settings: the minutes of inactivity are read at every evaluation, without waiting for their file.
     pub settings: Arc<SettingsStore>,
     /// Who tells the window.
     pub window: Arc<dyn WindowEvents>,
@@ -355,10 +355,10 @@ impl LockCenter {
     }
 
     /// Whole seconds left before the inactivity lock, rounded up; 0 when it is due. Reads the settings (disk on
-    /// first use): call it from `spawn_blocking`.
+    /// first use only): call it from `spawn_blocking`.
     #[must_use]
     pub fn locks_in_seconds(&self) -> u64 {
-        let minutes = self.settings.read().auto_lock_minutes();
+        let minutes = self.settings.auto_lock_minutes();
         let remaining = self.idle.remaining(self.clock.now(), minutes);
         remaining.as_secs() + u64::from(remaining.subsec_nanos() > 0)
     }
@@ -381,8 +381,10 @@ impl LockCenter {
         if !matches!(self.session.status(), Status::Open(_)) {
             return false;
         }
-        // Read at every evaluation, so a change of the setting counts from the next heartbeat.
-        let minutes = self.settings.read().auto_lock_minutes();
+        // Read at every evaluation, so a change of the setting counts from the next heartbeat. Not through the
+        // lock of the settings: it is held while their file is written, and a disk that hangs must not keep the
+        // vault open (RF-29).
+        let minutes = self.settings.auto_lock_minutes();
         if !self.idle.expired(self.clock.now(), minutes) {
             return false;
         }

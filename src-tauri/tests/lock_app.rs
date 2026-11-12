@@ -8,12 +8,27 @@
 
 mod common;
 
-use std::time::Duration;
+use std::{
+    sync::{
+        Arc, Mutex,
+        atomic::{AtomicBool, Ordering},
+        mpsc::channel,
+    },
+    thread,
+    time::Duration,
+};
 
-use almarioks_lib::lock::{IdleTimer, VAULT_LOCKED_EVENT, VAULT_SAVE_STATE_EVENT, idle_between};
+use almarioks_core::{CoreError, kdbx::MasterPassword, session::Status, settings::Settings};
+use almarioks_lib::{
+    lock::{
+        IdleTimer, LockCenter, LockParts, VAULT_LOCKED_EVENT, VAULT_SAVE_STATE_EVENT, WindowEvents,
+        idle_between,
+    },
+    state::SettingsStore,
+};
 use common::{
-    error_code,
-    vault::{CANARY, FakeIdleClock, Rig},
+    CountingReloader, TempDir, error_code,
+    vault::{CANARY, FakeIdleClock, PATIENCE, Rig, canary_vault_bytes},
 };
 use serde_json::{Value, json};
 
@@ -536,4 +551,143 @@ fn rf_29_rf_36_after_prepare_update_the_vault_opens_again_and_still_locks_by_ina
     rig.plain("app_prepare_update").unwrap();
     assert_eq!(rig.state(), "closed");
     assert_eq!(rig.clipboard.text(), None);
+}
+
+// ---------- RF-29 (review 0.1, M-1): the inactivity lock does not wait for the settings file ----------
+
+/// A window nobody looks at.
+struct NoWindow;
+
+impl WindowEvents for NoWindow {
+    fn vault_locked(&self) {}
+    fn save_state(&self, _state: &'static str) {}
+}
+
+/// The lock of the app over `settings`, with a clock the test moves, and the canary vault open in its session.
+fn center_with_open_vault(
+    dir: &TempDir,
+    settings: &Arc<SettingsStore>,
+    clock: &FakeIdleClock,
+) -> Arc<LockCenter> {
+    let center = Arc::new(LockCenter::new(LockParts {
+        clipboard: None,
+        settings: Arc::clone(settings),
+        window: Arc::new(NoWindow),
+        reloader: Arc::new(CountingReloader::default()),
+        clock: Arc::new(clock.clone()),
+    }));
+    let path = dir.path().join("canario.kdbx");
+    std::fs::write(&path, canary_vault_bytes()).unwrap();
+    center.unlocking();
+    center
+        .session()
+        .unlock(
+            &path,
+            Some(MasterPassword::new(common::vault::master())),
+            None,
+        )
+        .unwrap();
+    center.activity();
+    center
+}
+
+/// The countdown and one heartbeat, on a thread of their own: a heartbeat that waits for the settings file fails
+/// the test instead of hanging it.
+fn countdown_and_heartbeat(center: &Arc<LockCenter>) -> (u64, bool) {
+    let (answer, answered) = channel();
+    let center = Arc::clone(center);
+    thread::spawn(move || {
+        // The test may have given up waiting.
+        _ = answer.send((center.locks_in_seconds(), center.evaluate()));
+    });
+    answered
+        .recv_timeout(PATIENCE)
+        .expect("the inactivity lock waited for the settings file")
+}
+
+#[test]
+fn rf_29_the_vault_locks_on_time_while_a_change_of_the_settings_hangs_on_the_disk() {
+    let dir = TempDir::new("rf29-hung-settings");
+    // A disk that hangs on the write the test arms, until it is released.
+    let armed = Arc::new(AtomicBool::new(false));
+    let (inside, entered) = channel();
+    let (release, released) = channel::<()>();
+    let gate = Mutex::new((inside, released));
+    let hangs = Arc::clone(&armed);
+    let settings = Arc::new(SettingsStore::with_writer(
+        dir.settings_file(),
+        Box::new(move |settings, file| {
+            if hangs.swap(false, Ordering::SeqCst) {
+                let gate = gate.lock().unwrap();
+                gate.0.send(()).unwrap();
+                gate.1.recv_timeout(PATIENCE).unwrap();
+            }
+            settings.save(file)
+        }),
+    ));
+    settings
+        .update(|settings| settings.set_auto_lock_minutes(1))
+        .unwrap();
+    let clock = FakeIdleClock::default();
+    let center = center_with_open_vault(&dir, &settings, &clock);
+
+    // The person chooses 30 minutes and the write hangs (a configuration folder on a network that went away).
+    armed.store(true, Ordering::SeqCst);
+    let changing = {
+        let settings = Arc::clone(&settings);
+        thread::spawn(move || settings.update(|settings| settings.set_auto_lock_minutes(30)))
+    };
+    entered.recv_timeout(PATIENCE).unwrap();
+
+    clock.advance(59);
+    assert_eq!(countdown_and_heartbeat(&center), (1, false));
+    clock.advance(1);
+    assert_eq!(
+        countdown_and_heartbeat(&center),
+        (0, true),
+        "the minute that is on disk, not the 30 that are not there yet"
+    );
+    assert!(matches!(center.session().status(), Status::Locked { .. }));
+
+    // The write ends: the change is kept, and counts from the next heartbeat.
+    release.send(()).unwrap();
+    let changed = changing.join().unwrap().unwrap();
+    assert_eq!(changed.auto_lock_minutes(), 30);
+    assert_eq!(settings.auto_lock_minutes(), 30);
+    assert_eq!(Settings::load(&dir.settings_file()).auto_lock_minutes(), 30);
+}
+
+#[test]
+fn rf_29_a_change_of_the_settings_that_could_not_be_written_does_not_move_the_inactivity_lock() {
+    let dir = TempDir::new("rf29-failed-settings");
+    let fails = Arc::new(AtomicBool::new(false));
+    let failing = Arc::clone(&fails);
+    let settings = Arc::new(SettingsStore::with_writer(
+        dir.settings_file(),
+        Box::new(move |settings, file| {
+            if failing.load(Ordering::SeqCst) {
+                return Err(CoreError::GuardadoFallido);
+            }
+            settings.save(file)
+        }),
+    ));
+    let clock = FakeIdleClock::default();
+    let center = center_with_open_vault(&dir, &settings, &clock);
+    // Read from a file that is not there yet: the default.
+    assert_eq!(settings.auto_lock_minutes(), 5);
+
+    fails.store(true, Ordering::SeqCst);
+    let refused = settings.update(|settings| settings.set_auto_lock_minutes(30));
+    assert_eq!(refused.map(drop), Err(CoreError::GuardadoFallido));
+    assert_eq!(settings.auto_lock_minutes(), 5);
+    assert_eq!(settings.read().auto_lock_minutes(), 5);
+
+    // And one that was written counts at the next heartbeat.
+    fails.store(false, Ordering::SeqCst);
+    clock.advance(60);
+    assert_eq!(countdown_and_heartbeat(&center), (240, false));
+    settings
+        .update(|settings| settings.set_auto_lock_minutes(1))
+        .unwrap();
+    assert_eq!(countdown_and_heartbeat(&center), (0, true));
 }
