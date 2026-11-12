@@ -65,6 +65,12 @@ Señalética**: es la que se lee más rápido, usa el color para algo (saber en 
 disfrazar la pantalla. La Retícula tiene la mejor idea para mostrar la contraseña; si te gusta, se puede evaluar esa
 sola pieza dentro de la dirección que escojas, pero eso se decide después de escoger el mundo, no antes.
 
+## Decisión (2026-11-11, noche)
+El dueño leyó la recomendación y respondió con una autorización general, sin nombrar una opción. La directora lo
+tomó como vía libre a **Señalética** y la aplica sobre la interfaz ya funcional. Es reversible: los otros bocetos
+siguen aquí y cambiar de mundo toca tokens y composición, no la lógica. El contrato de dirección está en
+`.impeccable/surfaces/`.
+
 ## Cómo escoger
 Responde con el nombre de una opción, o pide otra mano ("más segura" o "más atrevida"). Los bocetos en HTML están en
 `docs/diseno/mocks/` para abrirlos a tamaño real (1440 × 900). Insumos previos: `docs/diseno/referencias.md`.
