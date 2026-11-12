@@ -4,7 +4,8 @@
  *
  *   ?tema=oscuro|claro      forces a theme (dark is the same file production loads by media query)
  *   ?estado=…               the screen and state to show (default: copiado):
- *       without a vault     bienvenida · bienvenida-vacia · crear · crear-vacia · crear-existe · crear-ubicacion ·
+ *       without a vault     bienvenida · bienvenida-vacia · crear · crear-segura · crear-vacia · crear-existe ·
+ *                           crear-ubicacion ·
  *                           crear-llave · crear-llave-nueva · crear-llave-ubicacion · crear-error · creando ·
  *                           creada · desbloquear · desbloquear-sin-llave · derivando · error-llave ·
  *                           bloqueada · ajustes
@@ -57,6 +58,7 @@ const CLOSED = new Set([
   "bienvenida",
   "bienvenida-vacia",
   "crear",
+  "crear-segura",
   "crear-vacia",
   "crear-existe",
   "crear-ubicacion",
@@ -169,6 +171,7 @@ async function stageClosed(backend: FakeBackend) {
       await find(state === "derivando" ? "progress" : "#unlock-error", state === "derivando" ? /^/ : /./);
       return;
     case "crear":
+    case "crear-segura":
     case "crear-vacia":
     case "crear-existe":
     case "crear-ubicacion":
@@ -200,8 +203,9 @@ async function stageClosed(backend: FakeBackend) {
         await find("#create-confirm-error", /./);
         return;
       }
-      if (state === "crear") {
-        await fill("create-password", "abcdefgh1");
+      if (state === "crear" || state === "crear-segura") {
+        // "crear" shows the warning of a weak password; "crear-segura" is the form as it opens, with a good one.
+        await fill("create-password", state === "crear" ? "abcdefgh1" : "Mucho-Mejor-2026");
         await find("meter", /^/);
         return;
       }
