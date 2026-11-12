@@ -303,6 +303,7 @@
  */
 .list-foot {
   flex: none;
+  margin-top: auto;
   padding-top: var(--space-4);
 }
 
