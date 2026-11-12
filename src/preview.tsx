@@ -90,16 +90,24 @@ function entry(id: string, groupId: string, title: string, username: string, mod
   return { id, groupId, title, username, url, modified, created: "2026-03-02T14:00:00Z", password: "demo-Clave-0001" };
 }
 
+/** `ventana-500`: a made-up password of 500 characters, the longest the generator makes, to see it shown whole. */
+const LONG_PASSWORD = "abcdefghjkmnpqrstuvwxyz23456789#%ABCDEFGH".repeat(13).slice(0, 500);
+
 const ENTRIES: readonly FakeEntry[] = [
   entry("e-mail", "g-work", "Correo de la oficina", "ana@example.com", "2026-11-10T15:20:00Z"),
   entry("e-figma", "g-work", "Figma", "ana@example.com", "2026-10-12T09:00:00Z", "https://figma.example"),
   {
     ...entry("e-github", "g-work", "GitHub", "ana@example.com", "2026-11-08T18:45:00Z", "https://github.com"),
+    password: state === "ventana-500" ? LONG_PASSWORD : "demo-Clave-0001",
     notes: "Cuenta de la organización. Renovar el token de acceso en enero.",
     tags: ["código", "trabajo"],
     customFields: [{ name: "PIN", protected: true, value: "4821" }],
   },
-  entry("e-jira", "g-work", "Jira", "ana.g", "2026-09-03T11:10:00Z"),
+  // `sin-clave` (RF-105): an entry without a password, to see its empty cell and its row with one button.
+  {
+    ...entry("e-jira", "g-work", "Jira", "ana.g", "2026-09-03T11:10:00Z"),
+    password: state === "sin-clave" ? "" : "demo-Clave-0001",
+  },
   entry("e-payroll", "g-work", "Nómina", "1032456789", "2026-08-30T08:00:00Z"),
   entry("e-railway", "g-work", "Railway", "ana@example.com", "2026-08-28T20:30:00Z", "https://railway.example"),
   entry("e-slack", "g-work", "Slack", "ana@example.com", "2026-08-15T13:00:00Z"),
@@ -230,7 +238,14 @@ function measures(): string[] {
     const node = document.querySelector(selector);
     return node === null ? "-" : getComputedStyle(node).fontSize;
   };
-  const pad = getComputedStyle(document.querySelector(".detail-pane") ?? document.body);
+  const WINDOW = 'dialog[data-layout="entry"]';
+  const size = (selector: string) => `${px(box(selector)?.width)}x${px(box(selector)?.height)}`;
+  const style = (selector: string, property: "borderTopLeftRadius" | "fontWeight") => {
+    const node = document.querySelector(selector);
+    return node === null ? "-" : getComputedStyle(node)[property];
+  };
+  const entryWindow = document.querySelector(WINDOW);
+  const shownSecret = document.querySelector(".card-row .secret:not([data-masked])");
   const icons = [...document.querySelectorAll(".card-actions > button")].map((node) => node.getBoundingClientRect());
   const lastIcons = [...document.querySelectorAll(".card-actions > button:last-child")].map(
     (node) => node.getBoundingClientRect().right,
@@ -251,8 +266,15 @@ function measures(): string[] {
       `iconos ${[...new Set(icons.map((icon) => `${px(icon.width)}x${px(icon.height)}`))].join("/")} (${String(icons.length)})`,
       // The right edge of the last button of every row: one value means they line up.
       `bordes-derechos ${[...new Set(lastIcons.map(px))].join("/")} (${String(lastIcons.length)} filas)`,
-      `relleno-detalle ${pad.paddingTop}/${pad.paddingRight}/${pad.paddingBottom}/${pad.paddingLeft}`,
-      `detalle ${px(box(".detail-pane")?.width)}`,
+      // The window of the entry (RF-43) as approved: 600 wide, radius 8, and the controls of its head.
+      `ventana ${size(WINDOW)} radio ${style(WINDOW, "borderTopLeftRadius")} ${paint(WINDOW)}`,
+      `peso-titulo ${style(".entry-title", "fontWeight")}`,
+      `editar ${size(".entry-head-actions > button:first-child")} mas ${size(".entry-more")} cerrar ${size(".entry-close")}`,
+      `tarjeta ${paint(".entry-card")} radio ${style(".entry-card", "borderTopLeftRadius")} margen ${px((box(".entry-card")?.left ?? 0) - (box(WINDOW)?.left ?? 0))}`,
+      `copiar ${paint(".card-actions > .btn-primary")} menu ${paint(".entry-menu > .menu")}`,
+      // A long value shown: its box, how many characters it has, and whether anything sticks out of the window.
+      `secreto ${size(".card-row .secret:not([data-masked])")} (${String(shownSecret?.textContent.length ?? 0)})`,
+      `desborda ${String(entryWindow !== null && entryWindow.scrollWidth > entryWindow.clientWidth)} alto-total ${String(entryWindow?.scrollHeight ?? 0)}`,
     ];
   }
   return [
@@ -306,6 +328,9 @@ function entryDialogMeasures(): string[] {
     `generar ${size(".password-generate")}`,
     `fortaleza ${size(".strength-bar")}`,
     `opciones ${css(".generator-options", (style) => `${style.borderTopLeftRadius} ${style.backgroundColor}`)}`,
+    `casilla ${size(".generator-length-exact")} ${type(".generator-length-exact")}`,
+    `largo-clave ${String(document.querySelector<HTMLInputElement>("#entry-dialog-password")?.value.length ?? 0)}`,
+    `desborda ${String((node('dialog[data-layout="form"]')?.scrollWidth ?? 0) > (node('dialog[data-layout="form"]')?.clientWidth ?? 0))}`,
     `notas ${size("#entry-dialog-notes")}`,
     `cancelar ${size(".entry-dialog-foot > button:not(.btn-primary)")}`,
     `guardar ${size(".entry-dialog-foot > .btn-primary")}`,
@@ -339,7 +364,12 @@ async function stageEntryDialog(container: HTMLElement, backend: FakeBackend) {
     await click("button", "Generar");
     await find(".strength-row", /Fortaleza/);
     await fill("entry-dialog-url", "https://github.com");
-    if (state === "dialogo-opciones") await click("button", "Opciones del generador");
+    if (state === "dialogo-opciones") {
+      await click("button", "Opciones del generador");
+      // The exact length, up to 500: the slider stays at its end and what is in the field is generated again.
+      await fill("entry-dialog-password-length-exact", "500");
+      await find(".strength-row", /Fortaleza/);
+    }
   }
 }
 
@@ -407,6 +437,10 @@ async function stageOpen(backend: FakeBackend) {
       return;
     default:
   }
+  if (state === "sin-clave") {
+    await click(".entries button", "Jira");
+    return;
+  }
   await click(".entries button", "GitHub");
   // RF-106: the click chose the row; the window of the entry opens with a double click on its title.
   (await find(".entries .cell-title button", "GitHub")).dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
@@ -428,7 +462,7 @@ async function stageOpen(backend: FakeBackend) {
       await find(".strength-row", /Fortaleza/);
     }
   }
-  if (state === "mostrada") {
+  if (state === "mostrada" || state === "ventana-500") {
     await click('button[aria-label="Mostrar contraseña"]', /^/);
     await find(".secret:not([data-masked])", /./);
   }

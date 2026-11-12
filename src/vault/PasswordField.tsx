@@ -9,11 +9,16 @@ import { strengthLabel } from "./format";
 /** RF-70: wait this long after the last keystroke before asking the core for the strength. */
 const PASSWORD_STRENGTH_DELAY_MS = 150;
 
-/** RF-65: the length of a generated password until the owner moves the slider, and the range the core accepts. */
+/** RF-65: the length of a generated password until the owner changes it, and the range the core accepts. */
 const DEFAULT_LENGTH = 20;
 const MIN_LENGTH = 8;
-// [por confirmar por el dueño: el prototipo muestra 64]
-const MAX_LENGTH = 128;
+/** The longest password the generator makes. The one place that says it: every text below is built from it. */
+const MAX_LENGTH = 500;
+/** The slider covers the lengths of every day; the box beside it takes any length up to `MAX_LENGTH`. */
+const SLIDER_MAX = 64;
+const LENGTH_BOX_NAME = `Longitud exacta, hasta ${String(MAX_LENGTH)}`;
+const LENGTH_HELP = `El deslizante llega a ${String(SLIDER_MAX)}. En la casilla puedes escribir hasta ${String(MAX_LENGTH)}.`;
+const LENGTH_ERROR = `Entre ${String(MIN_LENGTH)} y ${String(MAX_LENGTH)} caracteres.`;
 
 type Kind = "lower" | "upper" | "digits" | "symbols";
 
@@ -36,11 +41,19 @@ const DEFAULT_OPTIONS: GenerateOptions = {
 
 const IMPOSSIBLE: AppError = { code: "ReglasImposibles" };
 
-/** RF-68: with no kind chosen or a length out of range there is nothing to ask the core for. */
+/** RF-68: with no kind chosen there is nothing to ask the core for. (The length is checked where it is written.) */
 function possible(options: GenerateOptions): boolean {
-  const { length } = options;
-  const inRange = Number.isInteger(length) && length >= MIN_LENGTH && length <= MAX_LENGTH;
-  return inRange && KINDS.some(([kind]) => options[kind]);
+  return KINDS.some(([kind]) => options[kind]);
+}
+
+/**
+ * RF-68: the length written in the box, or `null` when it is not a whole number in range. Read from the text itself:
+ * `Number("")` is 0 and `parseInt("12.5")` is 12, and neither is what was written.
+ */
+function lengthOf(text: string): number | null {
+  if (!/^\d+$/.test(text)) return null;
+  const length = Number(text);
+  return length >= MIN_LENGTH && length <= MAX_LENGTH ? length : null;
 }
 
 export interface PasswordFieldHandle {
@@ -76,6 +89,11 @@ export function PasswordField({ ref, id, client, hint, invalid, errorId, onWritt
   const [optionsOpen, setOptionsOpen] = useState(false);
   const [options, setOptions] = useState<GenerateOptions>(DEFAULT_OPTIONS);
   const [generatorError, setGeneratorError] = useState<AppError | null>(null);
+  /** What the length box says, as written. `options.length` only ever holds the last length that was valid. */
+  const [lengthText, setLengthText] = useState(String(DEFAULT_LENGTH));
+  const lengthValid = lengthOf(lengthText) !== null;
+  /** RF-109: the core could not generate. It is said beside the field, which stays as it was. */
+  const [fieldError, setFieldError] = useState<AppError | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const strengthSeq = useRef(0);
   const strengthTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -127,6 +145,7 @@ export function PasswordField({ ref, id, client, hint, invalid, errorId, onWritt
     // Typed by hand: the options no longer replace it, and a generation on its way is dropped.
     generated.current = false;
     generateSeq.current += 1;
+    setFieldError(null);
     const mine = strengthSeq.current;
     const empty = (inputRef.current?.value ?? "") === "";
     mark(!empty);
@@ -145,18 +164,30 @@ export function PasswordField({ ref, id, client, hint, invalid, errorId, onWritt
   }
 
   /** RF-101: asks the core for a password, fills the field with it and leaves it in sight. */
-  function generate(rules: GenerateOptions) {
+  function generate(rules: GenerateOptions, lengthOk = lengthValid) {
     generateSeq.current += 1;
     const mine = generateSeq.current;
+    // RF-68: a length out of range is never sent. The box says why under itself, so the options are put in sight.
+    if (!lengthOk) {
+      setOptionsOpen(true);
+      return;
+    }
     if (!possible(rules)) {
       setGeneratorError(IMPOSSIBLE);
       setOptionsOpen(true);
       return;
     }
     setGeneratorError(null);
+    setFieldError(null);
     void client.generatePassword(rules).then((result) => {
       if (!mounted.current || mine !== generateSeq.current) return;
       if (!result.ok) {
+        // RF-109: the system gave no randomness. Nothing else changes: the field keeps what it had, shown or hidden,
+        // and the options stay as they were.
+        if (result.error.code === "GeneradorNoDisponible") {
+          setFieldError(result.error);
+          return;
+        }
         setGeneratorError(result.error);
         setOptionsOpen(true);
         return;
@@ -170,20 +201,32 @@ export function PasswordField({ ref, id, client, hint, invalid, errorId, onWritt
     });
   }
 
-  function changeOptions(next: GenerateOptions) {
+  function changeOptions(next: GenerateOptions, lengthOk = lengthValid) {
     setOptions(next);
     if (generated.current) {
-      generate(next);
+      generate(next, lengthOk);
       return;
     }
     // A password written by hand is never replaced by an option; an impossible rule is still said at once.
     setGeneratorError(possible(next) ? null : IMPOSSIBLE);
   }
 
+  /** The length, from the slider or as it is typed in the box: both show it. */
+  function changeLength(text: string) {
+    setLengthText(text);
+    const length = lengthOf(text);
+    // RF-68: half typed ("5" on its way to "50"), empty or out of range: nothing is generated, the core is not asked.
+    if (length === null) return;
+    changeOptions({ ...options, length }, true);
+  }
+
   const hintId = `${id}-hint`;
   const strengthId = `${id}-strength`;
   const optionsId = `${id}-options`;
   const lengthId = `${id}-length`;
+  const exactId = `${id}-length-exact`;
+  const lengthHelpId = `${id}-length-help`;
+  const lengthErrorId = `${id}-length-error`;
 
   return (
     <div className="entry-field">
@@ -224,6 +267,12 @@ export function PasswordField({ ref, id, client, hint, invalid, errorId, onWritt
           Generar
         </button>
       </div>
+      {/* RF-109: beside the field, not in the options: it is the field that could not be filled. */}
+      {fieldError !== null && (
+        <p role="alert" className="field-error">
+          {errorMessage(fieldError)}
+        </p>
+      )}
       <div id={strengthId} aria-live="polite" className="strength-live">
         {written && score !== null && (
           <p className="strength-row">
@@ -265,19 +314,41 @@ export function PasswordField({ ref, id, client, hint, invalid, errorId, onWritt
         >
           <div className="generator-length">
             <label htmlFor={lengthId}>Longitud</label>
+            {/* Past 64 the slider stays at its end: the box is what says the length. */}
             <input
               id={lengthId}
               type="range"
               min={MIN_LENGTH}
-              max={MAX_LENGTH}
+              max={SLIDER_MAX}
               step={1}
-              value={options.length}
+              value={Math.min(options.length, SLIDER_MAX)}
               onChange={(event) => {
-                changeOptions({ ...options, length: Number(event.target.value) });
+                changeLength(event.target.value);
               }}
             />
-            <output htmlFor={lengthId}>{options.length}</output>
+            <input
+              id={exactId}
+              className="generator-length-exact"
+              type="number"
+              inputMode="numeric"
+              min={MIN_LENGTH}
+              max={MAX_LENGTH}
+              step={1}
+              value={lengthText}
+              aria-label={LENGTH_BOX_NAME}
+              aria-invalid={!lengthValid}
+              aria-describedby={`${lengthErrorId} ${lengthHelpId}`}
+              onChange={(event) => {
+                changeLength(event.target.value);
+              }}
+            />
           </div>
+          <p id={lengthErrorId} className="field-error generator-length-error" aria-live="polite">
+            {lengthValid ? "" : LENGTH_ERROR}
+          </p>
+          <p id={lengthHelpId} className="generator-length-help">
+            {LENGTH_HELP}
+          </p>
           <div className="generator-kinds" role="group" aria-label="Caracteres de la contraseña generada">
             {KINDS.map(([kind, label]) => (
               <label key={kind}>

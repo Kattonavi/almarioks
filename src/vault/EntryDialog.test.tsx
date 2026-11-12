@@ -449,6 +449,10 @@ function openOptions() {
   return screen.getByRole("group", { name: "Caracteres de la contraseña generada" });
 }
 
+/** RF-65: the box beside the slider, where any length up to 500 can be written. */
+const lengthBox = () => screen.getByLabelText<HTMLInputElement>("Longitud exacta, hasta 500");
+const LENGTH_ERROR = "Entre 8 y 500 caracteres.";
+
 describe("Diálogo de entrada — contraseña y generador en el campo", () => {
   it("RF-101: RF-65: RF-70: un clic en «Generar» pide la contraseña al núcleo, llena el campo, la deja a la vista y muestra su fortaleza", async () => {
     const { backend } = open();
@@ -507,7 +511,7 @@ describe("Diálogo de entrada — contraseña y generador en el campo", () => {
     expect(screen.queryByText(/^Fortaleza: /)).toBeNull();
   });
 
-  it("RF-65: RF-67: las opciones nacen plegadas y con los valores por defecto: longitud 20 entre 8 y 128, los cuatro tipos y sin evitar parecidos", () => {
+  it("RF-65: RF-67: las opciones nacen plegadas y con los valores por defecto: longitud 20 (deslizante de 8 a 64, casilla de 8 a 500), los cuatro tipos y sin evitar parecidos", () => {
     open();
     const toggle = screen.getByRole("button", { name: "Opciones del generador" });
     expect(toggle.getAttribute("aria-expanded")).toBe("false");
@@ -518,7 +522,10 @@ describe("Diálogo de entrada — contraseña y generador en el campo", () => {
     expect(toggle.getAttribute("aria-expanded")).toBe("true");
     expect(toggle.textContent).toBe("Ocultar opciones del generador");
     const length = screen.getByLabelText<HTMLInputElement>("Longitud");
-    expect([length.type, length.min, length.max, length.value]).toEqual(["range", "8", "128", "20"]);
+    expect([length.type, length.min, length.max, length.value]).toEqual(["range", "8", "64", "20"]);
+    const exact = lengthBox();
+    expect([exact.type, exact.min, exact.max, exact.value]).toEqual(["number", "8", "500", "20"]);
+    expect(screen.getByText("El deslizante llega a 64. En la casilla puedes escribir hasta 500.")).toBeDefined();
     for (const label of KIND_LABELS) expect(within(kinds).getByLabelText<HTMLInputElement>(label).checked).toBe(true);
     expect(within(kinds).getByLabelText<HTMLInputElement>("Evitar caracteres parecidos (0 O o 1 l I |)").checked).toBe(false);
 
@@ -786,5 +793,156 @@ describe("Diálogo de entrada — Esc repetido", () => {
     expect(passwordField().hasAttribute("data-secret")).toBe(true);
     typePassword("escrita-a-mano");
     expect(passwordField().hasAttribute("data-secret")).toBe(true);
+  });
+});
+
+describe("Diálogo de entrada — la longitud del generador", () => {
+  const slider = () => screen.getByLabelText<HTMLInputElement>("Longitud");
+
+  function writeLength(value: string) {
+    fireEvent.change(lengthBox(), { target: { value } });
+  }
+
+  it("RF-65: 500 en la casilla genera con `length: 500`, el deslizante queda al tope, la fortaleza se muestra y guardar manda los 500 tal cual", async () => {
+    const { backend, onSaved } = open();
+    fireEvent.change(title(), { target: { value: "Larga" } });
+    openOptions();
+
+    writeLength("500");
+    expect(slider().value).toBe("64");
+    expect(lengthBox().value).toBe("500");
+    expect(screen.queryByText(LENGTH_ERROR)).toBeNull();
+    // Writing a length generates nothing by itself: the field was empty.
+    expect(backend.count("generate_password")).toBe(0);
+
+    const generated = await generateOnce();
+    expect(lastArgs(backend, "generate_password")).toEqual({ ...DEFAULT_RULES, length: 500 });
+    expect(Array.from(generated)).toHaveLength(500);
+    expect(screen.getByText(/^Fortaleza: /)).toBeDefined();
+
+    fireEvent.click(screen.getByRole("button", { name: "Guardar entrada" }));
+    await waitFor(() => {
+      expect(onSaved).toHaveBeenCalledTimes(1);
+    });
+    expect(lastArgs(backend, "entry_create")).toMatchObject({ password: generated });
+    expect(backend.entry(onSaved.mock.calls[0]?.[0] ?? "")?.password).toBe(generated);
+  });
+
+  it("RF-68: 7, 501, vacío y «12.5» no llaman al núcleo y lo dicen bajo la casilla; ni «Generar» ni Enter generan", () => {
+    const { backend } = open();
+    openOptions();
+
+    for (const wrong of ["7", "501", "", "12.5"]) {
+      writeLength(wrong);
+      const said = screen.getByText(LENGTH_ERROR);
+      expect(lengthBox().getAttribute("aria-invalid")).toBe("true");
+      expect(lengthBox().getAttribute("aria-describedby")?.split(" ")).toContain(said.id);
+      fireEvent.click(screen.getByRole("button", { name: "Generar" }));
+      fireEvent.keyDown(lengthBox(), { key: "Enter" });
+    }
+    expect(backend.count("generate_password")).toBe(0);
+    expect(passwordField().value).toBe("");
+
+    // Back in range, the text goes away.
+    writeLength("8");
+    expect(screen.queryByText(LENGTH_ERROR)).toBeNull();
+    expect(lengthBox().getAttribute("aria-invalid")).toBe("false");
+  });
+
+  it("RF-68: con las opciones plegadas y una longitud fuera de rango, «Generar» las abre para decir por qué y no llama al núcleo", () => {
+    const { backend } = open();
+    openOptions();
+    writeLength("501");
+    fireEvent.click(screen.getByRole("button", { name: "Ocultar opciones del generador" }));
+    expect(screen.queryByText(LENGTH_ERROR)).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Generar" }));
+
+    expect(screen.getByText(LENGTH_ERROR)).toBeDefined();
+    expect(lengthBox().value).toBe("501");
+    expect(backend.count("generate_password")).toBe(0);
+  });
+
+  it("RF-65: teclear la longitud no regenera con un valor a medias, pasar de 64 deja el deslizante al tope y nada pisa una contraseña escrita a mano", async () => {
+    const { backend } = open();
+    const first = await generateOnce();
+    openOptions();
+
+    // "5" on its way to "50": out of range, so the generated password stays and the core is not asked.
+    writeLength("5");
+    expect(screen.getByText(LENGTH_ERROR)).toBeDefined();
+    expect(backend.count("generate_password")).toBe(1);
+    expect(passwordField().value).toBe(first);
+
+    writeLength("50");
+    await waitFor(() => {
+      expect(Array.from(passwordField().value)).toHaveLength(50);
+    });
+    expect(backend.count("generate_password")).toBe(2);
+    expect(lastArgs(backend, "generate_password")).toEqual({ ...DEFAULT_RULES, length: 50 });
+    expect(slider().value).toBe("50");
+
+    // Past 64 the slider stays at its end; moving it brings the box with it.
+    writeLength("65");
+    await waitFor(() => {
+      expect(Array.from(passwordField().value)).toHaveLength(65);
+    });
+    expect(slider().value).toBe("64");
+    fireEvent.change(slider(), { target: { value: "32" } });
+    expect(lengthBox().value).toBe("32");
+    await waitFor(() => {
+      expect(Array.from(passwordField().value)).toHaveLength(32);
+    });
+
+    // Written by hand: the box no longer replaces what is in the field.
+    typePassword("escrita-a-mano");
+    const calls = backend.count("generate_password");
+    writeLength("40");
+    writeLength("400");
+    await screen.findByText(/^Fortaleza: /);
+    expect(backend.count("generate_password")).toBe(calls);
+    expect(passwordField().value).toBe("escrita-a-mano");
+  });
+
+  it("RF-109: si el núcleo no puede generar lo dice junto al campo, y el campo queda exactamente como estaba", async () => {
+    const { backend } = open();
+    typePassword("escrita-a-mano");
+    backend.rejectOnce("generate_password", { code: "GeneradorNoDisponible", message: "core text" });
+
+    fireEvent.click(screen.getByRole("button", { name: "Generar" }));
+
+    const said = await screen.findByText(ERROR_MESSAGES.GeneradorNoDisponible);
+    expect(said.textContent).toBe("No se pudo generar la contraseña. Inténtalo otra vez.");
+    expect(said.getAttribute("role")).toBe("alert");
+    // Beside the field, not inside the options, which stay folded.
+    expect(said.closest(".generator-options")).toBeNull();
+    expect(screen.getByRole("button", { name: "Opciones del generador" }).getAttribute("aria-expanded")).toBe("false");
+    expect(screen.queryByText(/core text/)).toBeNull();
+    // Neither emptied nor shown.
+    expect(passwordField().value).toBe("escrita-a-mano");
+    expect(passwordField().type).toBe("password");
+    expect(backend.count("generate_password")).toBe(1);
+
+    // Trying again works, and the message goes away.
+    fireEvent.click(screen.getByRole("button", { name: "Generar" }));
+    await waitFor(() => {
+      expect(passwordField().value).not.toBe("escrita-a-mano");
+    });
+    expect(Array.from(passwordField().value)).toHaveLength(20);
+    expect(screen.queryByText(ERROR_MESSAGES.GeneradorNoDisponible)).toBeNull();
+  });
+
+  it("RF-109: una contraseña generada y a la vista también queda como estaba si el núcleo falla al generar otra", async () => {
+    const { backend } = open();
+    const generated = await generateOnce();
+    expect(passwordField().type).toBe("text");
+    backend.rejectOnce("generate_password", { code: "GeneradorNoDisponible", message: "core text" });
+
+    fireEvent.click(screen.getByRole("button", { name: "Generar" }));
+
+    expect(await screen.findByText(ERROR_MESSAGES.GeneradorNoDisponible)).toBeDefined();
+    expect(passwordField().value).toBe(generated);
+    expect(passwordField().type).toBe("text");
+    expect(screen.getByText(/^Fortaleza: /)).toBeDefined();
   });
 });
