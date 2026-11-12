@@ -111,7 +111,7 @@ async function stage() {
 function badge() {
   const node = document.createElement("output");
   node.style.cssText =
-    "position:fixed;right:4px;bottom:4px;z-index:9;padding:1px 6px;font:11px monospace;color:#000;background:#ffe;";
+    "position:fixed;right:4px;top:50%;z-index:9;padding:1px 6px;font:11px monospace;color:#000;background:#ffe;";
   const root = document.documentElement;
   const widest = Math.max(...[...document.querySelectorAll("*")].map((element) => element.scrollWidth));
   node.textContent = [
@@ -127,9 +127,13 @@ async function boot() {
   const theme = params.get("tema");
   if (theme === "oscuro") await import("./styles/theme-dark.css");
   if (theme === "claro") {
-    // The light roles again, after everything else: they win over the dark ones the system preference brought.
+    // The light colour roles again, after everything else: they win over the dark ones the system preference
+    // brought. Colours only: the measures change with the window and must not be reset.
+    const colors = [...lightTokens.matchAll(/(--[a-z0-9-]+):\s*((?:#|rgb\()[^;]+);/g)]
+      .map((match) => `${match[1] ?? ""}:${match[2] ?? ""};`)
+      .join("");
     const style = document.createElement("style");
-    style.textContent = lightTokens;
+    style.textContent = `:root{color-scheme:light;${colors}}`;
     document.head.append(style);
   }
 

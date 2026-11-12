@@ -22,7 +22,12 @@ const DAY_FORMAT = new Intl.DateTimeFormat("es-CO", { day: "numeric", month: "sh
 /** The day alone, for a row of the entry list; the full date and time stay in the detail. */
 export function formatDay(iso: string): string {
   const date = new Date(iso);
-  return Number.isNaN(date.getTime()) ? iso : DAY_FORMAT.format(date);
+  if (Number.isNaN(date.getTime())) return iso;
+  // "10 nov 2026": the parts alone, without the "de" and the period the locale adds.
+  return DAY_FORMAT.formatToParts(date)
+    .filter((part) => part.type !== "literal")
+    .map((part) => part.value.replace(".", ""))
+    .join(" ");
 }
 
 export function strengthLabel(score: number): string {
