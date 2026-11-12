@@ -57,7 +57,7 @@ struct Broken;
 
 impl RandomSource for Broken {
     fn fill(&mut self, _buf: &mut [u8]) -> CoreResult<()> {
-        Err(CoreError::GuardadoFallido)
+        Err(CoreError::GeneradorNoDisponible)
     }
 }
 
@@ -292,10 +292,11 @@ fn rf_69_a_discarded_candidate_is_replaced_whole_and_a_dead_source_fails() {
         },
     )
     .unwrap_err();
-    assert_eq!(error, CoreError::GuardadoFallido);
+    // RF-109 (owner's second round): neither case is a failed save; both say the generator is not available.
+    assert_eq!(error, CoreError::GeneradorNoDisponible);
     assert_eq!(
         generate_with(&PasswordRules::default(), &mut Broken).unwrap_err(),
-        CoreError::GuardadoFallido
+        CoreError::GeneradorNoDisponible
     );
 }
 

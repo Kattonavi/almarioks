@@ -123,8 +123,8 @@ pub fn generate_password(rules: &PasswordRules) -> CoreResult<SecretString> {
 ///
 /// # Errors
 /// `ReglasImposibles` as in [`generate_password`]; the error of `source` as it comes, at its first failure (RF-109);
-/// `GuardadoFallido` if [`MAX_ATTEMPTS`] candidates in a row lack a chosen type, which only a source that is not
-/// random can cause (decisión pendiente: RF-109 names only a source that fails).
+/// `GeneradorNoDisponible` if [`MAX_ATTEMPTS`] candidates in a row lack a chosen type, which only a source that is
+/// not random can cause: a source that gives no randomness is not available either (RF-109).
 pub fn generate_with(
     rules: &PasswordRules,
     source: &mut impl RandomSource,
@@ -168,5 +168,5 @@ pub fn generate_with(
         }
         candidate.zeroize();
     }
-    Err(CoreError::GuardadoFallido)
+    Err(CoreError::GeneradorNoDisponible)
 }
