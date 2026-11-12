@@ -540,7 +540,7 @@ describe("P5 Entrada — mover y borrar", () => {
     const { backend } = await setup();
     await openEntry("Trabajo", "GitHub");
 
-    fireEvent.click(screen.getByRole("button", { name: "Borrar entrada" }));
+    fireEvent.click(screen.getByRole("button", { name: "Enviar a la papelera" }));
 
     expect(await screen.findByText(/«GitHub» se movió a la papelera/)).toBeDefined();
     expect(screen.queryByRole("dialog")).toBeNull();
@@ -558,7 +558,7 @@ describe("P5 Entrada — mover y borrar", () => {
     });
     await openEntry("Personal", "Única");
 
-    fireEvent.click(screen.getByRole("button", { name: "Borrar entrada" }));
+    fireEvent.click(screen.getByRole("button", { name: "Enviar a la papelera" }));
 
     expect(await screen.findByRole("button", { name: "Papelera de reciclaje (papelera) · 1 entrada" })).toBeDefined();
     expect(backend.groupTrail(backend.entry("e")?.groupId ?? "")).toEqual(["Cuentas", "Papelera de reciclaje"]);

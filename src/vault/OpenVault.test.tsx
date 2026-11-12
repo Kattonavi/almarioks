@@ -178,7 +178,7 @@ describe("P4 Bóveda — solo lectura y protección débil", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Banco" }));
     await screen.findByRole("heading", { name: "Banco", level: 4 });
     expect(screen.queryByRole("button", { name: "Editar" })).toBeNull();
-    expect(screen.queryByRole("button", { name: "Borrar entrada" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Enviar a la papelera" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Mover a otro grupo…" })).toBeNull();
     expect(screen.getByRole("button", { name: "Copiar usuario" })).toBeDefined();
   });
