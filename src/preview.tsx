@@ -5,7 +5,8 @@
  *   ?tema=oscuro|claro      forces a theme (dark is the same file production loads by media query)
  *   ?estado=…               the screen and state to show (default: copiado):
  *       without a vault     bienvenida · bienvenida-vacia · crear · crear-vacia · crear-existe · crear-ubicacion ·
- *                           crear-llave · crear-error · creando · creada · desbloquear · derivando · error-llave ·
+ *                           crear-llave · crear-llave-nueva · crear-llave-ubicacion · crear-error · creando ·
+ *                           creada · desbloquear · derivando · error-llave ·
  *                           bloqueada · ajustes
  *       open vault          todas · foco-todas · menu-grupo · menu-papelera · busqueda ·
  *                           copiado · detalle · mostrada · menu-entrada · ninguna · formulario · generador · editar ·
@@ -59,6 +60,8 @@ const CLOSED = new Set([
   "crear-existe",
   "crear-ubicacion",
   "crear-llave",
+  "crear-llave-nueva",
+  "crear-llave-ubicacion",
   "crear-error",
   "creando",
   "creada",
@@ -164,6 +167,8 @@ async function stageClosed(backend: FakeBackend) {
     case "crear-existe":
     case "crear-ubicacion":
     case "crear-llave":
+    case "crear-llave-nueva":
+    case "crear-llave-ubicacion":
     case "crear-error":
     case "creando":
     case "creada":
@@ -178,10 +183,10 @@ async function stageClosed(backend: FakeBackend) {
         await find("#create-name-error", /./);
         return;
       }
-      if (state === "crear-ubicacion") {
+      if (state === "crear-ubicacion" || state === "crear-llave-ubicacion") {
         await click("button", "Cambiar ubicación…");
         await find(".create-file", NEW_PATH);
-        return;
+        if (state === "crear-ubicacion") return;
       }
       if (state === "crear-error") {
         await fill("create-password", "una-clave");
@@ -198,11 +203,15 @@ async function stageClosed(backend: FakeBackend) {
         await click("label", "Usar uno mío");
         await click("button", "Elegir archivo llave…");
         await find(".create-file", "familia.keyx");
+      } else {
+        // RF-99: "Sin archivo llave" is the marked one; the rest of these states are about a new key file.
+        await click("label", "Crear uno nuevo");
+        await find("#create-key-help .create-file", /\.keyx$/);
       }
       await fill("create-password", "Mucho-Mejor-2026");
       await fill("create-confirm", "Mucho-Mejor-2026");
       await find("meter", /^/);
-      if (state === "crear-llave") return;
+      if (state !== "creando" && state !== "creada") return;
       if (state === "creando") backend.hold("vault_create");
       await click("button", "Crear bóveda");
       await find(state === "creando" ? "progress" : "h2", state === "creando" ? /^/ : "Bóveda creada");

@@ -511,6 +511,17 @@
   white-space: nowrap;
 }
 
+/* Where the new key file goes, inside a sentence: the file and its full stop stay together on one line. */
+.create-key-where {
+  white-space: nowrap;
+}
+
+.create-key-where > .create-file {
+  display: inline-block;
+  max-width: calc(100% - 1ch);
+  vertical-align: bottom;
+}
+
 .create-link,
 .create-link:hover:not(:disabled) {
   padding: 0;

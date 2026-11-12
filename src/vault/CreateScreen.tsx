@@ -14,18 +14,49 @@ export const LOCATION_DELAY_MS = 150;
 
 type KeyMode = KeyFileChoice["kind"];
 
-// [por confirmar por el dueño: RF-99]
-const DEFAULT_KEY_MODE: KeyMode = "generate";
+// RF-99, owner's decision of 2026-11-12 (second round, 1e): "Crear bóveda" opens with "Sin archivo llave" marked.
+const DEFAULT_KEY_MODE: KeyMode = "none";
 
-const KEY_OPTIONS: readonly { readonly mode: KeyMode; readonly label: string; readonly help: string }[] = [
-  {
-    mode: "generate",
-    label: "Crear uno nuevo",
-    help: "AlmarioKS crea el archivo llave junto a la bóveda. Guarda una copia en otro lugar.",
-  },
-  { mode: "existing", label: "Usar uno mío", help: "Eliges un archivo llave que ya tienes." },
-  { mode: "none", label: "Sin archivo llave", help: "La bóveda se abre solo con la contraseña maestra." },
+const KEY_OPTIONS: readonly { readonly mode: KeyMode; readonly label: string }[] = [
+  { mode: "none", label: "Sin archivo llave" },
+  { mode: "generate", label: "Crear uno nuevo" },
+  { mode: "existing", label: "Usar uno mío" },
 ];
+
+export const KEY_HELP_NONE = "La bóveda se abre solo con la contraseña maestra.";
+export const KEY_HELP_EXISTING = "Eliges un archivo llave que ya tienes.";
+/** RF-113: what "Crear uno nuevo" says while the core has not answered where the vault goes. */
+export const KEY_HELP_BESIDE = "Se guarda junto a la bóveda. Guarda una copia en otro lugar.";
+
+/**
+ * The line under the key file options. RF-113: with "Crear uno nuevo" it says where the key file will be, with the
+ * name and the path the core answers, written like the line of the vault (the folder by its name when it is the
+ * proposed one, the whole path when another location was chosen).
+ */
+function KeyHelp({ mode, location }: { readonly mode: KeyMode; readonly location: CreateLocation | null }) {
+  switch (mode) {
+    case "none":
+      return KEY_HELP_NONE;
+    case "existing":
+      return KEY_HELP_EXISTING;
+    case "generate":
+      if (location === null) return KEY_HELP_BESIDE;
+      return (
+        <>
+          Se guarda junto a la bóveda: {location.inDefaultFolder && "Documentos › AlmarioKS › "}
+          <span className="create-key-where">
+            <span className="create-file mono" title={location.keyFilePath}>
+              {location.inDefaultFolder ? location.keyFile : location.keyFilePath}
+            </span>
+            .
+          </span>{" "}
+          Guarda una copia en otro lugar.
+        </>
+      );
+    default:
+      return assertNever(mode);
+  }
+}
 
 type FormError =
   | { readonly kind: "app"; readonly error: AppError }
@@ -478,7 +509,6 @@ export function CreateScreen({ client, onBack, onDone }: CreateScreenProps) {
   const confirmMessage = messageAt("confirm");
   const keyMessage = messageAt("key");
   const secretType = revealed ? "text" : "password";
-  const keyHelp = KEY_OPTIONS.find((option) => option.mode === keyMode)?.help ?? "";
 
   return (
     <section aria-labelledby="create-title" className="create">
@@ -616,7 +646,7 @@ export function CreateScreen({ client, onBack, onDone }: CreateScreenProps) {
               className="create-keyfile"
               aria-describedby={describedBy("create-key-help", keyMessage !== null && "create-key-error")}
             >
-              <legend>Archivo llave (opcional, recomendado)</legend>
+              <legend>Archivo llave (opcional)</legend>
               <div className="create-keys">
                 {KEY_OPTIONS.map(({ mode, label }) => (
                   <label key={mode} className="create-key">
@@ -634,7 +664,7 @@ export function CreateScreen({ client, onBack, onDone }: CreateScreenProps) {
                 ))}
               </div>
               <p id="create-key-help" className="create-hint">
-                {keyHelp}
+                <KeyHelp mode={keyMode} location={location} />
               </p>
               {keyMode === "existing" && (
                 <div className="create-line">
