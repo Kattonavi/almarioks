@@ -364,19 +364,18 @@ export function OpenVault(props: OpenVaultProps) {
         }
         railHead={
           <>
-            <h2 id="vault-title" ref={titleRef} tabIndex={-1}>
+            <p className="rail-label">Bóveda</p>
+            {/* The rail shows no paths: the file of the vault is in this `title` and in Settings. */}
+            <h2 id="vault-title" ref={titleRef} tabIndex={-1} title={vault.path}>
               {props.name === "" ? vault.fileName : props.name}
             </h2>
-            <p className="path mono" title={vault.path}>
-              {vault.path}
-            </p>
           </>
         }
         banner={notices}
       />
 
       {/* Outside the vault screen on purpose: this live region must not be remounted with it after a reload. */}
-      <div aria-live="polite" className="save-state">
+      <div aria-live="polite" className="save-state" data-state={save.kind}>
         {politeText(save, notice) !== "" && <p>{politeText(save, notice)}</p>}
       </div>
 

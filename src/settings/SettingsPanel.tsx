@@ -74,13 +74,16 @@ interface SettingsPanelProps {
   readonly readVersion?: () => Promise<string>;
   /** Both settings were stored: e.g. the open vault asks again how long is left before it locks (RF-29). */
   readonly onSaved?: () => void;
+  /** The file of the open vault: a read-only row, since the rail no longer shows paths. Absent without an open vault. */
+  readonly vaultPath?: string | undefined;
 }
 
 /**
- * P8 (RF-29, RF-73, RF-82): the two settings, the update panel (P9), the version and the licence. It holds nothing of
- * the vault, so it is the same with the vault open, locked or closed. Few things, finished.
+ * P8 (RF-29, RF-73, RF-82): the two settings, the update panel (P9), the version and the licence. Of the vault it
+ * holds only where its file is, while one is open; the rest is the same with the vault open, locked or closed. Few
+ * things, finished.
  */
-export function SettingsPanel({ client, readVersion = getVersion, onSaved }: SettingsPanelProps) {
+export function SettingsPanel({ client, readVersion = getVersion, onSaved, vaultPath }: SettingsPanelProps) {
   const [load, setLoad] = useState<LoadState>({ kind: "loading" });
   const [attempt, setAttempt] = useState(0);
   const [autoLock, setAutoLock] = useState<AutoLockMinutes>(5);
@@ -155,6 +158,12 @@ export function SettingsPanel({ client, readVersion = getVersion, onSaved }: Set
       <section aria-labelledby="settings-title">
         <h3 id="settings-title">Ajustes</h3>
         <div aria-live="polite">{text !== "" && <p>{text}</p>}</div>
+        {vaultPath !== undefined && (
+          <dl className="settings-vault">
+            <dt>Archivo de la bóveda</dt>
+            <dd className="path mono">{vaultPath}</dd>
+          </dl>
+        )}
         {load.kind === "failed" && (
           <>
             <p role="alert" className="error">

@@ -221,6 +221,7 @@ export function VaultRoot({ client }: { readonly client: VaultClient }) {
         >
           <SettingsPanel
             client={client}
+            vaultPath={state.kind === "open" ? state.vault.path : undefined}
             onSaved={() => {
               // A new lock time starts counting now: show it without waiting for the next poll.
               if (isOpen) void pollStatus();

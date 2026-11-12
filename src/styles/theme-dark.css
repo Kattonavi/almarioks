@@ -4,7 +4,8 @@
  * light, the way the selected group does on the rail.
  */
 :root,
-dialog {
+dialog,
+.menu {
   color-scheme: dark;
 
   --ground: #191b21;
@@ -20,6 +21,8 @@ dialog {
   --signal: #0c0d10;
   --signal-raised: #1c1f26;
   --signal-rule: #2a2d36;
+  /* The selected group: the same light plate as the panel of the work area. */
+  --signal-panel: #f2f2ee;
 
   --panel: #f2f2ee;
   --panel-hover: #dcdcd6;

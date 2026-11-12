@@ -6,7 +6,8 @@
  *   ?estado=…               the screen and state to show (default: copiado):
  *       without a vault     bienvenida · bienvenida-vacia · crear · crear-llave · crear-error · creando · creada ·
  *                           desbloquear · derivando · error-llave · bloqueada · ajustes
- *       open vault          copiado · detalle · ninguna · formulario · generador · editar · dialogo-mover ·
+ *       open vault          todas · menu-grupo · busqueda ·
+ *                           copiado · detalle · ninguna · formulario · generador · editar · dialogo-mover ·
  *                           dialogo-borrar · dialogo-papelera · dialogo-renombrar · dialogo-recarga ·
  *                           aviso-guardado · cambio-externo · solo-lectura · ajustes-abierta
  *   ?densidad=compacta      the compact density, which no setting offers yet
@@ -182,6 +183,33 @@ async function stageClosed(backend: FakeBackend) {
   }
 }
 
+/** Opens the menu of a group in the rail and chooses one of its orders. */
+async function groupOrder(group: string, label: string) {
+  await click(`button[aria-label="Más acciones de ${group}"]`, /^/);
+  await click('[role="menuitem"]', label);
+}
+
+/** The measures of the approved layout and the colours a screenshot cannot tell apart, as they are on screen. */
+function measures(): string[] {
+  const box = (selector: string) => document.querySelector(selector)?.getBoundingClientRect();
+  const px = (value: number | undefined) => (value === undefined ? "-" : String(Math.round(value * 100) / 100));
+  const paint = (selector: string) => {
+    const node = document.querySelector(selector);
+    return node === null ? "-" : getComputedStyle(node).backgroundColor;
+  };
+  const menu = box(".menu");
+  return [
+    `barra ${px(box(".vault-bar")?.height)}`,
+    `riel ${px(box(".rail")?.width)}`,
+    `lista ${px(box(".list-pane")?.width)}`,
+    `detalle ${px(box(".detail-pane")?.width)}`,
+    `fila ${px(box(".rail-row")?.height)}`,
+    `buscar ${px(box(".vault-search input")?.width)}x${px(box(".vault-search input")?.height)}`,
+    `marcado ${paint('.rail-row[data-current], .rail-all[aria-current="true"]')}`,
+    `menu ${menu === undefined ? "-" : `${px(menu.left)},${px(menu.top)} ${px(menu.width)}x${px(menu.height)} ${paint(".menu")}`}`,
+  ];
+}
+
 /** Puts the open vault in the state worth looking at, with the same clicks a person would make. */
 async function stageOpen(backend: FakeBackend) {
   if (state === "ninguna" || state === "solo-lectura") return;
@@ -190,17 +218,30 @@ async function stageOpen(backend: FakeBackend) {
     await find("label", /^Bloquear la bóveda/);
     return;
   }
+  // A save reached the disk: the foot of the rail says so.
+  await find(".rail-all", /^Todas/);
+  backend.emit("vault-save-state", "saved");
+  if (state === "todas") return;
+  if (state === "busqueda") {
+    await fill("vault-search", "ana");
+    await find(".list-title p", /resultado/);
+    return;
+  }
   await click(".rail-item", /^Trabajo/);
   switch (state) {
+    case "menu-grupo":
+      await click('button[aria-label="Más acciones de Trabajo"]', /^/);
+      await find('[role="menuitem"]', /./);
+      return;
     case "dialogo-borrar":
-      await click("button", "Enviar grupo a la papelera…");
+      await groupOrder("Trabajo", "Enviar a la papelera…");
       return;
     case "dialogo-renombrar":
-      await click("button", "Renombrar grupo…");
+      await groupOrder("Trabajo", "Renombrar…");
       return;
     case "dialogo-papelera":
       await click(".rail-item", /^Papelera/);
-      await click("button", "Vaciar papelera…");
+      await groupOrder("Papelera de reciclaje", "Vaciar papelera…");
       return;
     case "formulario":
     case "generador":
@@ -250,6 +291,7 @@ function badge() {
     `sans ${document.fonts.check('16px "Overpass Variable"') ? "ok" : "NO"}`,
     `esquema ${getComputedStyle(root).colorScheme}`,
     `foco ${document.activeElement?.textContent.trim().slice(0, 24) ?? ""}`,
+    ...measures(),
   ].join(" · ");
   // Inside an open modal dialog everything else is inert and hidden behind the top layer.
   (document.querySelector("dialog[open]") ?? document.body).append(node);

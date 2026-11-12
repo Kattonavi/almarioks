@@ -661,3 +661,8 @@
     width: 24px;
   }
 }
+
+/* The way back from the detail to the list belonged to the one-column window, which no longer exists (RF-104). */
+.back-to-list {
+  display: none;
+}
