@@ -143,4 +143,55 @@ describe("closeBrowserSurface", () => {
     expect(cancelled(document.body, press("p", ctrl))).toBe(false);
     expect(fireEvent.contextMenu(document.body)).toBe(true);
   });
+
+  describe("a protected value on screen", () => {
+    function show(): { secret: HTMLElement; title: HTMLElement } {
+      document.body.innerHTML = '<p id="title">Banco</p><span class="secret">fake-shown-value</span>';
+      const secret = document.querySelector<HTMLElement>(".secret");
+      const title = document.querySelector<HTMLElement>("#title");
+      if (secret === null || title === null) throw new Error("fixture");
+      return { secret, title };
+    }
+
+    function select(node: Node) {
+      const selection = document.getSelection();
+      if (selection === null) throw new Error("no selection");
+      selection.removeAllRanges();
+      selection.selectAllChildren(node);
+    }
+
+    it("RF-72: copying or cutting a selection that includes a shown value is cancelled", () => {
+      const { secret } = show();
+      select(secret);
+      expect(fireEvent.copy(secret)).toBe(false);
+      expect(fireEvent.cut(secret)).toBe(false);
+    });
+
+    it("RF-72: selecting the whole page does not take the value out either", () => {
+      show();
+      select(document.body);
+      expect(fireEvent.copy(document.body)).toBe(false);
+    });
+
+    it("RF-72: dragging a shown value out is cancelled, selected or not", () => {
+      const { secret } = show();
+      document.getSelection()?.removeAllRanges();
+      expect(fireEvent.dragStart(secret)).toBe(false);
+    });
+
+    it("RF-72: copying any other text of the page still works", () => {
+      const { title } = show();
+      select(title);
+      expect(fireEvent.copy(title)).toBe(true);
+      document.getSelection()?.removeAllRanges();
+      expect(fireEvent.copy(title)).toBe(true);
+    });
+
+    it("RF-72: undoing it gives the copy back", () => {
+      const { secret } = show();
+      select(secret);
+      open();
+      expect(fireEvent.copy(secret)).toBe(true);
+    });
+  });
 });

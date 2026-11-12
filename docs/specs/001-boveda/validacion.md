@@ -4,7 +4,7 @@ Puerta de la fase: qué prueba cubre cada requisito y con qué resultado. El det
 este archivo es el índice y el veredicto.
 
 ## Veredicto
-**Spec cumplida para una 0.1.0 de desarrollo, con cuatro pendientes declarados** (abajo). No es una versión para
+**Spec cumplida para una 0.1.0 de desarrollo, con seis pendientes declarados** (abajo). No es una versión para
 contraseñas reales: no lleva firma de Windows ni revisión externa.
 
 ## De dónde sale cada prueba

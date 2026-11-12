@@ -8,6 +8,11 @@
  *
  * Accepted consequence: with no context menu there is no "Paste" with the right button in the fields. Ctrl+V,
  * Ctrl+C, Ctrl+X, Ctrl+Z and Ctrl+A work as always.
+ *
+ * A protected value shown on screen (`.secret`) leaves only through the "Copiar" button, which goes through the
+ * core: the browser's own copy, cut and drag would put it in the clipboard without the exclusion from the
+ * clipboard history and without the timed clear (RF-72, RF-73). The style sheet makes it unselectable; this
+ * cancels the three gestures in case a selection reaches it anyway.
  */
 
 /** What decides whether a key press belongs to the browser. A `KeyboardEvent` fits. */
@@ -48,10 +53,28 @@ export function isBrowserKey(press: KeyPress): boolean {
   return (press.shiftKey ? WITH_CTRL_SHIFT : WITH_CTRL).has(key);
 }
 
+/** Where a protected value is on screen: shown or hidden, the element is the same. */
+const SECRET_SELECTOR = ".secret";
+
+/** Whether what is selected in the document, or the element a gesture starts on, includes a protected value. */
+export function touchesSecret(target: Document, origin: EventTarget | null): boolean {
+  if (origin instanceof Element && origin.closest(SECRET_SELECTOR) !== null) return true;
+  const selection = target.getSelection();
+  if (selection === null || selection.isCollapsed) return false;
+  const secrets = target.querySelectorAll(SECRET_SELECTOR);
+  for (let index = 0; index < selection.rangeCount; index += 1) {
+    const range = selection.getRangeAt(index);
+    for (const secret of secrets) {
+      if (range.intersectsNode(secret)) return true;
+    }
+  }
+  return false;
+}
+
 /**
  * Cancels the context menu and the keys of the browser in the whole document, before any other listener sees
- * them (capture phase). It only cancels the default action: the event still reaches the app's own listeners.
- * Returns how to undo it.
+ * them (capture phase), and the browser's copy, cut and drag of a protected value. It only cancels the default
+ * action: the event still reaches the app's own listeners. Returns how to undo it.
  */
 export function closeBrowserSurface(target: Document = document): () => void {
   function onContextMenu(event: Event) {
@@ -60,10 +83,16 @@ export function closeBrowserSurface(target: Document = document): () => void {
   function onKeyDown(event: KeyboardEvent) {
     if (isBrowserKey(event)) event.preventDefault();
   }
+  function onTakeOut(event: Event) {
+    if (touchesSecret(target, event.target)) event.preventDefault();
+  }
+  const takeOut = ["copy", "cut", "dragstart"] as const;
   target.addEventListener("contextmenu", onContextMenu, { capture: true });
   target.addEventListener("keydown", onKeyDown, { capture: true });
+  for (const type of takeOut) target.addEventListener(type, onTakeOut, { capture: true });
   return () => {
     target.removeEventListener("contextmenu", onContextMenu, { capture: true });
     target.removeEventListener("keydown", onKeyDown, { capture: true });
+    for (const type of takeOut) target.removeEventListener(type, onTakeOut, { capture: true });
   };
 }

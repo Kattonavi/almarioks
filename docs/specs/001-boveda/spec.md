@@ -427,7 +427,14 @@ Salieron al implementar; en cada una se eligió lo más conservador. Ninguna cam
 - `Session::convert` retiene la llave durante unas tres derivaciones y no tiene prueba propia en el núcleo.
 - Cada cambio vuelve a derivar la llave al cifrar; una orden que ya está cifrando termina antes de soltar las llaves
   al bloquear (como mucho una derivación, nunca atada al disco).
-- El único `unsafe` del proyecto está en `src-tauri/src/clipboard/ffi.rs`.
+- El `unsafe` del proyecto está en dos archivos: `src-tauri/src/clipboard/ffi.rs` (portapapeles) y
+  `src-tauri/src/webview/ffi.rs` (apagar el menú contextual y las teclas de navegador de WebView2).
+- La ventana no tiene menú contextual ni teclas de navegador (guardar página, imprimir, recargar, buscar en la
+  página): la prueba con el instalador de release mostró que por ahí se podía guardar o imprimir la página con una
+  contraseña mostrada. Consecuencia: no hay "Pegar" con el botón derecho; Ctrl+V sí.
+- Si la app no logra apagar ese menú y esas teclas al arrancar (por ejemplo, con un WebView2 demasiado antiguo), no
+  arranca. Hoy lo hace sin mensaje visible (`docs/BACKLOG.md`).
+- La ventana abre centrada.
 
 ## Propuestas al dueño sobre la constitución (no se cambió nada)
 - Regla 4: nombrar como excepción el generador y validador de `.keyx` (hoy está en "Reglas específicas del proyecto").

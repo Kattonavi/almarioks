@@ -3,7 +3,8 @@
 //! Two layers:
 //! - [`ClipboardService`]: the rules, with no Win32. It talks to the system through [`SystemClipboard`] and reads
 //!   the time through [`Clock`], so the worked example 1 of the spec runs against a fake clipboard and a fake clock.
-//! - [`ffi`] (Windows only): the one module of the project with `unsafe`. It implements [`SystemClipboard`] with a
+//! - [`ffi`] (Windows only): one of the two modules of the project with `unsafe` (the other is `webview::ffi`).
+//!   It implements [`SystemClipboard`] with a
 //!   hidden message-only window, the three history/cloud exclusion formats and the clear-by-sequence-number.
 //!
 //! The service never keeps the copied value: after a copy it remembers only the clipboard sequence number and

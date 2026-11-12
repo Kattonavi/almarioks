@@ -318,6 +318,10 @@ legend {
 
 .secret {
   overflow-wrap: anywhere;
+  /* A shown value is read, not selected: selecting it and pressing Ctrl+C would use the browser's clipboard, which
+     skips the exclusion from the clipboard history and the timed clear (RF-72, RF-73). "Copiar" is the way. */
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 .tags {
