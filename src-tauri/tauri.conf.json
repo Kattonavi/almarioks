@@ -18,6 +18,7 @@
         "height": 720,
         "minWidth": 480,
         "minHeight": 360,
+        "center": true,
         "incognito": true,
         "generalAutofillEnabled": false
       }
