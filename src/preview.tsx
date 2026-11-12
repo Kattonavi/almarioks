@@ -11,6 +11,8 @@
  *                           copiado · detalle · ninguna · formulario · generador · editar · dialogo-mover ·
  *                           dialogo-borrar · dialogo-papelera · dialogo-renombrar · dialogo-recarga ·
  *                           aviso-guardado · cambio-externo · solo-lectura · ajustes-abierta
+ *       entry dialog alone  dialogo-nueva · dialogo-nueva-generada · dialogo-opciones · dialogo-editar ·
+ *                           dialogo-error (the dialog by itself over the work ground: not wired to the vault yet)
  *   ?densidad=compacta      the compact density, which no setting offers yet
  *   ?marco=480x360          draws the preview inside a frame of that exact viewport (for screenshots)
  *   ?hoja=a:b,c:d;e:f       with `marco`: one frame per `;` item, each overriding parameters as `name:value` pairs
@@ -32,6 +34,7 @@ import {
 } from "./ipc/fake";
 import "./styles.css";
 import lightTokens from "./styles/tokens.css?inline";
+import { EntryDialog, type EntryDialogMode } from "./vault/EntryDialog";
 import { VaultRoot } from "./vault/VaultRoot";
 
 const params = new URLSearchParams(window.location.search);
@@ -234,6 +237,82 @@ function measures(): string[] {
   ];
 }
 
+const ENTRY_DIALOG = new Set([
+  "dialogo-nueva",
+  "dialogo-nueva-generada",
+  "dialogo-opciones",
+  "dialogo-editar",
+  "dialogo-error",
+]);
+
+/** The measures of the entry dialog the approved prototype fixes, as the browser computed them. */
+function entryDialogMeasures(): string[] {
+  const node = (selector: string) => document.querySelector<HTMLElement>(selector);
+  const px = (value: number) => String(Math.round(value * 100) / 100);
+  const size = (selector: string) => {
+    const box = node(selector)?.getBoundingClientRect();
+    return box === undefined ? "-" : `${px(box.width)}x${px(box.height)}`;
+  };
+  const css = (selector: string, read: (style: CSSStyleDeclaration) => string) => {
+    const found = node(selector);
+    return found === null ? "-" : read(getComputedStyle(found));
+  };
+  const type = (selector: string) => css(selector, (style) => `${style.fontSize}/${style.fontWeight}`);
+  const first = node("#entry-dialog-title")?.getBoundingClientRect();
+  const second = node('label[for="entry-dialog-username"]')?.getBoundingClientRect();
+  return [
+    `dialogo ${size('dialog[data-layout="form"]')}`,
+    `radio ${css('dialog[data-layout="form"]', (style) => style.borderTopLeftRadius)}`,
+    `fondo ${css('dialog[data-layout="form"]', (style) => style.backgroundColor)}`,
+    `titulo ${type(".dialog-head h2")}`,
+    `grupo ${type(".dialog-lead")}`,
+    `punto ${size(".dialog-dot")}`,
+    `cerrar ${size(".dialog-close")}`,
+    `etiqueta ${type(".entry-field > label")}`,
+    `campo ${size("#entry-dialog-title")}`,
+    `entre-campos ${first === undefined || second === undefined ? "-" : px(second.top - first.bottom)}`,
+    `clave ${size("#entry-dialog-password")} caja ${size(".password-box")}`,
+    `ojo ${size(".password-eye")}`,
+    `generar ${size(".password-generate")}`,
+    `fortaleza ${size(".strength-bar")}`,
+    `opciones ${css(".generator-options", (style) => `${style.borderTopLeftRadius} ${style.backgroundColor}`)}`,
+    `notas ${size("#entry-dialog-notes")}`,
+    `cancelar ${size(".entry-dialog-foot > button:not(.btn-primary)")}`,
+    `guardar ${size(".entry-dialog-foot > .btn-primary")}`,
+  ];
+}
+
+/** The entry dialog by itself, over the work ground: the vault screen does not open it yet. */
+async function stageEntryDialog(container: HTMLElement, backend: FakeBackend) {
+  const client = createClient(backend.transport);
+  const group = { id: "g-work", name: "Trabajo", line: "2" } as const;
+  let mode: EntryDialogMode = { kind: "new", group };
+  if (state === "dialogo-editar") {
+    const found = await client.entryGet("e-github");
+    if (found.ok) mode = { kind: "edit", entry: found.value, group };
+  }
+  const root = createRoot(container);
+  root.render(
+    <StrictMode>
+      <EntryDialog client={client} mode={mode} onClose={() => undefined} onSaved={() => undefined} />
+    </StrictMode>,
+  );
+  await find("#entry-dialog-title", /^/);
+  if (state === "dialogo-error") {
+    await click("button", "Guardar entrada");
+    await find(".field-error", /título/);
+    return;
+  }
+  if (state === "dialogo-nueva-generada" || state === "dialogo-opciones") {
+    await fill("entry-dialog-title", "GitHub");
+    await fill("entry-dialog-username", "ana@example.com");
+    await click("button", "Generar");
+    await find(".strength-row", /Fortaleza/);
+    await fill("entry-dialog-url", "https://github.com");
+    if (state === "dialogo-opciones") await click("button", "Opciones del generador");
+  }
+}
+
 /** Puts the open vault in the state worth looking at, with the same clicks a person would make. */
 async function stageOpen(backend: FakeBackend) {
   if (state === "ninguna" || state === "solo-lectura") return;
@@ -325,7 +404,7 @@ function badge() {
     `sans ${document.fonts.check('16px "Overpass Variable"') ? "ok" : "NO"}`,
     `esquema ${getComputedStyle(root).colorScheme}`,
     `foco ${document.activeElement?.textContent.trim().slice(0, 24) ?? ""}`,
-    ...measures(),
+    ...(ENTRY_DIALOG.has(state) ? entryDialogMeasures() : measures()),
   ].join(" · ");
   // Inside an open modal dialog everything else is inert and hidden behind the top layer.
   (document.querySelector("dialog[open]") ?? document.body).append(node);
@@ -390,6 +469,17 @@ async function boot() {
 
   const container = document.getElementById("root");
   if (container === null) throw new Error("Missing #root element in preview.html");
+
+  if (ENTRY_DIALOG.has(state)) {
+    try {
+      await stageEntryDialog(container, backend);
+    } catch (error) {
+      console.error(error);
+    }
+    await document.fonts.ready;
+    badge();
+    return;
+  }
 
   createRoot(container).render(
     <StrictMode>

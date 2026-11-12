@@ -172,8 +172,10 @@ dialog[data-layout="form"][open] {
   display: none;
 }
 
+/* As drawn: the two actions of the foot are set in the body size. */
 .entry-dialog-foot > button {
   padding-inline: var(--space-4);
+  font-size: var(--text-md);
 }
 
 .entry-dialog-foot > .btn-primary {
@@ -244,6 +246,11 @@ dialog[data-layout="form"][open] {
   height: var(--space-4);
 }
 
+/* The live region stays rendered while empty (so its next text is announced) without taking a gap of the column. */
+.strength-live:empty {
+  margin-top: calc(var(--space-1) * -1.5);
+}
+
 .strength-row {
   display: flex;
   gap: calc(var(--space-2) + 2px);
@@ -299,9 +306,12 @@ dialog[data-layout="form"][open] {
   align-items: center;
 }
 
+/* The slider keeps a 44 px target; the negative margin gives the row the height of its text, as drawn. */
 .generator-length > input {
   flex: 1;
   min-width: 0;
+  height: var(--control-h);
+  margin-block: calc((1lh - var(--control-h)) / 2);
   padding: 0;
   background: transparent;
   border: 0;

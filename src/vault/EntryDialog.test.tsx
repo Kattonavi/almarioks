@@ -421,3 +421,245 @@ describe("Diálogo de entrada — editar", () => {
     expect(screen.getByLabelText<HTMLTextAreaElement>("Etiquetas (una por línea)").value).toBe("");
   });
 });
+
+const KIND_LABELS = ["Minúsculas", "Mayúsculas", "Números", "Símbolos"] as const;
+const DEFAULT_RULES = { length: 20, lower: true, upper: true, digits: true, symbols: true, avoid_lookalikes: false };
+
+/** One click on "Generar", and what the field holds once the core answers. */
+async function generateOnce(): Promise<string> {
+  const before = passwordField().value;
+  fireEvent.click(screen.getByRole("button", { name: "Generar" }));
+  await waitFor(() => {
+    expect(passwordField().value).not.toBe(before);
+  });
+  return passwordField().value;
+}
+
+function openOptions() {
+  fireEvent.click(screen.getByRole("button", { name: "Opciones del generador" }));
+  return screen.getByRole("group", { name: "Caracteres de la contraseña generada" });
+}
+
+describe("Diálogo de entrada — contraseña y generador en el campo", () => {
+  it("RF-101: RF-65: RF-70: un clic en «Generar» pide la contraseña al núcleo, llena el campo, la deja a la vista y muestra su fortaleza", async () => {
+    const { backend } = open();
+    expect(passwordField().type).toBe("password");
+
+    const generated = await generateOnce();
+
+    expect(Array.from(generated)).toHaveLength(20);
+    expect(backend.count("generate_password")).toBe(1);
+    expect(lastArgs(backend, "generate_password")).toEqual(DEFAULT_RULES);
+    expect(passwordField().type).toBe("text");
+    expect(screen.getByRole("button", { name: "Ocultar contraseña" })).toBeDefined();
+    expect(screen.getByText(/^Fortaleza: /)).toBeDefined();
+    // It is shown inside the input alone: no text node, title, label or data attribute carries it.
+    expect(document.body.innerHTML.includes(generated)).toBe(false);
+  });
+
+  it("RF-101: crear una entrada con contraseña generada son Título, un clic en «Generar» y Guardar", async () => {
+    const { backend, onSaved } = open();
+    fireEvent.change(title(), { target: { value: "Con generada" } });
+    const generated = await generateOnce();
+
+    fireEvent.click(screen.getByRole("button", { name: "Guardar entrada" }));
+
+    await waitFor(() => {
+      expect(onSaved).toHaveBeenCalledTimes(1);
+    });
+    expect(backend.entry(onSaved.mock.calls[0]?.[0] ?? "")?.password).toBe(generated);
+    expect(bodyContains(generated)).toBe(false);
+  });
+
+  it("RF-101: el ojo muestra y oculta lo escrito, y su nombre cambia", () => {
+    open();
+    typePassword("escrita-a-mano");
+    expect(passwordField().type).toBe("password");
+
+    fireEvent.click(screen.getByRole("button", { name: "Mostrar contraseña" }));
+    expect(passwordField().type).toBe("text");
+    expect(passwordField().value).toBe("escrita-a-mano");
+    expect(document.body.innerHTML.includes("escrita-a-mano")).toBe(false);
+
+    fireEvent.click(screen.getByRole("button", { name: "Ocultar contraseña" }));
+    expect(passwordField().type).toBe("password");
+    expect(passwordField().value).toBe("escrita-a-mano");
+    expect(screen.getByRole("button", { name: "Mostrar contraseña" })).toBeDefined();
+  });
+
+  it("RF-70: muestra la fortaleza de la contraseña escrita y la quita al vaciar el campo", async () => {
+    const { backend } = open();
+    typePassword("abcdefgh1");
+
+    expect(await screen.findByText(/^Fortaleza: /)).toBeDefined();
+    expect(lastArgs(backend, "password_strength")).toEqual({ password: "abcdefgh1" });
+
+    typePassword("");
+    expect(screen.queryByText(/^Fortaleza: /)).toBeNull();
+  });
+
+  it("RF-65: RF-67: las opciones nacen plegadas y con los valores por defecto: longitud 20 entre 8 y 128, los cuatro tipos y sin evitar parecidos", () => {
+    open();
+    const toggle = screen.getByRole("button", { name: "Opciones del generador" });
+    expect(toggle.getAttribute("aria-expanded")).toBe("false");
+    expect(screen.queryByLabelText("Longitud")).toBeNull();
+
+    const kinds = openOptions();
+
+    expect(toggle.getAttribute("aria-expanded")).toBe("true");
+    expect(toggle.textContent).toBe("Ocultar opciones del generador");
+    const length = screen.getByLabelText<HTMLInputElement>("Longitud");
+    expect([length.type, length.min, length.max, length.value]).toEqual(["range", "8", "128", "20"]);
+    for (const label of KIND_LABELS) expect(within(kinds).getByLabelText<HTMLInputElement>(label).checked).toBe(true);
+    expect(within(kinds).getByLabelText<HTMLInputElement>("Evitar caracteres parecidos").checked).toBe(false);
+
+    fireEvent.click(toggle);
+    expect(toggle.getAttribute("aria-expanded")).toBe("false");
+    expect(toggle.textContent).toBe("Opciones del generador");
+    expect(screen.queryByLabelText("Longitud")).toBeNull();
+  });
+
+  it("RF-66: RF-67: ejemplo 5 — longitud 8, cuatro tipos y evitar parecidos: así viaja la petición y así sale", async () => {
+    const { backend } = open();
+    openOptions();
+    fireEvent.change(screen.getByLabelText("Longitud"), { target: { value: "8" } });
+    fireEvent.click(screen.getByLabelText("Evitar caracteres parecidos"));
+    expect(backend.count("generate_password")).toBe(0);
+
+    const password = await generateOnce();
+
+    expect(lastArgs(backend, "generate_password")).toEqual({ ...DEFAULT_RULES, length: 8, avoid_lookalikes: true });
+    expect(Array.from(password)).toHaveLength(8);
+    expect(password).toMatch(/[a-z]/);
+    expect(password).toMatch(/[A-Z]/);
+    expect(password).toMatch(/[0-9]/);
+    expect(password).toMatch(/[^a-zA-Z0-9]/);
+    expect(password).not.toMatch(/[0Oo1lI|]/);
+  });
+
+  it("RF-101: cambiar una opción vuelve a generar si lo que hay en el campo salió del generador", async () => {
+    const { backend } = open();
+    const first = await generateOnce();
+    openOptions();
+
+    fireEvent.change(screen.getByLabelText("Longitud"), { target: { value: "12" } });
+    await waitFor(() => {
+      expect(Array.from(passwordField().value)).toHaveLength(12);
+    });
+    expect(backend.count("generate_password")).toBe(2);
+    expect(lastArgs(backend, "generate_password")).toEqual({ ...DEFAULT_RULES, length: 12 });
+    expect(passwordField().value).not.toBe(first);
+
+    const second = passwordField().value;
+    fireEvent.click(screen.getByLabelText("Símbolos"));
+    await waitFor(() => {
+      expect(passwordField().value).not.toBe(second);
+    });
+    expect(backend.count("generate_password")).toBe(3);
+    expect(passwordField().value).toMatch(/^[a-zA-Z0-9]{12}$/);
+    expect(passwordField().type).toBe("text");
+  });
+
+  it("RF-101: cambiar una opción no pisa una contraseña escrita ni una generada que se editó a mano", async () => {
+    const { backend } = open();
+    typePassword("escrita-a-mano");
+    openOptions();
+    fireEvent.change(screen.getByLabelText("Longitud"), { target: { value: "30" } });
+    fireEvent.click(screen.getByLabelText("Símbolos"));
+    expect(backend.count("generate_password")).toBe(0);
+    expect(passwordField().value).toBe("escrita-a-mano");
+
+    const generated = await generateOnce();
+    expect(Array.from(generated)).toHaveLength(30);
+    typePassword(`${generated}-y-algo-mío`);
+    fireEvent.click(screen.getByLabelText("Mayúsculas"));
+    fireEvent.change(screen.getByLabelText("Longitud"), { target: { value: "9" } });
+
+    // Whatever the core had to say would have arrived by now.
+    await screen.findByText(/^Fortaleza: /);
+    expect(backend.count("generate_password")).toBe(1);
+    expect(passwordField().value).toBe(`${generated}-y-algo-mío`);
+  });
+
+  it("RF-101: una contraseña generada que llega tarde no pisa lo que se escribió mientras tanto", async () => {
+    const { backend } = open();
+    const release = backend.hold("generate_password");
+    fireEvent.click(screen.getByRole("button", { name: "Generar" }));
+    typePassword("escrita-mientras-tanto");
+
+    release();
+    await waitFor(() => {
+      expect(backend.count("generate_password")).toBe(1);
+    });
+    await screen.findByText(/^Fortaleza: /);
+
+    expect(passwordField().value).toBe("escrita-mientras-tanto");
+    expect(passwordField().type).toBe("password");
+  });
+
+  it("RF-68: sin ningún tipo marcado no genera y lo dice junto a las opciones; un rechazo del núcleo también se dice ahí", async () => {
+    const { backend } = open();
+    const kinds = openOptions();
+    for (const label of KIND_LABELS) fireEvent.click(within(kinds).getByLabelText(label));
+    const options = kinds.parentElement ?? kinds;
+    expect(within(options).getByRole("alert").textContent).toBe(ERROR_MESSAGES.ReglasImposibles);
+
+    // Folded away, "Generar" still says why: it opens the options with the reason.
+    fireEvent.click(screen.getByRole("button", { name: "Ocultar opciones del generador" }));
+    fireEvent.click(screen.getByRole("button", { name: "Generar" }));
+    expect(screen.getByText(ERROR_MESSAGES.ReglasImposibles)).toBeDefined();
+    expect(screen.getByRole("button", { name: "Ocultar opciones del generador" })).toBeDefined();
+    expect(backend.count("generate_password")).toBe(0);
+    expect(passwordField().value).toBe("");
+
+    fireEvent.click(screen.getByLabelText("Números"));
+    expect(screen.queryByText(ERROR_MESSAGES.ReglasImposibles)).toBeNull();
+    backend.rejectOnce("generate_password", { code: "ReglasImposibles", message: "core text" });
+    fireEvent.click(screen.getByRole("button", { name: "Generar" }));
+    expect(await screen.findByText(ERROR_MESSAGES.ReglasImposibles)).toBeDefined();
+    expect(backend.count("generate_password")).toBe(1);
+    expect(screen.queryByText(/core text/)).toBeNull();
+    expect(passwordField().value).toBe("");
+  });
+
+  it("RF-65: Enter en una opción del generador genera y no guarda la entrada", async () => {
+    const { backend, onSaved } = open();
+    fireEvent.change(title(), { target: { value: "No guardar" } });
+    openOptions();
+
+    const notCancelled = fireEvent.keyDown(screen.getByLabelText("Longitud"), { key: "Enter" });
+
+    expect(notCancelled).toBe(false);
+    await waitFor(() => {
+      expect(backend.count("generate_password")).toBe(1);
+    });
+    expect(backend.count("entry_create")).toBe(0);
+    expect(onSaved).not.toHaveBeenCalled();
+  });
+
+  it("RF-45: al editar, «Generar» reemplaza la contraseña: viaja la generada y solo ella", async () => {
+    const { backend, onSaved } = await openEdit();
+    const generated = await generateOnce();
+
+    fireEvent.click(screen.getByRole("button", { name: "Guardar entrada" }));
+
+    await waitFor(() => {
+      expect(onSaved).toHaveBeenCalledWith("entry-github", true);
+    });
+    expect(lastArgs(backend, "entry_update")).toEqual({ id: "entry-github", password: generated });
+    expect(backend.entry("entry-github")?.password).toBe(generated);
+  });
+
+  it("RF-65: RF-32: cerrar el diálogo suelta la contraseña generada: pregunta antes y no queda en el DOM", async () => {
+    const { onClose, view } = open();
+    const generated = await generateOnce();
+
+    fireEvent.click(screen.getByRole("button", { name: "Cancelar" }));
+    expect(confirmation()).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Descartar" }));
+    expect(onClose).toHaveBeenCalledTimes(1);
+
+    view.rerender(<p>Bóveda</p>);
+    expect(bodyContains(generated)).toBe(false);
+  });
+});
