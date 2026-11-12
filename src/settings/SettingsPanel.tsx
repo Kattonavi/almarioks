@@ -8,7 +8,7 @@ import { AUTO_LOCK_MINUTES, type AutoLockMinutes } from "../ipc/schemas";
 import { WarningIcon } from "../ui/icons";
 import { UpdatePanel } from "../update/UpdatePanel";
 
-export type SettingsClient = Pick<VaultClient, "settingsGet" | "settingsSet">;
+export type SettingsClient = Pick<VaultClient, "settingsGet" | "settingsSet" | "prepareUpdate">;
 
 /** RF-73. */
 const CLIPBOARD_MIN = 10;
@@ -242,7 +242,12 @@ export function SettingsPanel({ client, readVersion = getVersion, onSaved }: Set
         )}
       </section>
 
-      <UpdatePanel />
+      <UpdatePanel
+        beforeInstall={async () => {
+          const result = await client.prepareUpdate();
+          if (!result.ok) throw new Error(result.error.code);
+        }}
+      />
 
       <section aria-labelledby="about-title">
         <h3 id="about-title">Acerca de AlmarioKS</h3>
