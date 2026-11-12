@@ -33,7 +33,8 @@ Encargo y resultado en `docs/revisiones/0.1-ux-dueno.md`; revisión de seguridad
 | RF-103 tema oscuro siempre | `rf_103_*` (`webview_config.rs`) | Las tres pantallas |
 | RF-104 ventana mínima 1000 × 640 | `rf_104_*` (`webview_config.rs`) | No se intentó achicar la ventana a mano |
 
-Sin revisión de código independiente de este delta. La ventana a 1280 × 800 solo se vio para "Crear bóveda" y el
+La revisión de código independiente de este delta llegó con la segunda ronda (`docs/revisiones/0.1-codigo.md`,
+sección del 2026-11-12). La ventana a 1280 × 800 solo se vio para "Crear bóveda" y el
 diálogo (la pantalla del PC de pruebas no da para capturar la bóveda entera a ese tamaño).
 
 ## Segunda ronda del dueño (2026-11-12): RF-42, RF-43, RF-65, RF-68 y RF-105 a RF-113

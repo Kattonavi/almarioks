@@ -110,6 +110,13 @@ muestra "(protegido)".
     Límite conocido (revisión de seguridad, Q-1): una ventana comprometida puede volver "conocida" una ruta sin
     gesto del usuario (un bloqueo durante `vault_open`, o `vault_create`/`save_as`/`convert`, que la meten en
     recientes); no gana capacidad, porque `vault_open` ya responde si una ruta existe. Se cierra con el punto 2 de S-2.
+    RF-111: la respuesta lleva además `source: "remembered"` cuando la llave propuesta es la recordada para esa
+    bóveda (gana a la de al lado; sin `source` es la de al lado) y `remembered_missing: <ruta>` cuando la recordada
+    ya no está (sola, o junto a la de al lado si existe). Solo se propone un archivo de 1 MiB o menos. Lo recordado
+    vive en `settings.json`, clave `key_files` (ruta de la bóveda → ruta de la llave; ausente si está vacío): lo
+    escribe solo `vault_open` tras un desbloqueo correcto con contraseña y una llave elegida con el diálogo, en una
+    ruta `X:\…`; `vault_create`, `vault_convert` y `vault_save_as` olvidan la de esa ruta. En la ventana:
+    `unlockKeyProposal(path)`.
 22. El resumen de una entrada (`entry_list`, `search`, y dentro del detalle) lleva `has_password` (RF-105): si el
     campo de contraseña existe y no está vacío. Nunca el valor ni su longitud.
 
