@@ -10,6 +10,21 @@ publish.workspace = true
 
 [dependencies]
 keepass.workspace = true
+thiserror.workspace = true
+secrecy.workspace = true
+zeroize.workspace = true
+# Only in `src/kdbx/` (constitution rule 4, see the root Cargo.toml); `getrandom` is also used by `generator`.
+sha2.workspace = true
+getrandom.workspace = true
+hex.workspace = true
+quick-xml.workspace = true
+zxcvbn.workspace = true
+serde_json.workspace = true
+# Besides `kdbx`, `storage` uses sha2 for the content fingerprint of RF-24 (see the root Cargo.toml).
+# Own domain types (ids, timestamps) and text folding.
+uuid.workspace = true
+chrono.workspace = true
+unicode-normalization.workspace = true
 
 [lints]
 workspace = true

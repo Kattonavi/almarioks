@@ -1,0 +1,35 @@
+/*
+ * Dark theme: the same roles as `tokens.css`. Imported from `styles.css` under `(prefers-color-scheme: dark)`.
+ * The frame is still a signal panel (deeper black); the work ground goes dark and the panel inside it inverts to
+ * light, the way the selected group does on the rail.
+ */
+:root,
+dialog {
+  color-scheme: dark;
+
+  --ground: #191b21;
+  --surface: #20232a;
+  --ink: #f2f2ee;
+  --ink-muted: #a7adba;
+  --rule: #343842;
+  --control-border: #6b7280;
+  --hover: rgb(242 242 238 / 9%);
+  --focus: #f2f2ee;
+  --scroll-thumb: #4a4e58;
+
+  --signal: #0c0d10;
+  --signal-raised: #1c1f26;
+  --signal-rule: #2a2d36;
+
+  --panel: #f2f2ee;
+  --panel-hover: #dcdcd6;
+  --on-panel: #16181d;
+  --on-panel-muted: #4a4f59;
+
+  --danger: #ff7a85;
+  --on-danger: #16181d;
+  --ok: #4cc38a;
+
+  --backdrop: rgb(0 0 0 / 65%);
+  --shadow: 0 12px 32px rgb(0 0 0 / 50%);
+}

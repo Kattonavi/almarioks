@@ -24,5 +24,7 @@ src-tauri/gen/
 # Local
 .claude/worktrees/
 .impeccable/review/
+.impeccable/mocks/
+.impeccable/questions/
 Thumbs.db
 .DS_Store

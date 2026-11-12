@@ -1,0 +1,104 @@
+/*
+ * Design tokens of the "Señalética" direction. Colour is named by ROLE, never by hue: components read roles, and
+ * `theme-dark.css` redefines the same roles. Contrast of every text/ground pair is AA in both themes (computed).
+ */
+/* Type, space and measures live on the root alone, so density and the window size reach every surface, dialogs too. */
+:root {
+  /* ---- Type: Overpass for the interface, Overpass Mono only for data (dates, counts, secrets, file paths). ---- */
+  --font-sans: "Overpass Variable", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "Overpass Mono Variable", "Cascadia Mono", Consolas, monospace;
+  --text-xs: 0.75rem; /* 12 */
+  --text-sm: 0.8125rem; /* 13 */
+  --text-control: 0.875rem; /* 14 */
+  --text-md: 0.9375rem; /* 15: body */
+  --text-lg: 1.125rem; /* 18 */
+  --text-xl: 1.875rem; /* 30: list header */
+  --text-2xl: 2.75rem; /* 44: entry title */
+  --leading: 1.45;
+  --leading-tight: 1.1;
+  --weight-regular: 400;
+  --weight-strong: 600;
+  --weight-display: 800;
+
+  /* ---- Space: one 4 px grid. ---- */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --space-10: 2.5rem;
+
+  /* ---- Shape and measures. ---- */
+  --radius-sm: 3px;
+  --radius: 4px;
+  --radius-round: 50%;
+  --row-h: 44px;
+  --control-h: 36px;
+  --bar-h: 64px;
+  --rail-w: 272px;
+  --bullet: 26px;
+  --focus-width: 3px;
+  --content-width: 40rem;
+}
+
+/* A dialog is always a work surface, even when it is mounted inside the signal frame: it takes the colour roles again. */
+:root,
+dialog {
+  color-scheme: light;
+
+  /* ---- Work area. ---- */
+  --ground: #f6f6f3;
+  --surface: #ffffff;
+  --ink: #16181d;
+  --ink-muted: #565b66;
+  --rule: #ddddd6;
+  --control-border: #868b95;
+  --hover: rgb(22 24 29 / 7%);
+  --focus: #16181d;
+  --scroll-thumb: #b4b5ad;
+
+  /* ---- Signal frame: top bar and group rail. It stays a signal panel in both themes. ---- */
+  --signal: #16181d;
+  --signal-raised: #23262e;
+  --signal-rule: #2e323b;
+  --signal-border: #6b7280;
+  --signal-hover: rgb(255 255 255 / 9%);
+  --on-signal: #ffffff;
+  --on-signal-muted: #c3cae0;
+  --danger-on-signal: #ff7a85;
+  /* The selected group and the main action of the frame: a white plate with signal text. */
+  --signal-panel: #ffffff;
+  --signal-panel-hover: #dcdcd6;
+  --on-signal-panel: #16181d;
+
+  /* ---- Signal panel inside the work area: the selected row and the main action. ---- */
+  --panel: #16181d;
+  --panel-hover: #2a2d35;
+  --on-panel: #ffffff;
+  --on-panel-muted: #c3cae0;
+
+  /* ---- States. Red is danger only; dark green is confirmation only. ---- */
+  --danger: #d7263d;
+  --on-danger: #ffffff;
+  --ok: #157a52;
+
+  /* ---- Line colours: an ordered family that only names groups. Text on a line is always --on-line. ---- */
+  --line-1: #6aa5ff;
+  --line-2: #f26a1b;
+  --line-3: #1e9e6a;
+  --line-4: #f2b705;
+  --line-neutral: #c9cedb;
+  --line-station: #ffffff;
+  --on-line: #16181d;
+
+  --backdrop: rgb(22 24 29 / 55%);
+  --shadow: 0 12px 32px rgb(22 24 29 / 22%);
+}
+
+/* Density: comfortable is the default; compact keeps every target at 32 px. */
+[data-density="compact"] {
+  --row-h: 32px;
+  --control-h: 32px;
+}

@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-vault-convert"
+description = "Enables the vault_convert command without any pre-configured scope."
+commands.allow = ["vault_convert"]
+
+[[permission]]
+identifier = "deny-vault-convert"
+description = "Denies the vault_convert command without any pre-configured scope."
+commands.deny = ["vault_convert"]

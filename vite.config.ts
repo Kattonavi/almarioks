@@ -24,9 +24,12 @@ export default defineConfig({
     // WebView2 on Windows 10/11 is evergreen Chromium.
     target: "chrome120",
     sourcemap: false,
+    // The CSP is `font-src 'self'`: a font inlined as a `data:` URL would be blocked, so every asset stays a file.
+    assetsInlineLimit: 0,
   },
   test: {
     environment: "jsdom",
     include: ["src/**/*.test.{ts,tsx}"],
+    setupFiles: ["src/test/setup.ts"],
   },
 });

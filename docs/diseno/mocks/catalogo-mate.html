@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>AlmarioKS · Catálogo mate</title>
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;600;800&family=Martian+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root{--black:#0E0E0F;--panel:#17171A;--line:#2C2C31;--white:#F2F2F0;--dim:#B4B4AE;
+--g-personal:#E4572E;--g-trabajo:#F2C14E;--g-bancos:#4DA1A9;--g-compras:#9B5DE5;--ok:#7BD389;--danger:#FF8A7A}
+*{box-sizing:border-box;margin:0}
+body{width:1440px;height:900px;overflow:hidden;font:400 15px/1.5 "Hanken Grotesk",sans-serif;color:var(--white);background:var(--black);display:grid;grid-template-columns:760px 1fr;grid-template-rows:64px 1fr}
+::selection{background:var(--g-trabajo);color:var(--black)}
+svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;flex:none}
+button{font:600 14px "Hanken Grotesk",sans-serif;border:1px solid var(--white);background:transparent;color:var(--white);border-radius:2px;padding:8px 14px;display:inline-flex;gap:8px;align-items:center;cursor:pointer}
+header{grid-column:1/-1;display:flex;align-items:center;gap:28px;padding:0 40px;border-bottom:1px solid var(--line)}
+.brand{font:800 15px "Hanken Grotesk";letter-spacing:.22em}
+.search{flex:1;max-width:520px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--dim);padding:8px 2px;color:var(--dim)}
+.search kbd{margin-left:auto;font:400 11px "Martian Mono"}
+.lockin{margin-left:auto;font:400 12px "Martian Mono";color:var(--dim)}
+.index{padding:28px 0 0 40px;border-right:1px solid var(--line);overflow:hidden}
+.strip{display:flex;height:40px;margin:0 40px 26px 0}
+.strip a{display:flex;align-items:flex-end;justify-content:space-between;padding:0 10px 6px;text-decoration:none;font:600 12px "Hanken Grotesk";color:var(--black)}
+.strip small{font:400 11px "Martian Mono"}
+.cols{display:grid;grid-template-columns:96px 1fr 240px 110px;font:400 11px "Martian Mono";color:var(--dim);padding:0 40px 10px 0;border-bottom:1px solid var(--white)}
+.entry{display:grid;grid-template-columns:96px 1fr 240px 110px;align-items:center;padding:12px 40px 12px 0;border-bottom:1px solid var(--line)}
+.entry .no{font:400 13px "Martian Mono";color:var(--dim)}
+.entry b{font-weight:600}
+.entry span{color:var(--dim);font-size:14px}
+.entry time{font:400 12px "Martian Mono";color:var(--dim);text-align:right}
+.entry.on{background:var(--g-trabajo);color:var(--black);margin-left:-40px;padding-left:40px;border-color:var(--g-trabajo)}
+.entry.on .no,.entry.on span,.entry.on time{color:#3A2C05}
+.entry .state{font:600 11px "Martian Mono";color:var(--ok);text-align:right}
+.new{padding:14px 0;color:var(--dim);font-size:14px}
+main{padding:44px 56px;overflow:hidden;background:var(--panel)}
+.fac{font:800 96px/1 "Hanken Grotesk";letter-spacing:-.03em}
+.fac span{color:var(--g-trabajo)}
+main h1{font:600 28px/1.2 "Hanken Grotesk";margin:10px 0 4px}
+.meta{font:400 12px "Martian Mono";color:var(--dim);margin-bottom:30px}
+.field{display:grid;grid-template-columns:130px 1fr auto;align-items:center;gap:12px;padding:15px 0;border-top:1px solid var(--line)}
+.field label{font:400 11px "Martian Mono";color:var(--dim)}
+.pw{display:flex;gap:3px}
+.pw i{width:11px;height:20px;background:var(--white)}
+.solid{background:var(--white);color:var(--black)}
+.pulse{display:flex;align-items:flex-end;gap:3px;height:20px;margin-right:12px}
+.pulse i{width:26px;background:var(--ok)}
+.tag{font:400 11px "Martian Mono";border:1px solid var(--dim);padding:2px 8px;margin-right:6px}
+.notes{padding:16px 0;border-top:1px solid var(--line);color:var(--dim);max-width:50ch}
+.foot{display:flex;gap:10px;margin-top:20px}
+.danger{border-color:var(--danger);color:var(--danger)}
+</style>
+</head>
+<body>
+<svg style="display:none"><symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></symbol><symbol id="i-copy" viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11"/><path d="M5 15V5h10"/></symbol><symbol id="i-eye" viewBox="0 0 24 24"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></symbol><symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="9"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></symbol></svg>
+<header>
+  <div class="brand">ALMARIOKS</div>
+  <div class="search"><svg><use href="#i-search"/></svg>Buscar por nombre, usuario, sitio o número<kbd>CTRL K</kbd></div>
+  <span class="lockin">SE BLOQUEA EN 4:12</span>
+  <button><svg><use href="#i-lock"/></svg>Bloquear</button>
+</header>
+<section class="index">
+  <nav class="strip">
+    <a href="#" style="flex:12;background:var(--g-personal)">Personal<small>12</small></a>
+    <a href="#" style="flex:8;background:var(--g-trabajo)">Trabajo<small>8</small></a>
+    <a href="#" style="flex:4;background:var(--g-bancos)">Bancos<small>4</small></a>
+    <a href="#" style="flex:9;background:var(--g-compras)">Compras<small>9</small></a>
+  </nav>
+  <div class="cols"><span>N.º</span><span>CUENTA</span><span>USUARIO</span><span style="text-align:right">CAMBIÓ</span></div>
+  <div class="entry"><span class="no">AK 013</span><b>Correo de la oficina</b><span>sara@example.com</span><time>ayer</time></div>
+  <div class="entry"><span class="no">AK 014</span><b>Figma</b><span>sara@example.com</span><time>12 oct</time></div>
+  <div class="entry on"><span class="no">AK 015</span><b>GitHub</b><span>sara@example.com</span><time>hace 3 días</time></div>
+  <div class="entry"><span class="no">AK 016</span><b>Jira</b><span>sara.g</span><time>3 sep</time></div>
+  <div class="entry"><span class="no">AK 017</span><b>Nómina</b><span>1032456789</span><span class="state">COPIADA · 14 S</span></div>
+  <div class="entry"><span class="no">AK 018</span><b>Railway</b><span>sara@example.com</span><time>28 ago</time></div>
+  <div class="entry"><span class="no">AK 019</span><b>Slack</b><span>sara@example.com</span><time>15 ago</time></div>
+  <div class="entry"><span class="no">AK 020</span><b>VPN de la oficina</b><span>sgomez</span><time>2 jul</time></div>
+  <p class="new">+ Nueva cuenta en Trabajo · Papelera (2) · cuentas.kdbx guardado hace 2 min</p>
+</section>
+<main>
+  <div class="fac">AK <span>015</span></div>
+  <h1>GitHub</h1>
+  <p class="meta">TRABAJO · MODIFICADA HACE 3 DÍAS · 3 VERSIONES</p>
+  <div class="field"><label>USUARIO</label><output>sara@example.com</output><button><svg><use href="#i-copy"/></svg>Copiar</button></div>
+  <div class="field"><label>CONTRASEÑA</label><output class="pw" aria-label="Contraseña oculta"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></output><span style="display:flex;gap:8px"><button><svg><use href="#i-eye"/></svg>Mostrar</button><button class="solid"><svg><use href="#i-copy"/></svg>Copiar</button></span></div>
+  <div class="field"><label>FORTALEZA</label><output style="display:flex;align-items:center"><span class="pulse"><i style="height:8px"></i><i style="height:12px"></i><i style="height:16px"></i><i style="height:20px"></i></span>Fuerte · 4 de 4</output><span></span></div>
+  <div class="field"><label>DIRECCIÓN</label><output>https://github.com</output><button>Abrir</button></div>
+  <div class="field"><label>ETIQUETAS</label><output><span class="tag">código</span><span class="tag">trabajo</span></output><span></span></div>
+  <p class="notes">Cuenta de la organización. Renovar el token de acceso en enero.</p>
+  <div class="foot"><button>Editar</button><button>Mover de grupo</button><button class="danger">Enviar a la papelera</button></div>
+</main>
+</body>
+</html>

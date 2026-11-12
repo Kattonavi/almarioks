@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-vault-save-as"
+description = "Enables the vault_save_as command without any pre-configured scope."
+commands.allow = ["vault_save_as"]
+
+[[permission]]
+identifier = "deny-vault-save-as"
+description = "Denies the vault_save_as command without any pre-configured scope."
+commands.deny = ["vault_save_as"]

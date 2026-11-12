@@ -1,0 +1,745 @@
+/* The two work zones of the open vault: the entry list and the detail of an entry. */
+
+/* ---- List header: the badge and the group name, large. ---- */
+.list-pane {
+  container: list / inline-size;
+}
+
+.list-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-5) var(--space-6) var(--space-4);
+}
+
+.list-title {
+  flex: 1;
+  min-width: 0;
+}
+
+.list-title h3 {
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-size: var(--text-xl);
+  line-height: 1;
+}
+
+.list-title p {
+  margin: var(--space-1) 0 0;
+  font-size: var(--text-control);
+  color: var(--ink-muted);
+}
+
+.list-head > button {
+  flex: none;
+}
+
+@container list (max-width: 22rem) {
+  .list-head {
+    padding: var(--space-4) var(--space-4) var(--space-3);
+  }
+
+  .list-title h3 {
+    font-size: 1.5rem;
+  }
+
+  .list-head > button {
+    width: 100%;
+  }
+}
+
+/*
+ * ---- Rows. A real table drawn as a list: the title button stretches over its row, the user and the address make
+ * the second line, and the date (or the "copied" stamp) closes the row. ----
+ */
+.entries,
+.entries tbody {
+  display: block;
+  width: 100%;
+}
+
+.entries tbody tr {
+  position: relative;
+  display: grid;
+  grid-template-areas:
+    "title title date"
+    "user  rest  date";
+  grid-template-columns: minmax(0, auto) minmax(0, 1fr) max-content;
+  align-content: center;
+  align-items: center;
+  min-height: calc(var(--row-h) + var(--space-4));
+  padding: var(--space-2) var(--space-6) var(--space-2) calc(var(--space-6) + var(--bullet) + var(--space-3));
+  border-top: 1px solid var(--rule);
+}
+
+.entries tbody tr:hover {
+  background: var(--hover);
+}
+
+.entries tbody tr[data-selected] {
+  --focus: var(--on-panel);
+
+  color: var(--on-panel);
+  background: var(--panel);
+  border-color: var(--panel);
+}
+
+.entries tbody tr:has(button:focus-visible) {
+  outline: var(--focus-width) solid var(--focus);
+  outline-offset: calc(-1 * var(--focus-width));
+}
+
+.entries th {
+  grid-area: title;
+  min-width: 0;
+  padding: 0;
+  text-align: start;
+}
+
+.entries .bullet {
+  position: absolute;
+  top: 50%;
+  left: var(--space-6);
+  transform: translateY(-50%);
+}
+
+.entries th button {
+  display: block;
+  max-width: 100%;
+  min-height: 0;
+  padding: 0;
+  overflow: hidden;
+  font-size: var(--text-md);
+  text-align: start;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: inherit;
+  background: none;
+  border: 0;
+}
+
+.entries th button:focus-visible {
+  outline: none;
+}
+
+/* The row answers to the pointer and to the press; its title button does not paint a second patch inside it. */
+.entries th button:hover:not(:disabled),
+.entries th button:active:not(:disabled) {
+  background: none;
+  transform: none;
+}
+
+.entries th button::after {
+  position: absolute;
+  inset: 0;
+  content: "";
+}
+
+.entries td {
+  min-width: 0;
+  padding: 0;
+  overflow: hidden;
+  font-size: var(--text-sm);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ink-muted);
+}
+
+.entries tr[data-selected] td {
+  color: var(--on-panel-muted);
+}
+
+.cell-user {
+  grid-area: user;
+}
+
+.cell-url,
+.entries[data-search] .cell-group {
+  grid-area: rest;
+}
+
+/* The separator belongs to the pair: it only shows when both sides have something. */
+.cell-user:not(:empty) ~ .cell-url:not(:empty)::before,
+.entries[data-search] .cell-user:not(:empty) ~ .cell-group:not(:empty)::before {
+  display: inline-block;
+  width: 1em;
+  text-align: center;
+  content: "·";
+}
+
+/* In the list the tags stay for screen readers; search results show the group instead of the address. */
+.cell-tags,
+.entries[data-search] .cell-url {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.entries .cell-date {
+  grid-area: date;
+  padding-inline-start: var(--space-3);
+  overflow: visible;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+}
+
+/* The copied state is stamped on the row and stays while the clipboard holds the value. */
+.stamp {
+  display: inline-block;
+  padding: 2px 7px;
+  font: var(--weight-strong) var(--text-xs) / 1.3 var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.04em;
+  color: var(--ok);
+  border: 1.5px solid currentColor;
+  border-radius: var(--radius-sm);
+  transform: rotate(-2deg);
+  animation: stamp-in 180ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Only the word is a capital-letter stamp: the unit "s" keeps its case. */
+.stamp-word {
+  text-transform: uppercase;
+}
+
+.entries tr[data-selected] .stamp {
+  color: var(--on-panel);
+}
+
+@keyframes stamp-in {
+  from {
+    opacity: 0;
+    transform: rotate(-2deg) scale(1.3);
+  }
+}
+
+@container list (max-width: 22rem) {
+  .entries tbody tr {
+    padding-inline: calc(var(--space-4) + var(--bullet) + var(--space-3)) var(--space-4);
+  }
+
+  .entries .bullet {
+    left: var(--space-4);
+  }
+
+  /* A narrow row has no room for the address: it stays for screen readers, and the user closes the line. */
+  .entries:not([data-search]) .cell-url,
+  .entries .cell-date:not(:has(.stamp)) {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+
+  /* A narrow list gives the stamp its own line under the row. */
+  .entries tbody tr:has(.stamp) {
+    grid-template-areas:
+      "title title title"
+      "user  rest  rest"
+      "date  date  date";
+  }
+
+  .entries .cell-date:has(.stamp) {
+    padding: var(--space-1) 0 0;
+  }
+}
+
+[data-density="compact"] .entries tbody tr {
+  grid-template-areas: "title user date";
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) auto;
+  column-gap: var(--space-3);
+  min-height: var(--row-h);
+  padding-block: var(--space-1);
+}
+
+[data-density="compact"] .entries :is(.cell-url, .cell-group) {
+  display: none;
+}
+
+/* ---- Detail: the route of the group as stops, the title, and the fields in rows. ---- */
+.detail-pane > [aria-live] .notice {
+  margin-bottom: var(--space-5);
+}
+
+.entry-route {
+  margin: 0 0 var(--space-5);
+}
+
+.entry-route dd {
+  margin: 0;
+}
+
+.route {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  row-gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-strong);
+  color: var(--ink-muted);
+  list-style: none;
+}
+
+.route li {
+  display: flex;
+  align-items: center;
+}
+
+/* A stop: a dot in the line colour, outlined in ink so it reads on any ground. */
+.route li::before {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  margin-inline-end: var(--space-2);
+  content: "";
+  background: var(--line);
+  border: 2px solid var(--ink);
+  border-radius: var(--radius-round);
+}
+
+.route li:not(:last-child)::after {
+  flex: none;
+  width: 56px;
+  height: 4px;
+  margin-inline: var(--space-2);
+  content: "";
+  background: var(--line);
+}
+
+.route li:last-child {
+  color: var(--ink);
+}
+
+.entry-title {
+  margin: 0 0 var(--space-2);
+  overflow-wrap: anywhere;
+  font-size: var(--text-2xl);
+  line-height: 1.05;
+  letter-spacing: -0.01em;
+}
+
+.entry-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-5);
+  margin: 0 0 var(--space-6);
+  font-size: var(--text-sm);
+  color: var(--ink-muted);
+}
+
+.entry-meta div {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.entry-meta dd {
+  margin: 0;
+  font-family: var(--font-mono);
+}
+
+.entry-fields {
+  margin: 0;
+}
+
+.entry-meta + .entry-fields {
+  border-top: 2px solid var(--ink);
+}
+
+.entry-fields > div {
+  display: grid;
+  grid-template-columns: 7.5rem minmax(0, 1fr);
+  column-gap: var(--space-3);
+  align-items: center;
+  min-height: calc(var(--row-h) + var(--space-3));
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--rule);
+}
+
+.entry-fields dt {
+  overflow-wrap: anywhere;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-strong);
+  color: var(--ink-muted);
+}
+
+.entry-fields dd {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-size: 1rem;
+}
+
+.entry-fields dd > :first-child:not(.secret[data-masked]) {
+  flex: 1 1 8rem;
+  min-width: 0;
+}
+
+.entry-fields dd .path {
+  font-size: inherit;
+  color: inherit;
+}
+
+.entry-fields .notes {
+  max-width: 65ch;
+}
+
+.field-actions {
+  display: flex;
+  flex: none;
+  gap: var(--space-2);
+  margin-inline-start: auto;
+}
+
+.field-actions .btn-icon {
+  width: var(--control-h);
+  padding: 0;
+}
+
+/*
+ * A hidden secret is a bar of fixed width: it never gives away how long the value is. The width is a whole number of
+ * periods of the pattern (9 px mark + 4 px gap), so the bar never ends in a sliver of a mark.
+ */
+.secret[data-masked] {
+  --mask-period: 13px;
+
+  display: inline-block;
+  flex: none;
+  width: calc(12 * var(--mask-period));
+  height: 14px;
+  background: repeating-linear-gradient(90deg, var(--ink) 0 9px, transparent 9px var(--mask-period));
+  border-radius: 2px;
+}
+
+/* The hint under the protected fields of the detail, in line with the values. */
+.detail-pane .field-hint {
+  margin: 0;
+  padding: var(--space-2) 0 var(--space-2) calc(7.5rem + var(--space-3));
+  border-bottom: 1px solid var(--rule);
+}
+.detail-pane h5 {
+  margin: var(--space-6) 0 var(--space-2);
+  color: var(--ink-muted);
+}
+
+.entry-actions {
+  margin-top: var(--space-6);
+}
+
+/*
+ * Sending an entry to the bin can be undone, so in its resting state it reads like the other actions: red only under
+ * the pointer and with focus. Inside the bin, "Borrar definitivamente…" keeps the red border of `.btn-danger`.
+ */
+.entry-actions > .btn-to-bin:hover:not(:disabled) {
+  color: var(--on-danger);
+  background: var(--danger);
+  border-color: var(--danger);
+}
+
+.entry-actions > .btn-to-bin:focus-visible:not(:hover) {
+  color: var(--danger);
+  border-color: var(--danger);
+}
+
+.entry-status p {
+  margin: var(--space-4) 0 0;
+  font-size: var(--text-sm);
+  color: var(--ink-muted);
+}
+
+.entry-status + .error {
+  margin-top: var(--space-3);
+}
+
+/*
+ * ---- Entry form (create and edit): the same rows as the detail, with a control where the value was. The label keeps
+ * the column of the field names, and hints, strength and errors hang under their control. ----
+ */
+.entry-form > h4 {
+  margin: 0 0 var(--space-5);
+  overflow-wrap: anywhere;
+  font-size: var(--text-xl);
+  line-height: 1.05;
+  letter-spacing: -0.01em;
+}
+
+.entry-form > fieldset {
+  gap: 0;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  border-top: 2px solid var(--ink);
+  border-radius: 0;
+}
+
+/* The heading of the form already says it: the legend stays for assistive technology. */
+.entry-form > fieldset > legend {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.entry-form > fieldset > .field {
+  grid-template-columns: 7.5rem minmax(0, 1fr);
+  gap: var(--space-1) var(--space-3);
+  align-items: start;
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--rule);
+}
+
+.entry-form > fieldset > .field > label {
+  padding-top: calc((var(--control-h) - 1.45em) / 2);
+  overflow-wrap: anywhere;
+  color: var(--ink-muted);
+}
+
+.entry-form > fieldset > .field > :not(label) {
+  grid-column: 2;
+}
+
+.entry-form > fieldset > .field > :is(input, textarea) {
+  width: 100%;
+}
+
+.entry-form .field > .error:empty,
+.entry-form > .error:empty {
+  display: none;
+}
+
+.entry-form .field > .actions {
+  margin-top: var(--space-1);
+}
+
+/* With the generator open its own panel has "Generar" and "Cerrar generador": the button that opened it steps aside. */
+.entry-form .field > .actions:has(> [aria-expanded="true"]) {
+  display: none;
+}
+
+.entry-form > fieldset > .actions {
+  margin-top: var(--space-5);
+}
+
+.entry-form > [aria-live] p,
+.entry-form > .error {
+  margin: var(--space-4) 0 0;
+  font-size: var(--text-sm);
+}
+
+/* ---- Generator: one panel under the password it fills. ---- */
+.generator {
+  gap: var(--space-3);
+  min-width: 0;
+  margin-top: var(--space-2);
+  padding: var(--space-3) var(--space-4) var(--space-4);
+  background: var(--surface);
+}
+
+.generator legend {
+  font-size: var(--text-sm);
+}
+
+.generator > .field > input {
+  width: 7rem;
+}
+
+.generator fieldset {
+  grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr));
+  gap: 0 var(--space-4);
+  min-width: 0;
+  padding: 0;
+  border: 0;
+}
+
+.generator fieldset > legend {
+  margin-bottom: var(--space-1);
+  padding: 0;
+}
+
+.generator .actions {
+  margin: 0;
+}
+
+.generator-result {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.generator p {
+  margin: 0;
+  font-size: var(--text-sm);
+}
+
+/*
+ * The generated password, to be read before it is used: data type, one box per character. A digit is underlined and
+ * a symbol is outlined, both heavier than the letters, so the three are told apart without any colour.
+ */
+.generated {
+  display: block;
+  margin-top: var(--space-1);
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--text-lg);
+  line-height: 1.8;
+  color: var(--ink);
+  background: var(--ground);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-sm);
+}
+
+.generated span {
+  display: inline-block;
+  min-width: 1.15ch;
+  margin-inline-end: 2px;
+  line-height: 1.25;
+  text-align: center;
+}
+
+.generated [data-kind] {
+  font-weight: 700;
+}
+
+.generated [data-kind="digit"] {
+  border-bottom: 2px solid var(--ink);
+}
+
+.generated [data-kind="symbol"] {
+  border-radius: 2px;
+  box-shadow: inset 0 0 0 1px var(--ink);
+}
+
+/*
+ * Only a narrow detail shrinks the entry title: the 800 × 600 window (about 16rem) and the smallest one (480 × 360,
+ * about 24.5rem, where "Copiar" must show without scrolling). The default window (1120 × 720, about 27rem) keeps 44 px.
+ */
+@container detail (max-width: 25rem) {
+  .entry-title {
+    font-size: var(--text-xl);
+  }
+}
+
+@container detail (max-width: 30rem) {
+  .entry-form > h4 {
+    font-size: 1.5rem;
+  }
+
+  .entry-form > fieldset > .field {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .entry-form > fieldset > .field > label {
+    padding-top: 0;
+  }
+
+  .entry-form > fieldset > .field > :not(label) {
+    grid-column: 1;
+  }
+
+  /* Each field stays one row — label | value | actions — with a narrower label column and short action labels. */
+  .entry-fields > div {
+    grid-template-columns: 5.5rem minmax(0, 1fr);
+    column-gap: var(--space-2);
+  }
+
+  /*
+   * A value is never cut: it breaks into lines inside its column, and the actions stay at the top right. The top
+   * padding centres a one-line value on the actions.
+   */
+  .entry-fields dd:has(> .field-actions) {
+    flex-wrap: nowrap;
+    align-items: flex-start;
+    gap: var(--space-2);
+  }
+
+  .entry-fields dd:has(> .field-actions) > :first-child:not(.secret[data-masked]) {
+    min-width: 0;
+    padding-top: calc((var(--control-h) - 1lh) / 2);
+    overflow-wrap: anywhere;
+  }
+
+  .entry-fields dd:has(> .field-actions) > :first-child:not(.secret) {
+    flex: 1 1 0;
+  }
+
+  .entry-fields dd:has(> .field-actions) > .secret[data-masked] {
+    margin-top: calc((var(--control-h) - 14px) / 2);
+  }
+
+  /* A revealed secret wraps under its actions instead of being cut. */
+  .entry-fields dd:has(> .secret:not([data-masked])) {
+    flex-wrap: wrap;
+  }
+
+  .secret[data-masked] {
+    width: calc(5 * var(--mask-period));
+  }
+
+  .field-actions {
+    gap: var(--space-1);
+  }
+
+  .field-actions > button:not(.btn-icon) {
+    padding-inline: var(--space-2);
+  }
+
+  /* "Copiar contraseña" reads "Copiar": the button keeps its full name in `aria-label`. */
+  .field-actions .label-more {
+    display: none;
+  }
+
+  .detail-pane .field-hint {
+    padding-inline-start: calc(5.5rem + var(--space-2));
+  }
+
+  .route li:not(:last-child)::after {
+    width: 24px;
+  }
+}
+
+/*
+ * A short window (the smallest is 480 × 360): the main action, "Copiar" the password, must show without scrolling. The
+ * route and the dates tighten, and only "Modificada" stays in view ("Creada" stays for screen readers).
+ */
+@media (max-height: 480px) {
+  .entry-route {
+    margin-bottom: var(--space-2);
+  }
+
+  .entry-title {
+    margin-bottom: var(--space-1);
+  }
+
+  .entry-meta {
+    margin-bottom: var(--space-3);
+  }
+
+  .entry-meta > div:first-child {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .entry-fields > div {
+    min-height: calc(var(--row-h) + var(--space-2));
+    padding-block: var(--space-1);
+  }
+
+  .back-to-list {
+    margin-bottom: var(--space-2);
+  }
+}
