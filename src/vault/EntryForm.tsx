@@ -3,6 +3,7 @@ import { useEffect, useId, useRef, useState, type SubmitEvent } from "react";
 import type { EntryFields, EntryPatch, VaultClient } from "../ipc/client";
 import { errorMessage, type AppError } from "../ipc/errors";
 import type { EntryDetail } from "../ipc/schemas";
+import { GenerateIcon, WarningIcon } from "../ui/icons";
 import { shown, strengthLabel } from "./format";
 import { Generator } from "./Generator";
 import { checkEntry, entryFieldOf, parseTags, problemText, type EntryFieldKey, type FieldProblem } from "./rules";
@@ -311,7 +312,7 @@ export function EntryForm({ client, mode, onSaved, onCancel }: EntryFormProps) {
   const passwordLost = phase.kind === "editing" && phase.passwordLost;
 
   return (
-    <form onSubmit={onSubmit} noValidate aria-labelledby={headingId}>
+    <form onSubmit={onSubmit} noValidate aria-labelledby={headingId} className="entry-form">
       <h4 id={headingId}>
         {editing === null
           ? `Nueva entrada en ${mode.kind === "create" ? mode.groupName : ""}`
@@ -341,16 +342,19 @@ export function EntryForm({ client, mode, onSaved, onCancel }: EntryFormProps) {
               ? "Escríbela o genérala. Se guarda tal cual, con sus espacios y mayúsculas."
               : "Déjala vacía para conservar la contraseña actual. Para cambiarla, escribe una nueva o genérala."}
           </p>
-          <div id="entry-strength" aria-live="polite">
+          <div id="entry-strength" aria-live="polite" className="strength">
             {score !== null && (
-              <p>
+              <p className="strength-line">
                 Fortaleza: {strengthLabel(score)} ({score} de 4){" "}
                 <meter min={0} max={4} low={2} high={3} optimum={4} value={score} aria-label="Fortaleza" />
               </p>
             )}
           </div>
           {passwordLost && (
-            <p className="notice">La contraseña se borró del formulario por seguridad: vuelve a escribirla o genérala.</p>
+            <p className="notice notice-icon">
+              <WarningIcon />
+              La contraseña se borró del formulario por seguridad: vuelve a escribirla o genérala.
+            </p>
           )}
           {passwordError.node}
           <div className="actions">
@@ -364,6 +368,7 @@ export function EntryForm({ client, mode, onSaved, onCancel }: EntryFormProps) {
                 else setGeneratorOpen(true);
               }}
             >
+              <GenerateIcon />
               Generar contraseña
             </button>
           </div>
@@ -397,7 +402,9 @@ export function EntryForm({ client, mode, onSaved, onCancel }: EntryFormProps) {
         </div>
 
         <div className="actions">
-          <button type="submit">Guardar entrada</button>
+          <button type="submit" className="btn-primary">
+            Guardar entrada
+          </button>
           <button type="button" onClick={onCancel}>
             Cancelar
           </button>

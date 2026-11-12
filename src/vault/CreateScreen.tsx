@@ -289,7 +289,7 @@ export function CreateScreen({ client, onBack, onDone }: CreateScreenProps) {
             <div id="create-strength" aria-live="polite" className="strength">
               {score !== null && (
                 <>
-                  <p>
+                  <p className="strength-line">
                     Fortaleza: {strengthLabel(score)} ({score} de 4){" "}
                     <meter min={0} max={4} low={2} high={3} optimum={4} value={score} aria-label="Fortaleza" />
                   </p>

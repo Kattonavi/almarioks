@@ -123,6 +123,13 @@
   outline: none;
 }
 
+/* The row answers to the pointer and to the press; its title button does not paint a second patch inside it. */
+.entries th button:hover:not(:disabled),
+.entries th button:active:not(:disabled) {
+  background: none;
+  transform: none;
+}
+
 .entries th button::after {
   position: absolute;
   inset: 0;
@@ -428,9 +435,180 @@
   margin-top: var(--space-3);
 }
 
+/*
+ * ---- Entry form (create and edit): the same rows as the detail, with a control where the value was. The label keeps
+ * the column of the field names, and hints, strength and errors hang under their control. ----
+ */
+.entry-form > h4 {
+  margin: 0 0 var(--space-5);
+  overflow-wrap: anywhere;
+  font-size: var(--text-xl);
+  line-height: 1.05;
+  letter-spacing: -0.01em;
+}
+
+.entry-form > fieldset {
+  gap: 0;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  border-top: 2px solid var(--ink);
+  border-radius: 0;
+}
+
+/* The heading of the form already says it: the legend stays for assistive technology. */
+.entry-form > fieldset > legend {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.entry-form > fieldset > .field {
+  grid-template-columns: 7.5rem minmax(0, 1fr);
+  gap: var(--space-1) var(--space-3);
+  align-items: start;
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--rule);
+}
+
+.entry-form > fieldset > .field > label {
+  padding-top: calc((var(--control-h) - 1.45em) / 2);
+  overflow-wrap: anywhere;
+  color: var(--ink-muted);
+}
+
+.entry-form > fieldset > .field > :not(label) {
+  grid-column: 2;
+}
+
+.entry-form > fieldset > .field > :is(input, textarea) {
+  width: 100%;
+}
+
+.entry-form .field > .error:empty,
+.entry-form > .error:empty,
+.generator-result:empty {
+  display: none;
+}
+
+.entry-form .field > .actions {
+  margin-top: var(--space-1);
+}
+
+.entry-form > fieldset > .actions {
+  margin-top: var(--space-5);
+}
+
+.entry-form > [aria-live] p,
+.entry-form > .error {
+  margin: var(--space-4) 0 0;
+  font-size: var(--text-sm);
+}
+
+/* ---- Generator: one panel under the password it fills. ---- */
+.generator {
+  gap: var(--space-3);
+  min-width: 0;
+  margin-top: var(--space-2);
+  padding: var(--space-3) var(--space-4) var(--space-4);
+  background: var(--surface);
+}
+
+.generator legend {
+  font-size: var(--text-sm);
+}
+
+.generator > .field > input {
+  width: 7rem;
+}
+
+.generator fieldset {
+  grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr));
+  gap: 0 var(--space-4);
+  min-width: 0;
+  padding: 0;
+  border: 0;
+}
+
+.generator fieldset > legend {
+  margin-bottom: var(--space-1);
+  padding: 0;
+}
+
+.generator .actions {
+  margin: 0;
+}
+
+.generator-result {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.generator p {
+  margin: 0;
+  font-size: var(--text-sm);
+}
+
+/*
+ * The generated password, to be read before it is used: data type, one box per character. A digit is underlined and
+ * a symbol is outlined, both heavier than the letters, so the three are told apart without any colour.
+ */
+.generated {
+  display: block;
+  margin-top: var(--space-1);
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--text-lg);
+  line-height: 1.8;
+  color: var(--ink);
+  background: var(--ground);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-sm);
+}
+
+.generated span {
+  display: inline-block;
+  min-width: 1.15ch;
+  margin-inline-end: 2px;
+  line-height: 1.25;
+  text-align: center;
+}
+
+.generated [data-kind] {
+  font-weight: 700;
+}
+
+.generated [data-kind="digit"] {
+  border-bottom: 2px solid var(--ink);
+}
+
+.generated [data-kind="symbol"] {
+  border-radius: 2px;
+  box-shadow: inset 0 0 0 1px var(--ink);
+}
+
 @container detail (max-width: 30rem) {
   .entry-title {
     font-size: var(--text-xl);
+  }
+
+  .entry-form > h4 {
+    font-size: 1.5rem;
+  }
+
+  .entry-form > fieldset > .field {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .entry-form > fieldset > .field > label {
+    padding-top: 0;
+  }
+
+  .entry-form > fieldset > .field > :not(label) {
+    grid-column: 1;
   }
 
   .entry-fields > div {

@@ -382,34 +382,87 @@
   min-height: 0;
 }
 
+/*
+ * What the person has to know before working: strips across the work area, each one an icon, its words and its
+ * actions at the end of the row. The strip that reports a problem closes with a rule in the danger role.
+ */
 .work-banner {
-  display: grid;
-  gap: var(--space-3);
   max-height: 40vh;
-  padding: var(--space-4) var(--space-6);
   overflow-y: auto;
-  border-bottom: 1px solid var(--rule);
+  container: banner / inline-size;
 }
 
 .work-banner:empty {
   display: none;
 }
 
-.work-banner h3 {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  margin-bottom: var(--space-2);
-  font-size: var(--text-md);
+.work-banner > .notice {
+  padding-block: var(--space-3);
+  padding-inline-end: var(--space-6);
+  border: 0;
+  border-bottom: 1px solid var(--rule);
+  border-radius: 0;
 }
 
-.work-banner p {
-  max-width: 75ch;
+.work-banner > .notice-icon > .icon:first-child {
+  left: var(--space-6);
+}
+
+.work-banner > .notice-icon {
+  padding-inline-start: calc(var(--space-6) + 18px + var(--space-2));
   font-size: var(--text-sm);
 }
 
-.notice-danger {
-  border-color: var(--danger);
+.work-banner > section.notice {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  column-gap: var(--space-5);
+  padding-inline-start: var(--space-6);
+}
+
+.work-banner > section.notice > * {
+  grid-column: 1;
+}
+
+.work-banner > section.notice > .actions {
+  flex-direction: column;
+  grid-row: 1 / span 3;
+  grid-column: 2;
+  align-items: stretch;
+  align-self: start;
+}
+
+.work-banner > .notice-danger {
+  border-bottom: 2px solid var(--danger);
+}
+
+.work-banner h3 {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+  margin-bottom: var(--space-1);
+  font-size: var(--text-md);
+}
+
+/* The words line up under the title, past its icon. */
+.work-banner section.notice p {
+  max-width: 75ch;
+  margin-bottom: var(--space-1);
+  padding-inline-start: calc(18px + var(--space-2));
+  font-size: var(--text-sm);
+}
+
+@container banner (max-width: 46rem) {
+  .work-banner > section.notice {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .work-banner > section.notice > .actions {
+    flex-direction: row;
+    grid-row: auto;
+    grid-column: 1;
+    margin: var(--space-2) 0 var(--space-1) calc(18px + var(--space-2));
+  }
 }
 
 .vault-zones {

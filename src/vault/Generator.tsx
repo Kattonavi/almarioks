@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 
 import type { GenerateOptions, VaultClient } from "../ipc/client";
 import { errorMessage, type AppError } from "../ipc/errors";
+import { CheckIcon, GenerateIcon } from "../ui/icons";
 import { strengthLabel } from "./format";
 
 export const DEFAULT_LENGTH = 20;
@@ -22,6 +23,12 @@ type GenState =
   | { readonly kind: "generating" }
   | { readonly kind: "done"; readonly password: string; readonly score: number }
   | { readonly kind: "failed"; readonly error: AppError };
+
+/** What a character of the generated password is, for the eye: letters are the plain ones. */
+function kindOf(char: string): "digit" | "symbol" | undefined {
+  if (/\p{Nd}/u.test(char)) return "digit";
+  return /\p{L}/u.test(char) ? undefined : "symbol";
+}
 
 interface GeneratorProps {
   readonly client: Pick<VaultClient, "generatePassword">;
@@ -104,7 +111,7 @@ export function Generator({ client, onUse, onClose }: GeneratorProps) {
       <fieldset>
         <legend>Tipos de caracteres</legend>
         {KINDS.map(([kind, label]) => (
-          <div key={kind}>
+          <div key={kind} className="choice">
             <input
               type="checkbox"
               id={`gen-${kind}`}
@@ -118,7 +125,7 @@ export function Generator({ client, onUse, onClose }: GeneratorProps) {
           </div>
         ))}
       </fieldset>
-      <div>
+      <div className="choice">
         <input
           type="checkbox"
           id="gen-avoid"
@@ -131,20 +138,29 @@ export function Generator({ client, onUse, onClose }: GeneratorProps) {
       </div>
       <div className="actions">
         <button type="button" onClick={() => void generate()}>
+          <GenerateIcon />
           {gen.kind === "done" ? "Generar otra" : "Generar"}
         </button>
         <button type="button" onClick={onClose}>
           Cerrar generador
         </button>
       </div>
-      <div aria-live="polite">
+      <div aria-live="polite" className="generator-result">
         {gen.kind === "generating" && <p role="status">Generando…</p>}
         {gen.kind === "done" && (
           <>
             <p>
-              Contraseña generada: <output className="secret">{gen.password}</output>
+              Contraseña generada:{" "}
+              <output className="secret generated">
+                {/* One box per character: digits and symbols are told apart by shape (underline, outline), not hue. */}
+                {Array.from(gen.password, (char, index) => (
+                  <span key={index} data-kind={kindOf(char)}>
+                    {char}
+                  </span>
+                ))}
+              </output>
             </p>
-            <p>
+            <p className="strength-line">
               Fortaleza: {strengthLabel(gen.score)} ({gen.score} de 4){" "}
               <meter min={0} max={4} low={2} high={3} optimum={4} value={gen.score} aria-label="Fortaleza" />
             </p>
@@ -160,10 +176,12 @@ export function Generator({ client, onUse, onClose }: GeneratorProps) {
         <div className="actions">
           <button
             type="button"
+            className="btn-primary"
             onClick={() => {
               onUse(gen.password, gen.score);
             }}
           >
+            <CheckIcon />
             Usar esta contraseña
           </button>
         </div>
