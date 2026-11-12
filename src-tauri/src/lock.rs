@@ -372,6 +372,19 @@ impl LockCenter {
         }
     }
 
+    /// Waits for the locks that are still finishing (the recovery file of RF-33). Bounded by the core's own
+    /// limit. An unlock asked for right after a lock calls it first: otherwise the core would answer `Ocupada`
+    /// for as long as that lock is still writing, and the person would have to type the key again.
+    ///
+    /// Blocking: call it from `spawn_blocking`.
+    pub fn settle(&self) {
+        let workers = std::mem::take(&mut *hold(&self.workers));
+        for worker in workers {
+            // A lock thread that panicked already dropped the vault (the core catches its listener).
+            drop(worker.join());
+        }
+    }
+
     /// The app is closing (RF-36, RF-75): closes the vault as a lock does, waiting a bounded time for what was
     /// not saved to reach its recovery file, and then empties the clipboard if its content is ours. Only the
     /// first call does anything.

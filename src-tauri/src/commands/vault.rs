@@ -273,6 +273,8 @@ pub async fn vault_create(
             }
         };
         let kdf = choose_kdf()?;
+        // A lock that is still writing its recovery file ends first (see `vault_open`).
+        center.settle();
         center.activity();
         let status = session
             .create(
@@ -312,6 +314,9 @@ pub async fn vault_open(
         // Typing the key is activity: without this, a vault unlocked after a long wait at the unlock screen
         // could be locked by the heartbeat before this command notes the unlock.
         center.activity();
+        // `vault_lock` answers as soon as the vault is locked, while the lock of the core may still be writing
+        // the recovery file (up to 5 s, RF-33). Unlocking waits for it here instead of answering `Ocupada`.
+        center.settle();
         let status = session.unlock(
             &path,
             master_password(args.password.as_ref()),
