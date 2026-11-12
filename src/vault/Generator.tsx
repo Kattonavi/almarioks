@@ -72,7 +72,16 @@ export function Generator({ client, onUse, onClose }: GeneratorProps) {
   }
 
   return (
-    <fieldset className="generator">
+    <fieldset
+      className="generator"
+      onKeyDown={(event) => {
+        // The generator sits inside the entry form: Enter in one of its fields generates instead of saving the entry.
+        if (event.key === "Enter" && event.target instanceof HTMLInputElement) {
+          event.preventDefault();
+          void generate();
+        }
+      }}
+    >
       <legend>Generador de contraseñas</legend>
       <div className="field">
         <label htmlFor="gen-length">

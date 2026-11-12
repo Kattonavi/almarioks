@@ -172,7 +172,8 @@ export function EntryForm({ client, mode, onSaved, onCancel }: EntryFormProps) {
       const before = editing[field];
       return before === null ? values[field] !== "" : values[field] !== before;
     };
-    const tagsChanged = tags.length !== editing.tags.length || tags.some((tag, index) => tag !== editing.tags[index]);
+    // Compared as written, like the other fields: tags the owner did not touch are not sent again.
+    const tagsChanged = values.tags !== editing.tags.join("\n");
     return {
       ...(changed("title") ? { title: values.title } : {}),
       ...(changed("username") ? { username: values.username } : {}),

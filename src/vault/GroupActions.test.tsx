@@ -101,7 +101,7 @@ describe("P7 Grupo", () => {
     expect(screen.getByRole("heading", { name: "Entradas de Casa" })).toBeDefined();
   });
 
-  it("RF-54 y RF-55: ejemplo 3 — mover por menú; el grupo no se ofrece dentro de sí ni de sus hijos", async () => {
+  it("RF-54: RF-55: ejemplo 3 —mover por menú; el grupo no se ofrece dentro de sí ni de sus hijos", async () => {
     const { backend } = await setup();
     await selectGroup("Trabajo");
 

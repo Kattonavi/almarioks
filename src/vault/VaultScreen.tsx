@@ -67,6 +67,7 @@ export function VaultScreen({ client }: VaultScreenProps) {
   const groupsTitleRef = useRef<HTMLHeadingElement>(null);
   /** After a group action removed what had focus, focus goes back to the tree once it is painted. */
   const focusTree = useRef(false);
+  const focusDetail = useRef(false);
   const searchSeq = useRef(0);
   const searchTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const mounted = useRef(false);
@@ -92,6 +93,12 @@ export function VaultScreen({ client }: VaultScreenProps) {
       active = false;
     };
   }, [client, treeAttempt]);
+
+  useEffect(() => {
+    if (!focusDetail.current) return;
+    focusDetail.current = false;
+    detailTitleRef.current?.focus();
+  }, [detail]);
 
   useEffect(() => {
     if (!focusTree.current) return;
@@ -276,7 +283,8 @@ export function VaultScreen({ client }: VaultScreenProps) {
               setDetail({ kind: "none" });
               setNotice(message);
               refresh();
-              detailTitleRef.current?.focus();
+              // After the commit: while a modal dialog is open, everything outside it is inert.
+              focusDetail.current = true;
             }}
           />
         );

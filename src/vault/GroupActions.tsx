@@ -17,7 +17,8 @@ type GroupDialog =
   | { readonly kind: "create" }
   | { readonly kind: "rename" }
   | { readonly kind: "move" }
-  | { readonly kind: "delete"; readonly preview: DeletePreview; readonly forGood: boolean }
+  /** `groupId`: the preview belongs to this group; a late one for another selection is not shown. */
+  | { readonly kind: "delete"; readonly groupId: string; readonly preview: DeletePreview; readonly forGood: boolean }
   | { readonly kind: "empty-bin" };
 
 /** What changed, for the screen that owns the tree. */
@@ -87,7 +88,7 @@ export function GroupActions({ client, root, group, onChange }: GroupActionsProp
       setError(result.error);
       return;
     }
-    setDialog({ kind: "delete", preview: result.value, forGood: inBin });
+    setDialog({ kind: "delete", groupId: group.id, preview: result.value, forGood: inBin });
   }
 
   function done(root: GroupNode, message: string, select: string, removed: boolean) {
@@ -199,6 +200,7 @@ export function GroupActions({ client, root, group, onChange }: GroupActionsProp
           />
         );
       case "delete":
+        if (dialog.groupId !== group.id) return null;
         return (
           <ConfirmDialog
             title={dialog.forGood ? `Borrar ${nameOf(group)} de forma definitiva` : `Borrar ${nameOf(group)}`}

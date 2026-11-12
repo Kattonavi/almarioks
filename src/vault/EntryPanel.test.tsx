@@ -172,7 +172,7 @@ describe("P5 Entrada — ver, mostrar y copiar", () => {
     expect(screen.queryByText(PASSWORD)).toBeNull();
   });
 
-  it("RF-71 y RF-74: copiar va por el núcleo, el valor no pasa por la ventana y cuenta los segundos", async () => {
+  it("RF-71: RF-74: copiar va por el núcleo, el valor no pasa por la ventana y cuenta los segundos", async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     const { backend } = await setup();
     await openEntry("Trabajo", "GitHub");
@@ -230,7 +230,41 @@ describe("P5 Entrada — ver, mostrar y copiar", () => {
     expect(backend.openedUrls).toEqual(["https://github.com/login"]);
   });
 
-  it("RF-43: carga y error — mientras llega la entrada lo dice; si falla deja reintentar", async () => {
+  it("RF-78: notas, campos propios, adjuntos y un valor mostrado se pintan como texto literal", async () => {
+    const payloads = {
+      notes: "<img src=x onerror=alert(1)>",
+      customName: "<b onclick=alert(2)>campo</b>",
+      customValue: "<script>alert(3)</script>",
+      attachment: "<iframe src=javascript:alert(4)>",
+      password: "<a href=javascript:alert(5)>clave</a>",
+    };
+    const { container } = await setup({
+      entries: [
+        {
+          id: "x",
+          groupId: "group-personal",
+          title: "Rara",
+          notes: payloads.notes,
+          password: payloads.password,
+          customFields: [{ name: payloads.customName, protected: false, value: payloads.customValue }],
+          attachments: [{ name: payloads.attachment, size: 1 }],
+        },
+      ],
+    });
+    await openEntry("Personal", "Rara");
+    fireEvent.click(screen.getByRole("button", { name: "Mostrar contraseña" }));
+    await screen.findByText(payloads.password);
+
+    for (const text of Object.values(payloads)) {
+      for (const node of screen.getAllByText(text)) {
+        expect([...node.childNodes].every((child) => child.nodeType === Node.TEXT_NODE)).toBe(true);
+      }
+    }
+    expect(container.querySelector("script, img, b, a, iframe")).toBeNull();
+    expect(container.querySelector('[href^="javascript"], [onerror], [onclick]')).toBeNull();
+  });
+
+  it("RF-43: carga y error —mientras llega la entrada lo dice; si falla deja reintentar", async () => {
     const { backend } = await setup();
     await openGroup("Trabajo");
     const release = backend.hold("entry_get");
@@ -314,7 +348,7 @@ describe("P5 Entrada — crear y editar", () => {
     expect((lastArgs(backend, "entry_create") as { password: string }).password).toBe(written);
   });
 
-  it("RF-39 y RF-40: ejemplo 9 — título vacío o largo junto al campo; recortado; 255 emoji caben", async () => {
+  it("RF-39: RF-40: ejemplo 9 —título vacío o largo junto al campo; recortado; 255 emoji caben", async () => {
     const { backend } = await setup();
     await startNewEntry();
     const title = () => screen.getByLabelText("Título");
@@ -543,12 +577,14 @@ describe("P5 Entrada — mover y borrar", () => {
 
     expect(await screen.findByText("Se borró «Canción borrada» de forma definitiva.")).toBeDefined();
     expect(backend.entry("entry-old")).toBeUndefined();
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(document.activeElement).toBe(screen.getByRole("heading", { name: "Detalle" }));
     expect(await screen.findByText("La papelera está vacía.")).toBeDefined();
   });
 });
 
 describe("P6 Generador", () => {
-  it("RF-65 y RF-70: vacío y éxito — valores por defecto, genera, muestra la fortaleza y la usa en el formulario", async () => {
+  it("RF-65: RF-70: vacío y éxito — valores por defecto, genera, muestra la fortaleza y la usa en el formulario", async () => {
     const { backend } = await setup();
     await startNewEntry();
 
@@ -587,7 +623,7 @@ describe("P6 Generador", () => {
     expect(screen.getByText(/Fortaleza:/)).toBeDefined();
   });
 
-  it("RF-67: ejemplo 5 — longitud 8, cuatro tipos y evitar parecidos: así viaja la petición y así sale", async () => {
+  it("RF-66: RF-67: ejemplo 5 —longitud 8, cuatro tipos y evitar parecidos: así viaja la petición y así sale", async () => {
     const { backend } = await setup();
     await startNewEntry();
     fireEvent.click(screen.getByRole("button", { name: "Generar contraseña" }));
@@ -646,6 +682,22 @@ describe("P6 Generador", () => {
       expect(backend.count("generate_password")).toBe(1);
     });
     expect(within(generator).getByText(ERROR_MESSAGES.ReglasImposibles)).toBeDefined();
+  });
+
+  it("RF-65: Enter en un campo del generador genera y no guarda la entrada", async () => {
+    const { backend } = await setup();
+    await startNewEntry();
+    fireEvent.change(screen.getByLabelText("Título"), { target: { value: "No guardar" } });
+    fireEvent.click(screen.getByRole("button", { name: "Generar contraseña" }));
+    const length = screen.getByLabelText("Longitud (entre 8 y 128)");
+
+    const notCancelled = fireEvent.keyDown(length, { key: "Enter" });
+
+    expect(notCancelled).toBe(false);
+    await waitFor(() => {
+      expect(backend.count("generate_password")).toBe(1);
+    });
+    expect(backend.count("entry_create")).toBe(0);
   });
 
   it("RF-65: cerrar el generador descarta la contraseña generada y devuelve el foco", async () => {
