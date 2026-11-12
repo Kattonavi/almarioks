@@ -841,3 +841,52 @@ describe("P5 Entrada — el aviso espera al disco", () => {
     expect(await screen.findByText("Entrada guardada.")).toBeDefined();
   });
 });
+
+describe("P4 Bóveda — buscar y copiar con teclado", () => {
+  const search = () => screen.getByRole("searchbox", { name: "Buscar en la bóveda" });
+  const rows = () => within(screen.getByRole("table")).getAllByRole("button");
+
+  it("RF-59: Enter en la búsqueda abre el primer resultado y deja «Copiar contraseña» con el foco", async () => {
+    await setup();
+    fireEvent.keyDown(window, { key: "k", ctrlKey: true });
+    expect(document.activeElement).toBe(search());
+    fireEvent.change(search(), { target: { value: "GitHub" } });
+    // Enter right after typing, while the search is still on its way: it opens the first result when it lands.
+    fireEvent.keyDown(search(), { key: "Enter" });
+
+    const copy = await within(detailZone()).findByRole("button", { name: "Copiar contraseña" });
+    await waitFor(() => {
+      expect(document.activeElement).toBe(copy);
+    });
+    expect(within(detailZone()).getByRole("heading", { name: "GitHub" })).toBeDefined();
+  });
+
+  it("RF-59: flecha abajo va a la lista, las flechas recorren las filas, Enter abre y Escape vuelve", async () => {
+    await setup();
+    await openGroup("Trabajo");
+    search().focus();
+    fireEvent.keyDown(search(), { key: "ArrowDown" });
+    const [first, second] = rows();
+    if (first === undefined || second === undefined) throw new Error("expected two rows");
+    expect(document.activeElement).toBe(first);
+    fireEvent.keyDown(first, { key: "ArrowDown" });
+    expect(document.activeElement).toBe(second);
+    fireEvent.keyDown(second, { key: "ArrowUp" });
+    expect(document.activeElement).toBe(first);
+    fireEvent.keyDown(first, { key: "Escape" });
+    expect(document.activeElement).toBe(search());
+
+    fireEvent.keyDown(search(), { key: "ArrowDown" });
+    fireEvent.keyDown(rows()[0] ?? search(), { key: "Enter" });
+    const copy = await within(detailZone()).findByRole("button", { name: "Copiar contraseña" });
+    await waitFor(() => {
+      expect(document.activeElement).toBe(copy);
+    });
+  });
+
+  it("RF-59: abrir con el ratón no mueve el foco al detalle", async () => {
+    await setup();
+    await openEntry("Trabajo", "GitHub");
+    expect(document.activeElement).not.toBe(within(detailZone()).getByRole("button", { name: "Copiar contraseña" }));
+  });
+});

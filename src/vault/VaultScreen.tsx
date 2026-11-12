@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
 
 import { assertNever } from "../assertNever";
 import type { VaultClient } from "../ipc/client";
@@ -106,6 +106,11 @@ export function VaultScreen({
   const [stamp, setStamp] = useState<{ readonly entryId: string; readonly deadline: number } | null>(null);
   const [now, setNow] = useState(() => Date.now());
   const searchRef = useRef<HTMLInputElement>(null);
+  const listPaneRef = useRef<HTMLElement>(null);
+  /** RF-59: Enter pressed while the search was still on its way: open the first result when it lands. */
+  const openFirst = useRef(false);
+  /** The entry opened from the keyboard: its detail takes the focus once loaded (`seq` asks again for the same one). */
+  const [keyboardOpen, setKeyboardOpen] = useState<{ readonly entryId: string; readonly seq: number } | null>(null);
   const detailTitleRef = useRef<HTMLHeadingElement>(null);
   const groupsTitleRef = useRef<HTMLHeadingElement>(null);
   /** After a group action removed what had focus, focus goes back to the tree once it is painted. */
@@ -200,6 +205,7 @@ export function VaultScreen({
   function onQueryChange(value: string) {
     setQuery(value);
     cancelSearch();
+    openFirst.current = false;
     // RF-92: an empty query (after trimming) does not filter: back to the current group.
     if (value.trim() === "") {
       setSearch({ kind: "idle" });
@@ -211,6 +217,9 @@ export function VaultScreen({
       void client.search(value).then((result) => {
         if (!mounted.current || mine !== searchSeq.current) return;
         setSearch(result.ok ? { kind: "done", items: result.value } : { kind: "failed", error: result.error });
+        const first = result.ok ? result.value[0] : undefined;
+        if (openFirst.current && first !== undefined) openFromKeyboard({ id: first.id, title: first.title });
+        openFirst.current = false;
       });
     }, SEARCH_DELAY_MS);
   }
@@ -246,7 +255,76 @@ export function VaultScreen({
 
   function selectEntry(entry: SelectedEntry) {
     setNotice(NO_NOTICE);
+    setKeyboardOpen(null);
     setDetail({ kind: "entry", entry });
+  }
+
+  /** RF-59, UX "buscar y copiar en 3 pasos": open from the keyboard and hand the focus to the detail. */
+  function openFromKeyboard(entry: SelectedEntry) {
+    setNotice(NO_NOTICE);
+    setKeyboardOpen((current) => ({ entryId: entry.id, seq: (current?.seq ?? 0) + 1 }));
+    setDetail({ kind: "entry", entry });
+  }
+
+  function rowButtons(): HTMLButtonElement[] {
+    return [...(listPaneRef.current?.querySelectorAll<HTMLButtonElement>("table.entries tbody th button") ?? [])];
+  }
+
+  /** The entries the list shows right now, in order: the search results or the loaded group. */
+  function shownItems(): readonly EntrySummary[] {
+    if (searching) return search.kind === "done" ? search.items : [];
+    const loaded = list !== null && list.groupId === groupId && list.attempt === listAttempt ? list.result : null;
+    return loaded?.ok === true ? loaded.value : [];
+  }
+
+  function onSearchKeyDown(event: ReactKeyboardEvent<HTMLInputElement>) {
+    switch (event.key) {
+      case "Escape":
+        if (query === "") return;
+        event.preventDefault();
+        clearSearch();
+        return;
+      case "ArrowDown":
+        event.preventDefault();
+        rowButtons()[0]?.focus();
+        return;
+      case "Enter": {
+        event.preventDefault();
+        if (searching && search.kind === "searching") {
+          openFirst.current = true;
+          return;
+        }
+        const first = shownItems()[0];
+        if (first !== undefined) openFromKeyboard({ id: first.id, title: first.title });
+        return;
+      }
+      default:
+        return;
+    }
+  }
+
+  function onRowKeyDown(event: ReactKeyboardEvent<HTMLButtonElement>, entry: SelectedEntry) {
+    const buttons = rowButtons();
+    const index = buttons.indexOf(event.currentTarget);
+    switch (event.key) {
+      case "ArrowDown":
+      case "ArrowUp": {
+        event.preventDefault();
+        const next = buttons[index + (event.key === "ArrowDown" ? 1 : -1)];
+        next?.focus();
+        return;
+      }
+      case "Enter":
+        event.preventDefault();
+        openFromKeyboard(entry);
+        return;
+      case "Escape":
+        event.preventDefault();
+        searchRef.current?.focus();
+        return;
+      default:
+        return;
+    }
   }
 
   const searching = query.trim() !== "";
@@ -280,16 +358,12 @@ export function VaultScreen({
             onChange={(event) => {
               onQueryChange(event.target.value);
             }}
-            onKeyDown={(event) => {
-              if (event.key === "Escape" && query !== "") {
-                event.preventDefault();
-                clearSearch();
-              }
-            }}
+            onKeyDown={onSearchKeyDown}
           />
           <kbd aria-hidden="true">Ctrl K</kbd>
           <p id="vault-search-help" className="sr-only">
-            Atajo: Ctrl+F o Ctrl+K. Escape limpia la búsqueda.
+            Atajo: Ctrl+F o Ctrl+K. Enter abre el primer resultado y flecha abajo lleva a la lista, donde las
+            flechas recorren las entradas, Enter abre una y Escape vuelve aquí. Escape limpia la búsqueda.
           </p>
         </div>
         {/* The lock countdown, the lock button and the settings come from whoever owns the open vault. */}
@@ -309,7 +383,7 @@ export function VaultScreen({
       <div className="work" data-detail={detail.kind}>
         <div className="work-banner">{banner}</div>
         <div className="vault-zones">
-          <section aria-labelledby="entries-title" className="list-pane">
+          <section ref={listPaneRef} aria-labelledby="entries-title" className="list-pane">
             {searching ? renderSearch() : renderGroup()}
           </section>
 
@@ -360,6 +434,7 @@ export function VaultScreen({
             root={tree.root}
             readOnly={readOnly}
             saveSignal={saveSignal}
+            focusRequest={keyboardOpen?.entryId === detail.entry.id ? keyboardOpen.seq : 0}
             onChanged={refresh}
             onCopied={(deadline) => {
               setNow(Date.now());
@@ -504,6 +579,7 @@ export function VaultScreen({
             stamped={stamped}
             selectedId={selectedId}
             onSelect={selectEntry}
+            onRowKeyDown={onRowKeyDown}
           />
         )}
       </>
@@ -564,6 +640,7 @@ export function VaultScreen({
             stamped={stamped}
             selectedId={selectedId}
             onSelect={selectEntry}
+            onRowKeyDown={onRowKeyDown}
           />
         )}
       </>
@@ -655,13 +732,15 @@ interface EntryTableProps {
   readonly stamped: Stamped | null;
   readonly selectedId: string | null;
   readonly onSelect: (entry: SelectedEntry) => void;
+  /** RF-59: arrows move between rows, Enter opens one, Escape goes back to the search. */
+  readonly onRowKeyDown: (event: ReactKeyboardEvent<HTMLButtonElement>, entry: SelectedEntry) => void;
 }
 
 /**
  * RF-42: entries in the order the core sends (by title). The URL is text, never a link (RF-78, RF-49). It is a real
  * table drawn as a list of rows: the title button stretches over its row, and the header row stays for screen readers.
  */
-function EntryTable({ items, groupPaths, badgeOf, stamped, selectedId, onSelect }: EntryTableProps) {
+function EntryTable({ items, groupPaths, badgeOf, stamped, selectedId, onSelect, onRowKeyDown }: EntryTableProps) {
   return (
     <div className="table-scroll">
       <table className="entries" data-search={groupPaths === null ? undefined : ""}>
@@ -685,6 +764,9 @@ function EntryTable({ items, groupPaths, badgeOf, stamped, selectedId, onSelect 
                   aria-current={entry.id === selectedId ? "true" : undefined}
                   onClick={() => {
                     onSelect({ id: entry.id, title: entry.title });
+                  }}
+                  onKeyDown={(event) => {
+                    onRowKeyDown(event, { id: entry.id, title: entry.title });
                   }}
                 >
                   {shown(entry.title, "(sin título)")}

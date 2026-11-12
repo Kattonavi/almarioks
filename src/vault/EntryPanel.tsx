@@ -49,6 +49,11 @@ interface EntryPanelProps {
   readonly readOnly?: boolean;
   /** RF-21: saves that reached the disk; an edit is "guardada" only after the next one. */
   readonly saveSignal?: SaveSignal;
+  /**
+   * RF-59: opened from the keyboard. A new non-zero value moves the focus, once the entry is loaded, to "Copiar
+   * contraseña" (or to the title when it has none), so copying is one key away. 0: leave the focus where it is.
+   */
+  readonly focusRequest?: number;
   /** The entry changed (edited, moved): the lists must be asked again. */
   readonly onChanged: () => void;
   /** The entry left this view (to the recycle bin or for good). */
@@ -101,6 +106,7 @@ export function EntryPanel({
   root,
   readOnly = false,
   saveSignal = NO_SAVE_SIGNAL,
+  focusRequest = 0,
   onChanged,
   onDeleted,
   onCopied,
@@ -124,6 +130,9 @@ export function EntryPanel({
   const timers = useRef(new Map<FieldName, ReturnType<typeof setTimeout>>());
   const mounted = useRef(false);
   const editRef = useRef<HTMLButtonElement>(null);
+  const copyPasswordRef = useRef<HTMLButtonElement>(null);
+  const entryTitleRef = useRef<HTMLHeadingElement>(null);
+  const focusHandled = useRef(0);
   const focusEdit = useRef(false);
 
   useEffect(() => {
@@ -157,6 +166,12 @@ export function EntryPanel({
       clearInterval(timer);
     };
   }, [copied]);
+
+  useEffect(() => {
+    if (focusRequest === 0 || focusHandled.current === focusRequest || load.kind !== "ready") return;
+    focusHandled.current = focusRequest;
+    (copyPasswordRef.current ?? entryTitleRef.current)?.focus();
+  }, [focusRequest, load]);
 
   useEffect(() => {
     if (mode === "view" && focusEdit.current) {
@@ -312,7 +327,9 @@ export function EntryPanel({
           </ol>
         </dd>
       </dl>
-      <h4 className="entry-title">{shown(entry.title, "(sin título)")}</h4>
+      <h4 ref={entryTitleRef} tabIndex={-1} className="entry-title">
+        {shown(entry.title, "(sin título)")}
+      </h4>
       <dl className="entry-meta">
         <div>
           <dt>Creada</dt>
@@ -380,6 +397,7 @@ export function EntryPanel({
                       </button>
                       <button
                         type="button"
+                        ref={field === "Password" ? copyPasswordRef : undefined}
                         className={field === "Password" ? "btn-primary" : undefined}
                         onClick={() => void copy(field)}
                       >
