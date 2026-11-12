@@ -143,6 +143,7 @@ describe("IPC client over the Tauri channel", () => {
       id: "e1",
       title: "GitHub",
       username: null,
+      has_password: true,
       url: "https://github.com",
       tags: [],
       modified: "2026-11-11T10:00:00Z",

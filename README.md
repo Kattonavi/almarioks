@@ -3,9 +3,8 @@
 Gestor de contraseñas local y abierto. Tu bóveda es un archivo **KDBX 4** estándar, protegido con contraseña maestra,
 archivo llave o ambos, que también abren KeePass 2 y KeePassXC. Sin cuenta, sin nube y sin telemetría.
 
-> **Estado: versiones de desarrollo. Todavía no guarda contraseñas** (la bóveda llega con la 0.1).
-> Las versiones 0.x son **de desarrollo: no las uses con tus contraseñas reales**. Salen sin firma de Windows
-> (SmartScreen va a advertir) hasta la 1.0; cada una lleva la firma del actualizador, `SHA256SUMS` y atestación.
+> **Estado: versiones 0.x.** Salen sin firma de Windows (SmartScreen va a advertir) hasta la 1.0 y no han tenido
+> auditoría externa. Cada versión lleva la firma del actualizador, `SHA256SUMS` y atestación.
 >
 > **Descargar:** [último release](https://github.com/Kattonavi/almarioks/releases/latest). Se instala solo para tu
 > usuario y no pide administrador.

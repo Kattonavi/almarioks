@@ -13,8 +13,29 @@ export interface UnlockKey {
   readonly keyFilePath?: string;
 }
 
+/** RF-110: said next to a key file the app chose by itself; it stays after a failed unlock (RF-112). */
+export const KEY_SUGGESTED =
+  "Se eligió sola la llave que está junto a la bóveda. Si esta bóveda no la usa, quítala.";
+
+/** RF-111: said next to the key file this vault was last opened with, when it is not the one beside it. */
+export const KEY_REMEMBERED =
+  "Se eligió sola la última llave con la que abriste esta bóveda. Si ya no es esa, cámbiala o quítala.";
+
+/** RF-111: the remembered key file is not where it was (a drive that is not plugged in, a file that was moved). */
+export function keyMissingText(path: string): string {
+  return `No encuentro el archivo llave que usaste la última vez (${path}). Conéctalo o elige otro.`;
+}
+
+/**
+ * The key file that travels with the unlock: chosen with the dialog, or proposed by the core: the one remembered
+ * for this vault (RF-111) or the one beside it (RF-110).
+ */
+type KeyFile =
+  | { readonly from: "picked"; readonly path: string }
+  | { readonly from: "suggested"; readonly path: string; readonly name: string; readonly source: "remembered" | "beside" };
+
 interface UnlockScreenProps {
-  readonly client: Pick<VaultClient, "pickKeyFile">;
+  readonly client: Pick<VaultClient, "pickKeyFile" | "unlockKeyProposal">;
   readonly vault: VaultRef;
   /** RF-18: the key is being derived; the form is disabled and the progress is shown. */
   readonly busy: boolean;
@@ -32,13 +53,37 @@ interface UnlockScreenProps {
  */
 export function UnlockScreen({ client, vault, busy, error, recovery, onUnlock, secondary }: UnlockScreenProps) {
   const passwordRef = useRef<HTMLInputElement>(null);
-  const [keyFilePath, setKeyFilePath] = useState<string | null>(null);
+  /** The person chose or removed a key file: from then on a late proposal of the core changes nothing. */
+  const keyTouched = useRef(false);
+  const [keyFile, setKeyFile] = useState<KeyFile | null>(null);
+  /** RF-111: where the remembered key file was, when it is no longer there. Said until the person chooses. */
+  const [missingKey, setMissingKey] = useState<string | null>(null);
   const [pickError, setPickError] = useState<AppError | null>(null);
 
   // Focus the password when the screen appears and again after a failed attempt.
   useEffect(() => {
     if (!busy) passwordRef.current?.focus();
   }, [busy, error]);
+
+  // RF-110, RF-111: the key file of this vault comes already chosen: the one it was last opened with, or else the
+  // one beside it. Nothing proposed or a failure leave "Ninguno", without an error: it is only a proposal, and none
+  // does not mean the vault has no key file. The path is sent as it came. The form never waits for the answer (a
+  // drive that is not there can be slow), and a late one does not undo what the person chose.
+  const vaultPath = vault.path;
+  useEffect(() => {
+    let stale = false;
+    void client.unlockKeyProposal(vaultPath).then((result) => {
+      if (stale || keyTouched.current || !result.ok) return;
+      const proposed = result.value.keyFile;
+      setMissingKey(result.value.rememberedMissing);
+      if (proposed !== null) {
+        setKeyFile({ from: "suggested", path: proposed.path, name: proposed.name, source: proposed.source });
+      }
+    });
+    return () => {
+      stale = true;
+    };
+  }, [client, vaultPath]);
 
   function onSubmit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -48,7 +93,7 @@ export function UnlockScreen({ client, vault, busy, error, recovery, onUnlock, s
     if (field !== null) field.value = "";
     onUnlock({
       ...(password === "" ? {} : { password }),
-      ...(keyFilePath === null ? {} : { keyFilePath }),
+      ...(keyFile === null ? {} : { keyFilePath: keyFile.path }),
     });
   }
 
@@ -56,10 +101,21 @@ export function UnlockScreen({ client, vault, busy, error, recovery, onUnlock, s
     setPickError(null);
     const result = await client.pickKeyFile();
     if (!result.ok) setPickError(result.error);
-    else if (result.value !== null) setKeyFilePath(result.value);
+    else if (result.value !== null) {
+      keyTouched.current = true;
+      setMissingKey(null);
+      setKeyFile({ from: "picked", path: result.value });
+    }
+  }
+
+  function removeKeyFile() {
+    keyTouched.current = true;
+    setMissingKey(null);
+    setKeyFile(null);
   }
 
   const shownError = error ?? pickError;
+  const suggested = keyFile?.from === "suggested";
 
   return (
     <section aria-labelledby="unlock-title" className="gate">
@@ -90,23 +146,55 @@ export function UnlockScreen({ client, vault, busy, error, recovery, onUnlock, s
               autoCapitalize="off"
               autoCorrect="off"
               spellCheck={false}
-              aria-describedby={shownError === null ? "unlock-help" : "unlock-help unlock-error"}
+              aria-describedby={["unlock-help", suggested && "unlock-key-hint", shownError !== null && "unlock-error"]
+                .filter((id) => id !== false)
+                .join(" ")}
               aria-invalid={error?.code === "LlaveIncorrecta"}
             />
           </div>
 
-          <div className="field" role="group" aria-labelledby="key-file-label">
+          <div
+            className="field"
+            role="group"
+            aria-labelledby="key-file-label"
+            aria-describedby={suggested ? "unlock-key-hint" : undefined}
+          >
             <span id="key-file-label" className="field-label">
               Archivo llave
             </span>
-            <p className={keyFilePath === null ? "path" : "path mono"}>{keyFilePath ?? "Ninguno"}</p>
+            {/* Which key file goes with the unlock, said when it changes: the proposal arrives after the screen. */}
+            <div role="status" className="unlock-key">
+              {keyFile === null ? (
+                <p className="path">Ninguno</p>
+              ) : keyFile.from === "suggested" && keyFile.source === "beside" ? (
+                <>
+                  <p className="path mono" title={keyFile.path}>
+                    {keyFile.name}
+                  </p>
+                  <p id="unlock-key-hint" className="path">
+                    {KEY_SUGGESTED}
+                  </p>
+                </>
+              ) : keyFile.from === "suggested" ? (
+                <>
+                  {/* It is somewhere else, so the whole path is said, not only the name. */}
+                  <p className="path mono">{keyFile.path}</p>
+                  <p id="unlock-key-hint" className="path">
+                    {KEY_REMEMBERED}
+                  </p>
+                </>
+              ) : (
+                <p className="path mono">{keyFile.path}</p>
+              )}
+              {missingKey !== null && <p className="path">{keyMissingText(missingKey)}</p>}
+            </div>
             <div className="actions">
               <button type="button" onClick={() => void pickKeyFile()}>
                 <FileIcon />
                 Elegir archivo llave…
               </button>
-              {keyFilePath !== null && (
-                <button type="button" onClick={() => { setKeyFilePath(null); }}>
+              {keyFile !== null && (
+                <button type="button" onClick={removeKeyFile}>
                   Quitar archivo llave
                 </button>
               )}

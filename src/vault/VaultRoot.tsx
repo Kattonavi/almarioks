@@ -221,6 +221,7 @@ export function VaultRoot({ client }: { readonly client: VaultClient }) {
         >
           <SettingsPanel
             client={client}
+            vaultPath={state.kind === "open" ? state.vault.path : undefined}
             onSaved={() => {
               // A new lock time starts counting now: show it without waiting for the next poll.
               if (isOpen) void pollStatus();
@@ -285,6 +286,7 @@ export function VaultRoot({ client }: { readonly client: VaultClient }) {
             const { vault } = current.view;
             return (
               <UnlockScreen
+                key={vault.path}
                 client={client}
                 vault={vault}
                 busy={false}
@@ -306,6 +308,7 @@ export function VaultRoot({ client }: { readonly client: VaultClient }) {
         const { vault } = current;
         return (
           <UnlockScreen
+            key={vault.path}
             client={client}
             vault={vault}
             busy={current.kind === "deriving"}

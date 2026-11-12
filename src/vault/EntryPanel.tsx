@@ -1,14 +1,15 @@
-import { useEffect, useRef, useState, type SubmitEvent } from "react";
+import { Fragment, useEffect, useRef, useState, type ReactNode, type RefObject, type SubmitEvent } from "react";
 
 import { assertNever } from "../assertNever";
 import type { FieldName, VaultClient } from "../ipc/client";
 import { errorMessage, type AppError } from "../ipc/errors";
 import type { EntryDetail, GroupNode } from "../ipc/schemas";
-import { CopyIcon, EditIcon, HideIcon, MoveIcon, OpenLinkIcon, ShowIcon, TrashIcon } from "../ui/icons";
+import { CloseIcon, CopyIcon, EditIcon, HideIcon, OpenLinkIcon, ShowIcon } from "../ui/icons";
+import { MenuButton, type MenuItem } from "../ui/MenuButton";
 import { Dialog } from "./Dialog";
-import { EntryForm } from "./EntryForm";
+import { EntryDialog } from "./EntryDialog";
 import { formatDate, groupOptions, isInBin, shown, trailTo } from "./format";
-import { assignLines } from "./lines";
+import { assignLines, entryInitial, entryLine } from "./lines";
 import { NO_SAVE_SIGNAL, savingText, type SaveSignal } from "./saveSignal";
 
 /** RF-21: an edit the core applied, before and after its save reaches the disk. */
@@ -39,6 +40,19 @@ type LoadState =
 
 type DialogState = { readonly kind: "move" } | { readonly kind: "delete" } | null;
 
+/** What the menu of an entry offers. */
+type EntryOrder = "move" | "bin" | "delete";
+
+/**
+ * RF-74: what the copy notice has to say. `what` names the field ("Contraseña copiada"), never its value; `deadline`
+ * is the moment the core clears the clipboard, or `null` when the copy has no countdown (a field that is not
+ * protected).
+ */
+export interface CopyNotice {
+  readonly what: string;
+  readonly deadline: number | null;
+}
+
 interface EntryPanelProps {
   readonly client: EntryClient;
   readonly entryId: string;
@@ -49,44 +63,69 @@ interface EntryPanelProps {
   readonly readOnly?: boolean;
   /** RF-21: saves that reached the disk; an edit is "guardada" only after the next one. */
   readonly saveSignal?: SaveSignal;
-  /**
-   * RF-59: opened from the keyboard. A new non-zero value moves the focus, once the entry is loaded, to "Copiar
-   * contraseña" (or to the title when it has none), so copying is one key away. 0: leave the focus where it is.
-   */
-  readonly focusRequest?: number;
-  /**
-   * The smallest window shows one zone at a time: this goes back to the list. Offered only while viewing, so an edit
-   * in progress is never dropped by it; the stylesheet shows it only where the list is hidden.
-   */
-  readonly onBack?: () => void;
+  /** The id of the title: the window of the entry takes its name from it. */
+  readonly titleId: string;
+  /** RF-108: Escape or "Cerrar" in the head of the window: back to the list. */
+  readonly onClose: () => void;
+  /** RF-74: what the window says at its foot while it is open: the zone of the copy notice. */
+  readonly foot?: ReactNode;
   /** The entry changed (edited, moved): the lists must be asked again. */
   readonly onChanged: () => void;
   /** The entry left this view (to the recycle bin or for good). */
   readonly onDeleted: (notice: string) => void;
   /**
-   * The clipboard took a value of this entry: the moment the core clears it, or `null` when the copy has no
-   * countdown. For the list, which stamps the row; nothing of the value travels.
+   * The clipboard took a value of this entry. The notice lives in the detail zone, not here: this panel goes away
+   * with its entry and the countdown has to go on. Nothing of the value travels.
    */
-  readonly onCopied?: (deadline: number | null) => void;
+  readonly onCopied?: (copy: CopyNotice) => void;
 }
 
-/** KeePass keys of the standard fields, as the core lists them in `protected_fields`. */
-const STANDARD_LABELS: Readonly<Record<string, string>> = {
-  Title: "Título",
-  UserName: "Usuario",
-  Password: "Contraseña",
-  URL: "URL",
-  Notes: "Notas",
-};
+/**
+ * KeePass keys of the standard fields, as the core lists them in `protected_fields`, with the name each one has on
+ * screen. A map, not an object: a custom field can be called `constructor`.
+ */
+const STANDARD_LABELS: ReadonlyMap<string, string> = new Map([
+  ["Title", "Título"],
+  ["UserName", "Usuario"],
+  ["Password", "Contraseña"],
+  ["URL", "Sitio"],
+  ["Notes", "Notas"],
+]);
+
+/** RF-74: what the copy notice says of each standard field; a custom one is named in quotes. */
+const COPIED: ReadonlyMap<string, string> = new Map([
+  ["Title", "Título copiado"],
+  ["UserName", "Usuario copiado"],
+  ["Password", "Contraseña copiada"],
+  ["URL", "Dirección copiada"],
+  ["Notes", "Notas copiadas"],
+]);
+
+/**
+ * RF-74: the notice of a copy the core made. `clearsInSeconds` is what the core answered: the seconds until it clears
+ * the clipboard (a protected field), or `null` when nothing clears it.
+ */
+export function copyNoticeOf(field: FieldName, clearsInSeconds: number | null): CopyNotice {
+  return {
+    what: COPIED.get(field) ?? `«${field}» copiado`,
+    deadline: clearsInSeconds === null ? null : Date.now() + clearsInSeconds * 1000,
+  };
+}
+
+/** The fields with a row of their own in the card: a protected one outside this list gets a row after them. */
+const OWN_ROW: readonly string[] = ["UserName", "Password", "URL", "Notes"];
 
 function labelOf(field: FieldName): string {
-  return STANDARD_LABELS[field] ?? field;
+  return STANDARD_LABELS.get(field) ?? field;
 }
 
 /** For button names: "Mostrar contraseña", "Copiar «PIN»". */
 function nameOf(field: FieldName): string {
-  const standard = STANDARD_LABELS[field];
-  return standard === undefined ? `«${field}»` : field === "URL" ? "URL" : standard.toLowerCase();
+  return STANDARD_LABELS.get(field)?.toLowerCase() ?? `«${field}»`;
+}
+
+function copyLabelOf(field: FieldName): string {
+  return field === "URL" ? "Copiar dirección del sitio" : `Copiar ${nameOf(field)}`;
 }
 
 function titleOf(entry: EntryDetail): string {
@@ -100,6 +139,135 @@ function protectedOf(entry: EntryDetail): FieldName[] {
   return names;
 }
 
+interface IconButtonProps {
+  /** The accessible name and the help under the pointer. It names the field, never its value. */
+  readonly label: string;
+  readonly onClick: () => void;
+  /** The one icon button with a plate: "Copiar contraseña". */
+  readonly primary?: boolean;
+  readonly buttonRef?: RefObject<HTMLButtonElement | null> | undefined;
+  readonly children: ReactNode;
+}
+
+/** An icon alone in a 44 px square, at the end of a row of the card. */
+function IconButton({ label, onClick, primary = false, buttonRef, children }: IconButtonProps) {
+  return (
+    <button
+      ref={buttonRef}
+      type="button"
+      className={primary ? "btn-icon btn-primary" : "btn-icon"}
+      aria-label={label}
+      title={label}
+      onClick={onClick}
+    >
+      {children}
+    </button>
+  );
+}
+
+interface CardRowProps {
+  readonly label: string;
+  /** The icon buttons of the row: they close it, so the buttons of every row line up in one column. */
+  readonly actions?: ReactNode;
+  /** The notes: the label at the top and the text with its own line breaks. */
+  readonly notes?: boolean;
+  /**
+   * RF-106: what the `title` of the value's cell says of its double click. It names the gesture, never the value.
+   * Without it the row has no gesture.
+   */
+  readonly help?: string | undefined;
+  /** RF-106: the double click on the value, the same as in the list. Every gesture has its button too. */
+  readonly onGesture?: (() => void) | undefined;
+  readonly children: ReactNode;
+}
+
+const COPY_HELP = "Doble clic para copiar";
+const OPEN_HELP = "Doble clic para abrir el sitio en el navegador";
+
+/** One row of the card: label | value | icon buttons. The gesture lives on the cell of the value, not on the value. */
+function CardRow({ label, actions, notes = false, help, onGesture, children }: CardRowProps) {
+  return (
+    <div className={notes ? "card-row card-row-notes" : "card-row"}>
+      <dt>{label}</dt>
+      <dd>
+        <div className="card-main" title={help} onDoubleClick={help === undefined ? undefined : onGesture}>
+          {children}
+        </div>
+        {actions !== undefined && <span className="card-actions">{actions}</span>}
+      </dd>
+    </div>
+  );
+}
+
+/** A value that is not protected, read whole: a long one breaks into lines (a `title` here is the help of a gesture). */
+function PlainValue({ value, empty }: { readonly value: string | null; readonly empty: string }) {
+  if (value === "") return <span className="card-empty">{empty}</span>;
+  // `null`: protected in the file, but with nothing to show or copy.
+  if (value === null) return <span className="card-empty">{shown(value)}</span>;
+  return <span className="card-value">{value}</span>;
+}
+
+/**
+ * The value of a protected field: hidden, a bar of fixed width that never gives away how long it is; shown, the text
+ * in a `.secret` element, which cannot be selected or dragged (copying goes through the core). The value is a React
+ * text child and nothing else: it never reaches an attribute.
+ */
+function SecretValue({ value }: { readonly value: string | undefined }) {
+  return value === undefined ? (
+    <span className="secret" data-masked="">
+      <span className="sr-only">(oculto)</span>
+    </span>
+  ) : (
+    <span className="secret">{value}</span>
+  );
+}
+
+interface FieldActions {
+  readonly onReveal: (field: FieldName) => Promise<void>;
+  readonly onHide: (field: FieldName) => void;
+  readonly onCopy: (field: FieldName) => Promise<void>;
+}
+
+function CopyButton({ field, onCopy }: { readonly field: FieldName } & Pick<FieldActions, "onCopy">) {
+  return (
+    <IconButton label={copyLabelOf(field)} onClick={() => void onCopy(field)}>
+      <CopyIcon />
+    </IconButton>
+  );
+}
+
+interface SecretActionsProps extends FieldActions {
+  readonly field: FieldName;
+  /** Whether its value is on screen right now. Only that: the value itself does not come here. */
+  readonly revealed: boolean;
+  readonly copyRef?: RefObject<HTMLButtonElement | null> | undefined;
+}
+
+/** Show or hide, and copy: the two buttons every protected field has. Only the password's copy has a plate. */
+function SecretActions({ field, revealed, copyRef, onReveal, onHide, onCopy }: SecretActionsProps) {
+  return (
+    <>
+      <IconButton
+        label={revealed ? `Ocultar ${nameOf(field)}` : `Mostrar ${nameOf(field)}`}
+        onClick={() => {
+          if (revealed) onHide(field);
+          else void onReveal(field);
+        }}
+      >
+        {revealed ? <HideIcon /> : <ShowIcon />}
+      </IconButton>
+      <IconButton
+        label={copyLabelOf(field)}
+        primary={field === "Password"}
+        buttonRef={copyRef}
+        onClick={() => void onCopy(field)}
+      >
+        <CopyIcon />
+      </IconButton>
+    </>
+  );
+}
+
 /**
  * P5, view (RF-43, RF-44, RF-46 to RF-49, RF-71, RF-74). Mounted with `key={entryId}`: another entry, a lock or a
  * close unmounts it, and every revealed value goes with it. Revealed values live only in this component's state.
@@ -111,18 +279,18 @@ export function EntryPanel({
   root,
   readOnly = false,
   saveSignal = NO_SAVE_SIGNAL,
-  focusRequest = 0,
-  onBack,
+  titleId,
+  onClose,
   onChanged,
   onDeleted,
   onCopied,
+  foot,
 }: EntryPanelProps) {
   const [load, setLoad] = useState<LoadState>({ kind: "loading" });
   const [attempt, setAttempt] = useState(0);
-  const [mode, setMode] = useState<"view" | "edit">("view");
-  const [revealed, setRevealed] = useState<Readonly<Record<FieldName, string>>>({});
-  const [copied, setCopied] = useState<{ readonly deadline: number } | null>(null);
-  const [now, setNow] = useState(() => Date.now());
+  const [editing, setEditing] = useState(false);
+  /** A map, not an object: the name of a custom field is whatever the file says. */
+  const [revealed, setRevealed] = useState<ReadonlyMap<FieldName, string>>(() => new Map());
   const [actionError, setActionError] = useState<AppError | null>(null);
   const [status, setStatus] = useState("");
   /** An edit applied when `saveSignal.saved` was this value, waiting for its save to reach the disk. */
@@ -134,11 +302,17 @@ export function EntryPanel({
     setEditSince(null);
   }
   const timers = useRef(new Map<FieldName, ReturnType<typeof setTimeout>>());
+  /**
+   * Counts every time something shown is hidden. A reveal that was asked before and answers after must not put
+   * the value back: the person pressed "Editar" (or hid it) while the core was still answering (review, U-2).
+   */
+  const hideCount = useRef(0);
   const mounted = useRef(false);
   const editRef = useRef<HTMLButtonElement>(null);
   const copyPasswordRef = useRef<HTMLButtonElement>(null);
-  const entryTitleRef = useRef<HTMLHeadingElement>(null);
-  const focusHandled = useRef(0);
+  const closeRef = useRef<HTMLButtonElement>(null);
+  /** RF-108: the window hands the focus over once, when its entry arrives. */
+  const focusedOnOpen = useRef(false);
   const focusEdit = useRef(false);
 
   useEffect(() => {
@@ -162,51 +336,47 @@ export function EntryPanel({
     };
   }, [client, entryId, attempt]);
 
-  // RF-74: the countdown of the clipboard, from the seconds the core gave.
+  // RF-108: opened with a double click or with Enter, the window leaves the focus on "Copiar contraseña" once its
+  // entry is in it, so copying is one key away; an entry without a password leaves it on "Cerrar".
   useEffect(() => {
-    if (copied === null) return;
-    const timer = setInterval(() => {
-      setNow(Date.now());
-    }, 1000);
-    return () => {
-      clearInterval(timer);
-    };
-  }, [copied]);
+    if (focusedOnOpen.current || load.kind !== "ready") return;
+    focusedOnOpen.current = true;
+    (copyPasswordRef.current ?? closeRef.current)?.focus();
+  }, [load]);
 
   useEffect(() => {
-    if (focusRequest === 0 || focusHandled.current === focusRequest || load.kind !== "ready") return;
-    focusHandled.current = focusRequest;
-    (copyPasswordRef.current ?? entryTitleRef.current)?.focus();
-  }, [focusRequest, load]);
-
-  useEffect(() => {
-    if (mode === "view" && focusEdit.current) {
+    if (!editing && focusEdit.current) {
       focusEdit.current = false;
       editRef.current?.focus();
     }
-  }, [mode]);
+  }, [editing]);
 
   function hide(field: FieldName) {
+    hideCount.current += 1;
     clearTimeout(timers.current.get(field));
     timers.current.delete(field);
-    setRevealed((current) => Object.fromEntries(Object.entries(current).filter(([name]) => name !== field)));
+    setRevealed((current) => new Map([...current].filter(([name]) => name !== field)));
   }
 
   function hideAll() {
+    hideCount.current += 1;
     for (const timer of timers.current.values()) clearTimeout(timer);
     timers.current.clear();
-    setRevealed({});
+    setRevealed(new Map());
   }
 
   async function reveal(field: FieldName) {
     setActionError(null);
+    const asked = hideCount.current;
     const result = await client.entryReveal(entryId, field);
     if (!mounted.current) return;
+    // Something was hidden meanwhile: this answer is late and its value is dropped, not shown.
+    if (hideCount.current !== asked) return;
     if (!result.ok) {
       setActionError(result.error);
       return;
     }
-    setRevealed((current) => ({ ...current, [field]: result.value }));
+    setRevealed((current) => new Map([...current, [field, result.value]]));
     clearTimeout(timers.current.get(field));
     timers.current.set(
       field,
@@ -216,27 +386,18 @@ export function EntryPanel({
     );
   }
 
+  /** RF-71: always through the core; the window never holds what it copies. */
   async function copy(field: FieldName) {
     setActionError(null);
     say("");
     const result = await client.entryCopy(entryId, field);
+    // Told here, not from an effect, and before looking at whether the window is still open: the value is in the
+    // clipboard all the same, so the notice and its countdown must reach the list even if the person closed the
+    // window while the core was answering (code review, I-1). The core says whether the clipboard clears by itself
+    // (a protected field) and in how long.
+    if (result.ok) onCopied?.(copyNoticeOf(field, result.value.clearsInSeconds));
     if (!mounted.current) return;
-    if (!result.ok) {
-      setActionError(result.error);
-      return;
-    }
-    if (result.value.clearsInSeconds === null) {
-      // A field that is not protected: no countdown, and the person knows it stays on the clipboard.
-      setCopied(null);
-      onCopied?.(null);
-      say(`${labelOf(field)}: copiado. No es un dato protegido, así que el portapapeles no se limpia solo.`);
-      return;
-    }
-    const at = Date.now();
-    setNow(at);
-    setCopied({ deadline: at + result.value.clearsInSeconds * 1000 });
-    // Told here, not from an effect: this panel goes away with its entry, and the stamp on the row must stay.
-    onCopied?.(at + result.value.clearsInSeconds * 1000);
+    if (!result.ok) setActionError(result.error);
   }
 
   async function openUrl() {
@@ -264,289 +425,339 @@ export function EntryPanel({
     );
   }
 
+  /** RF-108: the way out of the window, in its head whatever the entry is doing (loading, failed or shown). */
+  /*
+   * The keys of the head ("heading", "actions", "close") are the same while the entry loads and once it is shown:
+   * the window opens with the focus on "Cerrar", and that button must be the same element when the entry arrives, or
+   * the focus would be left on nothing behind a modal window.
+   */
+  const closeButton = (
+    <button
+      key="close"
+      ref={closeRef}
+      type="button"
+      className="entry-close"
+      aria-label="Cerrar"
+      title="Cerrar"
+      onClick={onClose}
+    >
+      <CloseIcon />
+    </button>
+  );
+
+  // The window is the same `Dialog`, in the same place of the tree, while the entry loads and once it is shown: it
+  // opens once.
   if (load.kind !== "ready") {
     return (
-      <>
-        <h4 className="entry-title">{shown(listTitle, "(sin título)")}</h4>
-        {load.kind === "loading" ? (
-          <p role="status">Cargando la entrada…</p>
-        ) : (
-          <>
-            <p role="alert" className="error">
-              {errorMessage(load.error)}
-            </p>
-            <button
-              type="button"
-              onClick={() => {
-                setLoad({ kind: "loading" });
-                setAttempt((value) => value + 1);
-              }}
-            >
-              Reintentar
-            </button>
-          </>
-        )}
-      </>
+      <Dialog layout="entry" labelledBy={titleId} onClose={onClose}>
+        <div className="entry">
+          <header className="entry-head">
+            <div key="heading" className="entry-heading">
+              <h4 id={titleId} className="entry-title">
+                {shown(listTitle, "(sin título)")}
+              </h4>
+            </div>
+            <div key="actions" className="entry-head-actions">
+              {closeButton}
+            </div>
+          </header>
+          {load.kind === "loading" ? (
+            <p role="status">Cargando la entrada…</p>
+          ) : (
+            <>
+              <p role="alert" className="error">
+                {errorMessage(load.error)}
+              </p>
+              <div className="actions">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setLoad({ kind: "loading" });
+                    setAttempt((value) => value + 1);
+                  }}
+                >
+                  Reintentar
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+        {foot}
+      </Dialog>
     );
   }
 
   const { entry } = load;
 
-  if (mode === "edit") {
+  const inBin = isInBin(root, entry.groupId);
+  const savedText = editSince === null ? "" : savingText(saveSignal, editSince, WAITING, DONE);
+  const secretFields = protectedOf(entry);
+  const isSecret = (field: FieldName) => secretFields.includes(field);
+  const plainCustom = entry.customFields.filter((field) => !field.protected);
+  const has = (value: string | null) => value !== null && value !== "";
+  /** The groups from the root down to the entry's own: the header names the last one, its `title` the whole way. */
+  const trail = (trailTo(root, entry.groupId) ?? []).map((group) => shown(group.name, "(sin nombre)"));
+  const line = entryLine(assignLines(root).get(entry.groupId));
+  /**
+   * The menu of the entry. Outside the recycle bin, sending it there is the last order, and it acts at once (RF-47:
+   * it can be undone from the bin). Inside the bin, moving it out is how it is restored, and deleting asks first.
+   */
+  const orders: readonly MenuItem<EntryOrder>[] = [
+    { order: "move", label: "Mover a otro grupo…" },
+    inBin
+      ? { order: "delete", label: "Borrar definitivamente…", danger: true }
+      : { order: "bin", label: "Enviar a la papelera", danger: true },
+  ];
+
+  function onOrder(order: EntryOrder) {
+    setActionError(null);
+    switch (order) {
+      case "move":
+        setDialog({ kind: "move" });
+        return;
+      case "bin":
+        void remove(entry, false);
+        return;
+      case "delete":
+        setDialog({ kind: "delete" });
+        return;
+      default:
+        assertNever(order);
+    }
+  }
+
+  const openButton = (
+    <IconButton label="Abrir el sitio en el navegador" onClick={() => void openUrl()}>
+      <OpenLinkIcon />
+    </IconButton>
+  );
+
+  /** The two buttons of a protected field, wired to this entry. */
+  function secretActions(field: FieldName) {
     return (
-      <EntryForm
+      <SecretActions
+        field={field}
+        revealed={revealed.has(field)}
+        copyRef={field === "Password" ? copyPasswordRef : undefined}
+        onReveal={reveal}
+        onHide={hide}
+        onCopy={copy}
+      />
+    );
+  }
+
+  // RF-108: "Editar" changes the window for the form instead of stacking the form on it. This component stays
+  // mounted, so saving or cancelling comes back to the window with the entry as the form left it; nothing that was
+  // shown makes the trip (`hideAll` ran when "Editar" was pressed).
+  if (editing) {
+    return (
+      <EntryDialog
         client={client}
-        mode={{ kind: "edit", entry }}
+        mode={{ kind: "edit", entry, group: { id: entry.groupId, name: trail.at(-1) ?? "(sin nombre)", line } }}
+        onClose={() => {
+          focusEdit.current = true;
+          setEditing(false);
+        }}
         onSaved={(saved, changed) => {
+          // What was shown belongs to the entry as it was: nothing of it comes back with the saved one.
+          hideAll();
           setLoad({ kind: "ready", entry: saved });
           setStatus(changed ? "" : "No había cambios que guardar.");
           setEditSince(changed ? saveSignal.saved : null);
-          focusEdit.current = true;
-          setMode("view");
           if (changed) onChanged();
-        }}
-        onCancel={() => {
-          focusEdit.current = true;
-          setMode("view");
         }}
       />
     );
   }
 
-  const inBin = isInBin(root, entry.groupId);
-  const savedText = editSince === null ? "" : savingText(saveSignal, editSince, WAITING, DONE);
-  const secretFields = protectedOf(entry);
-  const plainCustom = entry.customFields.filter((field) => !field.protected);
-  const secondsLeft = copied === null ? null : Math.max(0, Math.ceil((copied.deadline - now) / 1000));
-  /** The groups from the root down to the entry's own: drawn as the stops of its line. */
-  const trail = trailTo(root, entry.groupId) ?? [];
-
-  return (
-    <>
-      {onBack !== undefined && (
-        <button type="button" className="back-to-list" onClick={onBack}>
-          Volver a la lista
-        </button>
-      )}
-      <dl className="entry-route" data-line={assignLines(root).get(entry.groupId) ?? "neutral"}>
-        <dt className="sr-only">Grupo</dt>
-        <dd>
-          <ol className="route">
-            {trail.map((group) => (
-              <li key={group.id}>{shown(group.name, "(sin nombre)")}</li>
-            ))}
-          </ol>
-        </dd>
-      </dl>
-      <h4 ref={entryTitleRef} tabIndex={-1} className="entry-title">
-        {shown(entry.title, "(sin título)")}
-      </h4>
-      <dl className="entry-meta">
-        <div>
-          <dt>Creada</dt>
-          <dd>
-            <time dateTime={entry.created}>{formatDate(entry.created)}</time>
-          </dd>
-        </div>
-        <div>
-          <dt>Modificada</dt>
-          <dd>
-            <time dateTime={entry.modified}>{formatDate(entry.modified)}</time>
-          </dd>
-        </div>
-      </dl>
-
-      <dl className="entry-fields">
-        <div>
-          <dt>Usuario</dt>
-          <dd>
-            <span title={entry.username === null || entry.username === "" ? undefined : entry.username}>{shown(entry.username, "(vacío)")}</span>
-            {entry.username !== null && entry.username !== "" && (
-              <span className="field-actions">
-                <button type="button" aria-label="Copiar usuario" onClick={() => void copy("UserName")}>
-                  <CopyIcon />
-                  <span>
-                    Copiar<span className="label-more"> usuario</span>
-                  </span>
-                </button>
-              </span>
-            )}
-          </dd>
-        </div>
-      </dl>
-
-      {secretFields.length > 0 && (
-        <>
-          <h5 className="sr-only">Campos protegidos</h5>
-          <dl className="entry-fields">
-            {secretFields.map((field) => {
-              const value = revealed[field];
-              return (
-                <div key={field}>
-                  <dt>{labelOf(field)}</dt>
-                  <dd>
-                    {value === undefined ? (
-                      // A bar of fixed width: the hidden value never gives away its length.
-                      <span className="secret" data-masked="">
-                        <span className="sr-only">(oculto)</span>
-                      </span>
-                    ) : (
-                      <span className="secret">{value}</span>
-                    )}
-                    <span className="field-actions">
-                      <button
-                        type="button"
-                        className="btn-icon"
-                        title={value === undefined ? `Mostrar ${nameOf(field)}` : `Ocultar ${nameOf(field)}`}
-                        onClick={() => {
-                          if (value === undefined) void reveal(field);
-                          else hide(field);
-                        }}
-                      >
-                        {value === undefined ? <ShowIcon /> : <HideIcon />}
-                        <span className="sr-only">
-                          {value === undefined ? `Mostrar ${nameOf(field)}` : `Ocultar ${nameOf(field)}`}
-                        </span>
-                      </button>
-                      <button
-                        type="button"
-                        ref={field === "Password" ? copyPasswordRef : undefined}
-                        className={field === "Password" ? "btn-primary" : undefined}
-                        aria-label={`Copiar ${nameOf(field)}`}
-                        onClick={() => void copy(field)}
-                      >
-                        <CopyIcon />
-                        <span>
-                          Copiar<span className="label-more"> {nameOf(field)}</span>
-                        </span>
-                      </button>
-                    </span>
-                  </dd>
-                </div>
-              );
-            })}
-          </dl>
-          <p className="path field-hint">Lo que muestres se oculta solo a los 20 segundos.</p>
-        </>
-      )}
-
-      <dl className="entry-fields">
-        <div>
-          <dt>URL</dt>
-          <dd>
-            <span className="path" title={entry.url === null || entry.url === "" ? undefined : entry.url}>
-              {shown(entry.url, "(vacía)")}
-            </span>
-            {entry.url !== "" && (
-              <span className="field-actions">
-                <button type="button" aria-label="Abrir URL en el navegador" onClick={() => void openUrl()}>
-                  <OpenLinkIcon />
-                  <span>
-                    Abrir<span className="label-more"> URL en el navegador</span>
-                  </span>
-                </button>
-              </span>
-            )}
-          </dd>
-        </div>
-        <div>
-          <dt>Etiquetas</dt>
-          <dd>
-            {entry.tags.length === 0 ? (
-              <span>(sin etiquetas)</span>
-            ) : (
-              <ul className="tags">
-                {entry.tags.map((tag) => (
-                  <li key={tag}>{tag}</li>
-                ))}
-              </ul>
-            )}
-          </dd>
-        </div>
-        <div>
-          <dt>Notas</dt>
-          <dd>
-            <span className="notes">{shown(entry.notes, "(sin notas)")}</span>
-          </dd>
-        </div>
-      </dl>
-
-      {plainCustom.length > 0 && (
-        <>
-          <h5>Campos propios</h5>
-          <dl className="entry-fields">
-            {plainCustom.map((field) => (
-              <div key={field.name}>
-                <dt>{field.name}</dt>
-                <dd>{field.value ?? ""}</dd>
-              </div>
-            ))}
-          </dl>
-        </>
-      )}
-
-      {entry.attachments.length > 0 && (
-        <>
-          <h5>Adjuntos</h5>
-          <ul>
-            {entry.attachments.map((attachment) => (
-              <li key={attachment.name}>
-                <span>{attachment.name}</span> <span className="path">({attachment.size} bytes)</span>
-              </li>
-            ))}
-          </ul>
-        </>
-      )}
-
-      {readOnly ? (
-        <p className="path">Solo lectura: esta entrada no se puede editar, mover ni borrar.</p>
-      ) : (
-      <div className="actions entry-actions">
-        <button
-          ref={editRef}
-          type="button"
-          onClick={() => {
-            hideAll();
-            say("");
-            setActionError(null);
-            setMode("edit");
-          }}
-        >
-          <EditIcon />
-          Editar
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            setActionError(null);
-            setDialog({ kind: "move" });
-          }}
-        >
-          <MoveIcon />
-          Mover a otro grupo…
-        </button>
-        <button
-          type="button"
-          className={inBin ? "btn-danger" : "btn-to-bin"}
-          onClick={() => {
-            if (inBin) setDialog({ kind: "delete" });
-            else void remove(entry, false);
-          }}
-        >
-          <TrashIcon />
-          {inBin ? "Borrar definitivamente…" : "Enviar a la papelera"}
-        </button>
-      </div>
-      )}
-
-      <div aria-live="polite" aria-atomic="true" className="entry-status">
-        {secondsLeft !== null && (
-          <p>
-            {secondsLeft > 0
-              ? `Copiado: se borra en ${String(secondsLeft)} s`
-              : "Se cumplió el tiempo: AlmarioKS limpió el portapapeles si nadie copió otra cosa."}
+  const view = (
+    <div className="entry">
+      <header className="entry-head">
+        {/* The same circle as its row in the list, larger. Drawn by CSS from `data-initial`: it adds no text. */}
+        <span
+          key="badge"
+          className="bullet entry-badge"
+          data-line={line}
+          data-initial={entryInitial(entry.title)}
+          aria-hidden="true"
+        />
+        <div key="heading" className="entry-heading">
+          <h4 id={titleId} className="entry-title">
+            {shown(entry.title, "(sin título)")}
+          </h4>
+          <p className="entry-group" title={trail.join(" › ")}>
+            <span className="sr-only">Grupo:</span>
+            <span className="group-dot" data-line={line} aria-hidden="true" /> {trail.at(-1) ?? ""}
           </p>
+        </div>
+        <div key="actions" className="entry-head-actions">
+          {!readOnly && (
+            <Fragment key="orders">
+              <button
+                ref={editRef}
+                type="button"
+                onClick={() => {
+                  hideAll();
+                  say("");
+                  setActionError(null);
+                  setEditing(true);
+                }}
+              >
+                <EditIcon />
+                Editar
+              </button>
+              <MenuButton
+                label="Más acciones de la entrada"
+                menuLabel="Acciones de la entrada"
+                items={orders}
+                onChoose={onOrder}
+                className="entry-menu"
+                buttonClassName="entry-more"
+              />
+            </Fragment>
+          )}
+          {closeButton}
+        </div>
+      </header>
+      <dl className="entry-card">
+        {isSecret("UserName") ? (
+          <CardRow
+            label="Usuario"
+            help={COPY_HELP}
+            onGesture={() => void copy("UserName")}
+            actions={secretActions("UserName")}
+          >
+            <SecretValue value={revealed.get("UserName")} />
+          </CardRow>
+        ) : (
+          <CardRow
+            label="Usuario"
+            help={has(entry.username) ? COPY_HELP : undefined}
+            onGesture={() => void copy("UserName")}
+            actions={has(entry.username) ? <CopyButton field="UserName" onCopy={copy} /> : undefined}
+          >
+            <PlainValue value={entry.username} empty="Sin usuario" />
+          </CardRow>
         )}
+        {/* RF-105: the entry says whether it has a password; without one the row says so and offers nothing. */}
+        {entry.hasPassword ? (
+          <CardRow
+            label="Contraseña"
+            help={COPY_HELP}
+            // A copy is the core's: the double click shows nothing.
+            onGesture={() => void copy("Password")}
+            actions={secretActions("Password")}
+          >
+            <SecretValue value={revealed.get("Password")} />
+          </CardRow>
+        ) : (
+          <CardRow label="Contraseña">
+            <span className="card-empty">Sin contraseña</span>
+          </CardRow>
+        )}
+        {isSecret("URL") ? (
+          <CardRow
+            label="Sitio"
+            help={OPEN_HELP}
+            onGesture={() => void openUrl()}
+            actions={
+              <>
+                {openButton}
+                {secretActions("URL")}
+              </>
+            }
+          >
+            <SecretValue value={revealed.get("URL")} />
+          </CardRow>
+        ) : (
+          <CardRow
+            label="Sitio"
+            help={entry.url === "" ? undefined : OPEN_HELP}
+            onGesture={() => void openUrl()}
+            actions={
+              entry.url === "" ? undefined : (
+                <>
+                  {openButton}
+                  {has(entry.url) && <CopyButton field="URL" onCopy={copy} />}
+                </>
+              )
+            }
+          >
+            <PlainValue value={entry.url} empty="Sin sitio" />
+          </CardRow>
+        )}
+        {/* What the file protects beyond the rows above: a protected title and the protected custom fields. */}
+        {secretFields
+          .filter((field) => !OWN_ROW.includes(field))
+          .map((field) => (
+            <CardRow key={`secret:${field}`} label={labelOf(field)} actions={secretActions(field)}>
+              <SecretValue value={revealed.get(field)} />
+            </CardRow>
+          ))}
+        {plainCustom.map((field) => (
+          <CardRow
+            key={`custom:${field.name}`}
+            label={field.name}
+            actions={has(field.value) ? <CopyButton field={field.name} onCopy={copy} /> : undefined}
+          >
+            <PlainValue value={field.value ?? ""} empty="Sin valor" />
+          </CardRow>
+        ))}
+        {entry.tags.length > 0 && (
+          <CardRow label="Etiquetas">
+            <ul className="tags">
+              {entry.tags.map((tag) => (
+                <li key={tag}>{tag}</li>
+              ))}
+            </ul>
+          </CardRow>
+        )}
+        {entry.attachments.length > 0 && (
+          <CardRow label="Adjuntos">
+            <ul className="attachments">
+              {entry.attachments.map((attachment) => (
+                <li key={attachment.name}>
+                  <span>{attachment.name}</span> <span className="path">({attachment.size} bytes)</span>
+                </li>
+              ))}
+            </ul>
+          </CardRow>
+        )}
+        {/* The notes close the card, without buttons unless the file protects them. */}
+        {isSecret("Notes") ? (
+          <CardRow label="Notas" notes actions={secretActions("Notes")}>
+            <SecretValue value={revealed.get("Notes")} />
+          </CardRow>
+        ) : (
+          <CardRow label="Notas" notes>
+            {entry.notes === null ? (
+              <span className="card-empty">{shown(entry.notes)}</span>
+            ) : entry.notes === "" ? (
+              <span className="card-empty">Sin notas</span>
+            ) : (
+              <span className="card-notes">{entry.notes}</span>
+            )}
+          </CardRow>
+        )}
+      </dl>
+
+      {revealed.size > 0 && <p className="path field-hint">Lo que muestres se oculta solo a los 20 segundos.</p>}
+
+      {/* RF-107: the day and the hour of this computer, to the minute. The list keeps the short day. */}
+      <p className="entry-dates">
+        <span className="entry-date">
+          Creada el <time dateTime={entry.created}>{formatDate(entry.created)}</time>
+        </span>
+        <span className="dot-sep"> · </span>
+        <span className="entry-date">
+          Modificada el <time dateTime={entry.modified}>{formatDate(entry.modified)}</time>
+        </span>
+      </p>
+
+      {readOnly && <p className="path">Solo lectura: esta entrada no se puede editar, mover ni borrar.</p>}
+
+      {/* What an order left to say. A copy is not said here: its notice is the one at the foot of the detail zone. */}
+      <div aria-live="polite" aria-atomic="true" className="entry-status">
         {status !== "" && <p>{status}</p>}
         {status === "" && savedText !== "" && <p>{savedText}</p>}
       </div>
@@ -555,7 +766,14 @@ export function EntryPanel({
       </p>
 
       {renderDialog()}
-    </>
+    </div>
+  );
+
+  return (
+    <Dialog layout="entry" labelledBy={titleId} onClose={onClose}>
+      {view}
+      {foot}
+    </Dialog>
   );
 
   function renderDialog() {

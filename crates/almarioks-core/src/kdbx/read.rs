@@ -56,6 +56,11 @@ pub(crate) fn summary(entry: &Entry) -> EntrySummary {
         id: EntryId::from_uuid(entry.id().uuid()),
         title: visible(entry, fields::TITLE),
         username: visible(entry, fields::USERNAME),
+        // RF-105: protected or not, the list only learns whether there is one.
+        has_password: entry
+            .fields
+            .get(fields::PASSWORD)
+            .is_some_and(|value| !value.get().is_empty()),
         url: visible(entry, fields::URL),
         tags: entry.tags.clone(),
         modified,

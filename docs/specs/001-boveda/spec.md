@@ -439,6 +439,84 @@ Salieron al implementar; en cada una se eligió lo más conservador. Ninguna cam
   Sale solo por "Copiar". Consecuencia: con un valor mostrado, Ctrl+A y Ctrl+C no copian nada.
 - La ventana abre centrada.
 
+## Cambio 2026-11-12: pase de interacción (encargo del dueño)
+Origen: `docs/revisiones/0.1-ux-dueno.md` y el prototipo aprobado en `docs/diseno/prototipo-0.1/`. La distribución de
+las pantallas la fija ese prototipo; aquí solo va lo que cambia de comportamiento.
+
+- RF-96: CUANDO el dueño crea una bóveda, EL SISTEMA pedirá primero su nombre y lo guardará como nombre de la bóveda,
+  aunque el archivo se llame distinto.
+- RF-97: MIENTRAS el dueño no elija otra ubicación, EL SISTEMA propondrá `Documentos › AlmarioKS › <nombre>.kdbx`,
+  quitando del nombre de archivo los caracteres que Windows no admite (`\ / : * ? " < > |` y los de control),
+  los puntos y espacios finales, cortándolo a 100 caracteres, evitando los nombres reservados (`CON`, `NUL`, `COM1`…)
+  y usando `bóveda` si queda vacío; y creará la carpeta `AlmarioKS` al crear la bóveda si no existe (solo esa carpeta).
+- RF-98: SI en la ubicación propuesta ya existe un archivo con ese nombre, ENTONCES EL SISTEMA no creará la bóveda ni
+  tocará ese archivo (RF-4) y pedirá cambiar el nombre o la ubicación.
+- RF-99: DONDE el dueño elija "Crear uno nuevo" como archivo llave, EL SISTEMA lo creará junto a la bóveda, con su
+  mismo nombre y extensión `.keyx`, sin reemplazar un archivo existente; y como ese archivo solo, junto a la bóveda,
+  no protege (quien copie la carpeta se lleva los dos), exigirá además una contraseña maestra. Una bóveda con solo
+  archivo llave sigue siendo posible con "Usar uno mío". [confirmado por el dueño el 2026-11-12: al abrir sale
+  marcada "Sin archivo llave"]
+- RF-100: CUANDO el dueño crea o edita una entrada, EL SISTEMA mostrará el formulario en un diálogo modal sobre la
+  bóveda, con el foco en Título; al cancelar o pulsar Esc preguntará solo si hay cambios; al guardar cerrará el
+  diálogo y dejará esa entrada seleccionada.
+- RF-101: CUANDO el dueño pulsa "Generar" en el campo de contraseña, EL SISTEMA llenará el campo con una contraseña
+  generada con las opciones vigentes (RF-65 a RF-69) y la dejará a la vista.
+- RF-102: EL SISTEMA ofrecerá "Todas las entradas" como primer elemento del riel, con las entradas de todos los
+  grupos fuera de la papelera y su total; el grupo raíz no aparece como un grupo más, y una entrada creada desde ahí
+  queda en la raíz.
+- RF-103: EL SISTEMA usará siempre el tema oscuro. [confirmado por el dueño el 2026-11-12; ofrecer el claro en Ajustes
+  queda en el backlog]
+- RF-104: La ventana no se podrá achicar por debajo de 1000 × 640. [por confirmar; antes 480 × 360]
+
+Sin cambio de comportamiento, solo de lugar: editar va junto al título de la entrada; mover y enviar a la papelera, en
+un menú de más acciones; las órdenes de grupo, en el menú de cada grupo; la ruta del archivo, en Ajustes.
+No entra (no existe en el núcleo): duplicar una entrada (`docs/BACKLOG.md`).
+
+## Cambio 2026-11-12, segunda ronda del dueño
+Origen: `docs/revisiones/0.1-ronda-2-dueno.md` y el prototipo `docs/diseno/prototipo-0.1/Lista.dc.html` (la bóveda
+pasa a dos columnas: riel y lista; la entrada se abre en una ventana). Confirmados por el dueño: RF-103 (tema
+oscuro) y, en RF-99, que al abrir "Crear bóveda" salga marcada "Sin archivo llave".
+
+Cambian (el texto de arriba se conserva como historia; vale este):
+- RF-42: CUANDO el dueño abre un grupo, EL SISTEMA listará sus entradas en una tabla con título, usuario, una máscara
+  fija donde hay contraseña, sitio y día de modificación, en orden por título; las etiquetas y, en los resultados de
+  búsqueda, la ruta del grupo siguen en la tabla para el lector de pantalla.
+- RF-43: CUANDO el dueño abre una entrada (doble clic en su título, Enter sobre él o el botón de la fila elegida), EL
+  SISTEMA la mostrará en una ventana modal con sus campos no protegidos, los nombres de sus campos propios y de sus
+  adjuntos, y cuáles campos protegidos tienen valor, sin enviar a la ventana ningún valor protegido.
+- RF-65 y RF-68: la longitud va de 8 a **500** (20 por defecto); fuera de ese rango no se genera (`ReglasImposibles`).
+
+Nuevos:
+- RF-105: EL SISTEMA nunca enviará una contraseña a la lista: el resumen de cada entrada dice solo si tiene
+  contraseña (sí o no), y la celda muestra una máscara de ancho fijo o queda vacía.
+- RF-106: CUANDO el dueño hace doble clic en una celda de la lista o en un valor de la ventana de la entrada, EL
+  SISTEMA hará: en título o fecha, abrir la entrada; en usuario, copiarlo; en contraseña, copiarla sin mostrarla; en
+  sitio, abrirlo en el navegador (RF-49). Copiar y abrir pasan por el núcleo (RF-71 a RF-75). Una celda sin dato no
+  hace nada. Todo gesto de doble clic tiene además un botón o una tecla que hace lo mismo.
+- RF-107: La ventana de la entrada mostrará "Creada el…" y "Modificada el…" con día y hora del equipo, al minuto.
+- RF-108: CUANDO el dueño pulsa "Editar" en la ventana de la entrada, EL SISTEMA la cambiará por el formulario
+  (RF-100); guardar o cancelar vuelven a la ventana de la entrada. Al cerrarla, el foco vuelve a su fila, que sigue
+  elegida; al cerrar o bloquear, lo mostrado se oculta.
+- RF-109: SI el sistema operativo no entrega aleatoriedad, ENTONCES EL SISTEMA no generará nada, no usará otra
+  fuente, y lo dirá con un código propio (`GeneradorNoDisponible`), dejando el campo como estaba.
+- RF-110: CUANDO el dueño va a desbloquear una bóveda `X.kdbx` y junto a ella existe `X.keyx`, EL SISTEMA traerá ese
+  archivo llave ya elegido y dirá que lo eligió solo; el dueño puede quitarlo o cambiarlo. EL SISTEMA solo responde
+  esto para la bóveda bloqueada, una reciente o la última elegida con el diálogo de abrir.
+- RF-111: EL SISTEMA recordará, por cada bóveda reciente, la ruta (solo la ruta) del último archivo llave con el que
+  se abrió, y la traerá elegida la próxima vez; la recordada gana a la que está junto a la bóveda. SI ese archivo ya
+  no existe, ENTONCES lo dirá y pedirá elegirlo (o usará el que está junto a la bóveda, si existe).
+  Solo se recuerda si el desbloqueo llevó también contraseña, y solo rutas locales con letra de unidad elegidas con
+  el diálogo; la llave que está junto a la bóveda no se guarda; abrir sin llave, con la de al lado o con otra
+  olvida la anterior. No se propone un archivo de más de 1 MiB. [aprobado por seguridad con diez condiciones: `docs/revisiones/0.1-seguridad.md`,
+  "Segunda ronda del dueño"]
+- RF-112: SI el desbloqueo falla, ENTONCES EL SISTEMA dirá "La contraseña o el archivo llave no coinciden. Si esta
+  bóveda usa archivo llave, elígelo.", sin afirmar si la bóveda usa archivo llave.
+- RF-113: DONDE el dueño marque "Crear uno nuevo", EL SISTEMA mostrará antes de crear dónde quedará el archivo llave
+  (junto a la bóveda), y esa ruta seguirá al nombre y a la ubicación elegida.
+
+Decisión del dueño: las versiones 0.x ya no llevan el aviso "no la uses con tus contraseñas reales". Los datos
+siguen dichos donde corresponde (sin firma de Windows y sin auditoría externa hasta la 1.0).
+
 ## Propuestas al dueño sobre la constitución (no se cambió nada)
 - Regla 4: nombrar como excepción el generador y validador de `.keyx` (hoy está en "Reglas específicas del proyecto").
 - Regla 6: decir "salvo `reveal_*` y la salida del generador", como ya dice el ADR-0002.

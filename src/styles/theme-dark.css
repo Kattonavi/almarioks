@@ -1,10 +1,11 @@
 /*
- * Dark theme: the same roles as `tokens.css`. Imported from `styles.css` under `(prefers-color-scheme: dark)`.
+ * Dark theme: the same roles as `tokens.css`. Imported always from `styles.css`: it is the theme of the app (RF-103).
  * The frame is still a signal panel (deeper black); the work ground goes dark and the panel inside it inverts to
  * light, the way the selected group does on the rail.
  */
 :root,
-dialog {
+dialog,
+.menu {
   color-scheme: dark;
 
   --ground: #191b21;
@@ -20,6 +21,8 @@ dialog {
   --signal: #0c0d10;
   --signal-raised: #1c1f26;
   --signal-rule: #2a2d36;
+  /* The selected group: the same light plate as the panel of the work area. */
+  --signal-panel: #f2f2ee;
 
   --panel: #f2f2ee;
   --panel-hover: #dcdcd6;
@@ -29,6 +32,7 @@ dialog {
   --danger: #ff7a85;
   --on-danger: #16181d;
   --ok: #4cc38a;
+  --on-panel-ok: #157a52;
 
   --backdrop: rgb(0 0 0 / 65%);
   --shadow: 0 12px 32px rgb(0 0 0 / 50%);

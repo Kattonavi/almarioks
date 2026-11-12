@@ -4,7 +4,7 @@ import { assertNever } from "../assertNever";
 import type { Unlisten, VaultClient } from "../ipc/client";
 import { errorMessage, type AppError, type Result } from "../ipc/errors";
 import type { Recovery, SaveState, VaultStatus } from "../ipc/schemas";
-import { InfoIcon, WarningIcon } from "../ui/icons";
+import { InfoIcon, LockIcon, WarningIcon } from "../ui/icons";
 import { Dialog } from "./Dialog";
 import { RecoveryNotice } from "./RecoveryNotice";
 import type { SaveSignal } from "./saveSignal";
@@ -50,21 +50,36 @@ function viewOf(state: SaveState): SaveView {
   }
 }
 
-function politeText(view: SaveView, notice: string): string {
+/** How often the save state at the foot of the rail looks at the clock again. */
+const SAVED_TICK_MS = 20_000;
+
+/**
+ * What the foot of the rail says. At rest, with nothing pending, the vault is as the file has it: "Guardado". A
+ * read-only vault never saves, so it says nothing of its own.
+ */
+function politeText(view: SaveView, notice: string, readOnly: boolean): string {
   switch (view.kind) {
     case "saving":
       return "Guardando…";
     case "saved":
-      return "Guardado.";
+      return "Guardado";
     case "reloaded":
       return "Se recargó el archivo del disco y se descartó lo que no estaba guardado.";
     case "idle":
+      return notice !== "" || readOnly ? notice : "Guardado";
     case "failed":
     case "external":
       return notice;
     default:
       return assertNever(view);
   }
+}
+
+/** How long ago the last save reached the disk, the way the rail says it. */
+export function savedAgo(savedAt: number, now: number): string {
+  const minutes = Math.floor(Math.max(0, now - savedAt) / 60_000);
+  if (minutes < 1) return "hace un momento";
+  return minutes < 60 ? `hace ${String(minutes)} min` : `hace ${String(Math.floor(minutes / 60))} h`;
 }
 
 interface OpenVaultProps {
@@ -103,6 +118,9 @@ export function OpenVault(props: OpenVaultProps) {
   const [notice, setNotice] = useState("");
   /** RF-21: how many saves reached the disk since this screen opened (see `SaveSignal`). */
   const [savedCount, setSavedCount] = useState(0);
+  /** The moment the last save reached the disk, as this window learned of it; `null` until one does. */
+  const [savedAt, setSavedAt] = useState<number | null>(null);
+  const [now, setNow] = useState(() => Date.now());
   const [busy, setBusy] = useState(false);
   const [confirmReload, setConfirmReload] = useState(false);
   const [convertError, setConvertError] = useState<AppError | null>(null);
@@ -117,13 +135,27 @@ export function OpenVault(props: OpenVaultProps) {
   });
 
   useEffect(() => {
+    if (savedAt === null) return;
+    const timer = setInterval(() => {
+      setNow(Date.now());
+    }, SAVED_TICK_MS);
+    return () => {
+      clearInterval(timer);
+    };
+  }, [savedAt]);
+
+  useEffect(() => {
     let disposed = false;
     let unlisten: Unlisten | undefined;
     client
       .onSaveState((state) => {
         if (disposed) return;
         setSave(viewOf(state));
-        if (state === "saved") setSavedCount((count) => count + 1);
+        if (state === "saved") {
+          setSavedCount((count) => count + 1);
+          setSavedAt(Date.now());
+          setNow(Date.now());
+        }
       })
       .then(
         (stop) => {
@@ -165,7 +197,11 @@ export function OpenVault(props: OpenVaultProps) {
         }
         setSave(after);
         // A retry or a save elsewhere that answered without anything pending wrote the file.
-        if (after.kind === "saved") setSavedCount((count) => count + 1);
+        if (after.kind === "saved") {
+          setSavedCount((count) => count + 1);
+          setSavedAt(Date.now());
+          setNow(Date.now());
+        }
         return;
       default:
         assertNever(outcome);
@@ -225,6 +261,8 @@ export function OpenVault(props: OpenVaultProps) {
   }
 
   const problem = save.kind === "failed" || save.kind === "external" ? save : null;
+  const saveText = politeText(save, notice, readOnly);
+  const ago = save.kind === "saved" && savedAt !== null ? savedAgo(savedAt, now) : "";
   const saveSignal: SaveSignal = { saved: savedCount, problem: problem !== null };
 
   /** What the person has to know before working: above the work area, never over it. */
@@ -354,7 +392,9 @@ export function OpenVault(props: OpenVaultProps) {
             {props.lockDeadline !== undefined && (
               <LockCountdown key={props.lockDeadline} deadline={props.lockDeadline} />
             )}
-            <button type="button" className="btn-primary" onClick={props.onLock}>
+            {/* A bar action without a plate: the weight of the bar is the search. */}
+            <button type="button" className="btn-bar" onClick={props.onLock}>
+              <LockIcon />
               Bloquear
             </button>
             {props.tools}
@@ -362,20 +402,27 @@ export function OpenVault(props: OpenVaultProps) {
         }
         railHead={
           <>
-            <h2 id="vault-title" ref={titleRef} tabIndex={-1}>
+            <p className="rail-label">Bóveda</p>
+            {/* The rail shows no paths: the file of the vault is in this `title` and in Settings. */}
+            <h2 id="vault-title" ref={titleRef} tabIndex={-1} title={vault.path}>
               {props.name === "" ? vault.fileName : props.name}
             </h2>
-            <p className="path mono" title={vault.path}>
-              {vault.path}
-            </p>
           </>
         }
         banner={notices}
       />
 
       {/* Outside the vault screen on purpose: this live region must not be remounted with it after a reload. */}
-      <div aria-live="polite" className="save-state">
-        {politeText(save, notice) !== "" && <p>{politeText(save, notice)}</p>}
+      <div aria-live="polite" className="save-state" data-state={save.kind}>
+        {saveText !== "" && (
+          <p>
+            <span>
+              {saveText}
+              {/* How long ago is for the eye only: a live region that changed every minute would be read every minute. */}
+              {ago !== "" && <span aria-hidden="true"> {ago}</span>}
+            </span>
+          </p>
+        )}
       </div>
 
       {confirmReload && (

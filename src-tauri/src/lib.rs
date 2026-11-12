@@ -73,12 +73,13 @@ pub fn show_main_window<R: Runtime>(app: &AppHandle<R>) {
 }
 
 /// The parts of the real app: the settings file in the configuration folder Tauri gives (never a fixed path),
-/// the Windows clipboard, the system's file dialogs and the default browser.
+/// the Windows clipboard, the system's file dialogs, the default browser and the Documents folder of the system.
 ///
 /// # Errors
 /// The configuration folder of the app cannot be resolved.
 pub fn system_parts<R: Runtime>(app: &AppHandle<R>) -> Result<AppParts, SetupError> {
     let settings_file = app.path().app_config_dir()?.join(SETTINGS_FILE_NAME);
+    let documents = app.clone();
     Ok(AppParts {
         settings_file,
         // If the clipboard cannot start the app starts anyway; copying answers the error.
@@ -88,6 +89,9 @@ pub fn system_parts<R: Runtime>(app: &AppHandle<R>) -> Result<AppParts, SetupErr
         idle_clock: Arc::new(SystemIdleClock),
         reloader: Arc::new(AppWindow(app.clone())),
         new_vault_kdf: Arc::new(calibrated_kdf),
+        // The known folder of the system (it may be redirected, or inside a synchronized folder): never a path
+        // put together by hand. Without one the app starts all the same and proposes no location (RF-97).
+        documents_dir: Arc::new(move || documents.path().document_dir().ok()),
     })
 }
 

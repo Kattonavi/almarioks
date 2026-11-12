@@ -23,6 +23,7 @@ pub mod entries;
 pub mod error;
 pub mod groups;
 mod list;
+pub mod location;
 pub mod passwords;
 pub mod settings;
 pub mod url;
@@ -52,6 +53,8 @@ pub fn handler<R: tauri::Runtime>() -> impl Fn(tauri::ipc::Invoke<R>) -> bool + 
         vault::vault_save_as,
         vault::vault_reload,
         vault::activity,
+        location::vault_create_location,
+        location::unlock_key_suggestion,
         groups::group_tree,
         groups::group_create,
         groups::group_rename,

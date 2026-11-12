@@ -1,4 +1,4 @@
-//! Password generator (T11, RF-65 to RF-69).
+//! Password generator (T11, RF-65 to RF-69, RF-109).
 //!
 //! Every character comes from a [`RandomSource`] (the operating system's generator in the product, see
 //! [`OsRandom`]) and is drawn with the same probability among the allowed characters: one index over the union of
@@ -8,6 +8,9 @@
 //!
 //! The password is returned as a [`SecretString`], wiped when dropped. Discarded candidates and byte buffers are
 //! wiped too.
+//!
+//! If the source fails, nothing is generated and no other source is tried (RF-109): the error of the source is the
+//! answer, and [`OsRandom`] answers [`CoreError::GeneradorNoDisponible`].
 
 use secrecy::SecretString;
 use zeroize::{Zeroize, Zeroizing};
@@ -17,7 +20,7 @@ use crate::error::{CoreError, CoreResult};
 /// Shortest password the generator makes (RF-65).
 pub const MIN_LENGTH: usize = 8;
 /// Longest password the generator makes (RF-65).
-pub const MAX_LENGTH: usize = 128;
+pub const MAX_LENGTH: usize = 500;
 /// Length when the person does not choose one (RF-65).
 pub const DEFAULT_LENGTH: usize = 20;
 
@@ -32,8 +35,9 @@ pub const SYMBOLS: &str = "!@#$%^&*()-_=+[]{};:,.<>?/~|";
 /// Characters that "avoid look-alikes" removes (RF-67).
 pub const LOOKALIKES: &str = "0Oo1lI|";
 
-/// Most candidates drawn before giving up. With a healthy source the chance of needing even a few is tiny; the
-/// bound only stops a broken source (for instance one that always returns the same byte) from looping forever.
+/// Most candidates drawn before giving up, and most calls to the source that may give no usable byte. With a
+/// healthy source the chance of needing even a few is tiny; the bound only stops a broken source (for instance one
+/// that always returns the same byte) from looping forever.
 const MAX_ATTEMPTS: usize = 10_000;
 
 /// Where the random bytes come from. The product uses [`OsRandom`]; tests inject a fixed-seed source.
@@ -41,25 +45,25 @@ pub trait RandomSource {
     /// Fills `buf` with random bytes.
     ///
     /// # Errors
-    /// The source could not provide the bytes.
+    /// The source could not provide the bytes. The generator stops there and answers this same error (RF-109).
     fn fill(&mut self, buf: &mut [u8]) -> CoreResult<()>;
 }
 
-/// The operating system's random generator (`getrandom`).
+/// The operating system's random generator (`getrandom`). If it fails it answers
+/// [`CoreError::GeneradorNoDisponible`] (RF-109); there is no second source behind it.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct OsRandom;
 
 impl RandomSource for OsRandom {
     fn fill(&mut self, buf: &mut [u8]) -> CoreResult<()> {
-        // Same mapping as the key file generator in `kdbx`; the spec has no code for "no randomness available".
-        getrandom::fill(buf).map_err(|_| CoreError::GuardadoFallido)
+        getrandom::fill(buf).map_err(|_| CoreError::GeneradorNoDisponible)
     }
 }
 
 /// What the person asked for (RF-65, RF-67).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PasswordRules {
-    /// Length in characters, 8 to 128.
+    /// Length in characters, 8 to 500.
     pub length: usize,
     /// Include `a-z`.
     pub lowercase: bool,
@@ -110,8 +114,8 @@ impl PasswordRules {
 /// Generates a password with the operating system's random generator.
 ///
 /// # Errors
-/// `ReglasImposibles` if no type is chosen or the length is outside 8 to 128 (RF-68); `GuardadoFallido` if the
-/// system generator fails (decisión pendiente: the spec has no code for it).
+/// `ReglasImposibles` if no type is chosen or the length is outside 8 to 500 (RF-68); `GeneradorNoDisponible` if
+/// the system generator fails (RF-109): nothing is generated and no other source is used.
 pub fn generate_password(rules: &PasswordRules) -> CoreResult<SecretString> {
     generate_with(rules, &mut OsRandom)
 }
@@ -119,8 +123,10 @@ pub fn generate_password(rules: &PasswordRules) -> CoreResult<SecretString> {
 /// Generates a password from an injected source (RF-69).
 ///
 /// # Errors
-/// Same as [`generate_password`]; also if the source keeps failing the "one of each type" check
-/// ([`MAX_ATTEMPTS`] candidates).
+/// `ReglasImposibles` as in [`generate_password`]; the error of `source` as it comes, at its first failure (RF-109);
+/// `GeneradorNoDisponible` if [`MAX_ATTEMPTS`] candidates in a row lack a chosen type, or if the source answered
+/// [`MAX_ATTEMPTS`] times with bytes that were all rejected, which only a source that is not random can cause: a
+/// source that gives no randomness is not available either (RF-109).
 pub fn generate_with(
     rules: &PasswordRules,
     source: &mut impl RandomSource,
@@ -137,6 +143,10 @@ pub fn generate_with(
     // Largest multiple of `size` that fits in a byte: bytes from here up are rejected (no modulo bias).
     let limit = 256 - 256 % size;
 
+    // Calls to the source that gave not one usable byte, over the whole generation. With a healthy source one of
+    // them is already rare (at worst 76 of every 256 bytes are rejected, and a call asks for 8 bytes or more), so
+    // the bound of the candidates serves here too: it only stops a source that answers and gives nothing.
+    let mut barren_fills = 0_usize;
     for _ in 0..MAX_ATTEMPTS {
         let mut candidate = String::with_capacity(rules.length);
         let mut bytes = Zeroizing::new(vec![0_u8; rules.length]);
@@ -144,6 +154,7 @@ pub fn generate_with(
             source.fill(bytes.as_mut_slice()).inspect_err(|_| {
                 candidate.zeroize();
             })?;
+            let had = candidate.len();
             for &byte in bytes.iter() {
                 if candidate.len() == rules.length {
                     break;
@@ -155,6 +166,13 @@ pub fn generate_with(
                     candidate.push(char::from(ch));
                 }
             }
+            if candidate.len() == had {
+                barren_fills += 1;
+                if barren_fills >= MAX_ATTEMPTS {
+                    candidate.zeroize();
+                    return Err(CoreError::GeneradorNoDisponible);
+                }
+            }
         }
         let has_every_class = classes
             .iter()
@@ -164,5 +182,5 @@ pub fn generate_with(
         }
         candidate.zeroize();
     }
-    Err(CoreError::GuardadoFallido)
+    Err(CoreError::GeneradorNoDisponible)
 }

@@ -1,15 +1,23 @@
-import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
+import {
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type ReactNode,
+} from "react";
 
 import { assertNever } from "../assertNever";
-import type { VaultClient } from "../ipc/client";
+import type { FieldName, VaultClient } from "../ipc/client";
 import { errorMessage, type AppError, type Result } from "../ipc/errors";
 import type { EntrySummary, GroupNode, SearchResult } from "../ipc/schemas";
-import { PlusIcon, SearchIcon, TrashIcon } from "../ui/icons";
-import { EntryForm } from "./EntryForm";
-import { EntryPanel } from "./EntryPanel";
-import { findGroup, formatDate, formatDay, liveEntryCount, plural, shown } from "./format";
-import { GroupActions, type GroupChange } from "./GroupActions";
-import { assignLines, initialOf, lineOfPath, type GroupLine } from "./lines";
+import { CheckIcon, CopyIcon, MouseIcon, PlusIcon, SearchIcon, WindowIcon } from "../ui/icons";
+import { EntryDialog } from "./EntryDialog";
+import { copyNoticeOf, EntryPanel, type CopyNotice } from "./EntryPanel";
+import { findGroup, formatShortDay, plural, shortSite, shown, trailTo } from "./format";
+import { useGroupActions, type GroupChange } from "./GroupActions";
+import { GroupMenuButton, GroupRail } from "./GroupRail";
+import { assignLines, entryInitial, entryLine, lineOfPath, type GroupLine } from "./lines";
 import { NO_SAVE_SIGNAL, savingText, type SaveSignal } from "./saveSignal";
 
 /** RF-59: wait this long after the last keystroke before asking the core to search. */
@@ -27,9 +35,12 @@ type SearchState =
   | { readonly kind: "failed"; readonly error: AppError };
 
 interface ListState {
-  readonly groupId: string;
+  /** The groups it was asked for (see `listKey`). */
+  readonly key: string;
   readonly attempt: number;
   readonly result: Result<EntrySummary[]>;
+  /** The group each entry came from: in "Todas las entradas" every row keeps the colour of its own group. */
+  readonly groupOf: ReadonlyMap<string, string>;
 }
 
 interface SelectedEntry {
@@ -37,31 +48,76 @@ interface SelectedEntry {
   readonly title: string | null;
 }
 
-/** What the detail zone shows. */
+/** The entry the list has chosen, and whether its window is open over the list (RF-43). */
 type DetailState =
   | { readonly kind: "none" }
-  | { readonly kind: "entry"; readonly entry: SelectedEntry }
-  | { readonly kind: "new"; readonly groupId: string };
+  | { readonly kind: "entry"; readonly entry: SelectedEntry; readonly open: boolean };
 
-/** The notice of the detail zone: a plain text, or a new entry waiting for its save to reach the disk (RF-21). */
+/** The notice of the list: a plain text, or a new entry waiting for its save to reach the disk (RF-21). */
 type Notice = { readonly kind: "text"; readonly text: string } | { readonly kind: "created"; readonly since: number };
 
 const NO_NOTICE: Notice = { kind: "text", text: "" };
 
-/** What a group badge shows: the line colour of the group and its initial (the recycle bin shows its icon). */
-interface Badge {
-  readonly line: GroupLine;
-  readonly initial: string;
-  readonly bin: boolean;
-}
+/** RF-73: what the copy notice says once the time the core gave is over. */
+const CLEARED = "Se cumplió el tiempo: AlmarioKS limpió el portapapeles si nadie copió otra cosa.";
 
-/** The row whose value is on the clipboard, and the seconds left until the core clears it. */
-interface Stamped {
-  readonly entryId: string;
-  readonly seconds: number;
+/**
+ * RF-74: the words of the copy notice. A protected value counts down the seconds the core gave until it clears the
+ * clipboard; a value that is not protected is only named, because nothing clears it.
+ */
+function copyNoticeText(copy: CopyNotice | null, now: number): string {
+  if (copy === null) return "";
+  if (copy.deadline === null) return copy.what;
+  const seconds = Math.ceil((copy.deadline - now) / 1000);
+  return seconds > 0 ? `${copy.what}. Se borra del portapapeles en ${String(seconds)} s` : CLEARED;
 }
 
 const NO_LINES: ReadonlyMap<string, GroupLine> = new Map();
+
+/** Between the group ids of a list key. An id never has a line break in it. */
+const KEY_SEPARATOR = "\n";
+
+/** RF-102: every group outside the recycle bin, the root first. */
+function liveGroupIds(node: GroupNode): string[] {
+  if (node.kind === "recycle_bin") return [];
+  return [node.id, ...node.children.flatMap(liveGroupIds)];
+}
+
+/**
+ * A title the way the core compares it (`text::fold` of the core): lower case, NFKD, without combining marks, and
+ * twice, because a lower case can bring a mark of its own.
+ */
+function foldTitle(title: string | null): string {
+  const once = (text: string) => text.toLowerCase().normalize("NFKD").replace(/\p{M}/gu, "");
+  return once(once(title ?? ""));
+}
+
+/** RF-102: several groups put together go by title, like the entries of one group; the id settles equal titles. */
+function byTitle(a: EntrySummary, b: EntrySummary): number {
+  const ta = foldTitle(a.title);
+  const tb = foldTitle(b.title);
+  if (ta !== tb) return ta < tb ? -1 : 1;
+  return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+}
+
+/** One list out of the lists of `ids`: the first failure, or every entry with the group it came from. */
+function mergeLists(
+  ids: readonly string[],
+  results: readonly Result<EntrySummary[]>[],
+): Pick<ListState, "result" | "groupOf"> {
+  const groupOf = new Map<string, string>();
+  const entries: EntrySummary[] = [];
+  for (const [index, result] of results.entries()) {
+    if (!result.ok) return { result, groupOf };
+    for (const entry of result.value) {
+      groupOf.set(entry.id, ids[index] ?? "");
+      entries.push(entry);
+    }
+  }
+  // One group arrives in the order of the core; only several put together are ordered here.
+  if (ids.length > 1) entries.sort(byTitle);
+  return { result: { ok: true, value: entries }, groupOf };
+}
 
 interface VaultScreenProps {
   readonly client: VaultClient;
@@ -71,17 +127,17 @@ interface VaultScreenProps {
   readonly saveSignal?: SaveSignal;
   /** Frame slots, filled by whoever owns the open vault: the end of the top bar (lock, settings)… */
   readonly barEnd?: ReactNode;
-  /** …the head of the group rail (name and file of the vault)… */
+  /** …the head of the group rail (the name of the vault)… */
   readonly railHead?: ReactNode;
   /** …and the notices above the work area (read-only, save problems). */
   readonly banner?: ReactNode;
 }
 
 /**
- * P4: the open vault (RF-42, RF-50, RF-59, RF-64, RF-78, RF-92), with P5 in the detail zone. A signal frame (top bar
- * with the search, rail with the groups) around two work zones: entries of the chosen group or search results, and
- * the detail. Every vault datum is rendered as a React text child, never as HTML or as a link (RF-78). All its data
- * is local state, so a lock, which unmounts this screen, drops it at once (RF-32).
+ * P4: the open vault (RF-42, RF-50, RF-59, RF-64, RF-78, RF-92, RF-102), with P5 in a window over it (RF-43). A signal
+ * frame (top bar with the search, rail with the groups) around the work zone: the entries of what the rail has open,
+ * or the search results, as a table. Every vault datum is rendered as a React text child, never as HTML or as a link (RF-78).
+ * All its data is local state, so a lock, which unmounts this screen, drops it at once (RF-32).
  */
 export function VaultScreen({
   client,
@@ -93,30 +149,40 @@ export function VaultScreen({
 }: VaultScreenProps) {
   const [tree, setTree] = useState<TreeState>({ kind: "loading" });
   const [treeAttempt, setTreeAttempt] = useState(0);
+  /** The group the rail has open; `null` is "Todas las entradas", which is how the vault opens (RF-102). */
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   const [list, setList] = useState<ListState | null>(null);
   const [listAttempt, setListAttempt] = useState(0);
   /** Asks the list again after a change without showing "Cargando" in between. */
   const [listRefresh, setListRefresh] = useState(0);
   const [detail, setDetail] = useState<DetailState>({ kind: "none" });
+  /** RF-100: the group a new entry is being written for, in its dialog over the vault; `null`: no dialog. */
+  const [newEntryIn, setNewEntryIn] = useState<string | null>(null);
   const [notice, setNotice] = useState<Notice>(NO_NOTICE);
   const [query, setQuery] = useState("");
   const [search, setSearch] = useState<SearchState>({ kind: "idle" });
-  /** RF-74 on the list: which row holds the clipboard and until when. It outlives the detail of that entry. */
-  const [stamp, setStamp] = useState<{ readonly entryId: string; readonly deadline: number } | null>(null);
+  /** RF-74: the last copy, for the notice at the foot of the list or of the window. It outlives that window. */
+  const [copyNotice, setCopyNotice] = useState<CopyNotice | null>(null);
+  /** What an order given from the list (copy, open the site) could not do. */
+  const [listError, setListError] = useState<AppError | null>(null);
+  /** The title of the window of the entry: the dialog takes its name from it. */
+  const windowTitleId = useId();
   const [now, setNow] = useState(() => Date.now());
   const searchRef = useRef<HTMLInputElement>(null);
   const listPaneRef = useRef<HTMLElement>(null);
   /** RF-59: Enter pressed while the search was still on its way: open the first result when it lands. */
   const openFirst = useRef(false);
-  /** The entry opened from the keyboard: its detail takes the focus once loaded (`seq` asks again for the same one). */
-  const [keyboardOpen, setKeyboardOpen] = useState<{ readonly entryId: string; readonly seq: number } | null>(null);
-  const detailTitleRef = useRef<HTMLHeadingElement>(null);
   const groupsTitleRef = useRef<HTMLHeadingElement>(null);
   /** After a group action removed what had focus, focus goes back to the tree once it is painted. */
   const focusTree = useRef(false);
-  const focusDetail = useRef(false);
-  /** After "Volver a la lista": the row of the entry that was open takes the focus once the list is shown again. */
+  /** After an entry left (to the bin or for good): the title of the list takes the focus. */
+  const focusList = useRef(false);
+  /**
+   * The entry whose "Copiar contraseña" takes the focus once its row is chosen and in the list: the first result
+   * after Enter in the search (RF-59), or an entry just created, whose row arrives with the next list.
+   */
+  const focusCopy = useRef<string | null>(null);
+  /** RF-108: after the window closes, the row of its entry takes the focus. */
   const focusRow = useRef<string | null>(null);
   const searchSeq = useRef(0);
   const searchTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -145,9 +211,9 @@ export function VaultScreen({
   }, [client, treeAttempt]);
 
   useEffect(() => {
-    if (!focusDetail.current) return;
-    focusDetail.current = false;
-    detailTitleRef.current?.focus();
+    if (!focusList.current) return;
+    focusList.current = false;
+    listPaneRef.current?.querySelector<HTMLElement>("#entries-title")?.focus();
   }, [detail]);
 
   useEffect(() => {
@@ -162,38 +228,65 @@ export function VaultScreen({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [detail]);
 
+  // After every render: the row may arrive later than the choice (a new entry waits for the list to be asked again).
+  useEffect(() => {
+    const entryId = focusCopy.current;
+    if (entryId === null || detail.kind !== "entry" || detail.entry.id !== entryId) return;
+    // While a modal dialog is open everything behind it is inert: the focus waits for it to close.
+    if (document.querySelector("dialog[open]") !== null) return;
+    // RF-105: "Copiar contraseña", or "Abrir la entrada" when the entry has no password: the first button of the row.
+    const button = listPaneRef.current?.querySelector<HTMLElement>(
+      "table.entries tbody tr[data-selected] .cell-actions button",
+    );
+    if (button === null || button === undefined) return;
+    focusCopy.current = null;
+    // The focus brings the row into view when it is out of sight.
+    button.focus();
+  });
+
   useEffect(() => {
     if (!focusTree.current) return;
     focusTree.current = false;
     groupsTitleRef.current?.focus();
   }, [tree]);
 
-  const selectedExists =tree.kind === "ready" && selectedGroupId !== null && findGroup(tree.root, selectedGroupId);
-  const groupId = tree.kind === "ready" ? (selectedExists ? selectedGroupId : tree.root.id) : null;
+  const root = tree.kind === "ready" ? tree.root : null;
+  const selected = root !== null && selectedGroupId !== null ? findGroup(root, selectedGroupId) : undefined;
+  /**
+   * The group the list shows; `null` is "Todas las entradas" (RF-102). The root is never a group of its own, and a
+   * chosen group that is gone falls back here too.
+   */
+  const groupId = selected !== undefined && selected.kind !== "root" ? selected.id : null;
+  /** The groups whose entries the list asks for, as one text: the list is asked again only when they change. */
+  const listKey = root === null ? null : (groupId ?? liveGroupIds(root).join(KEY_SEPARATOR));
+  const groupActions = useGroupActions(client, root, onGroupChange);
 
   useEffect(() => {
-    if (groupId === null) return;
+    if (listKey === null) return;
     let active = true;
-    void client.entryList(groupId).then((result) => {
-      if (active) setList({ groupId, attempt: listAttempt, result });
+    // RF-102: the core has no "every entry" command, so "Todas las entradas" asks for each group and puts them together.
+    const ids = listKey.split(KEY_SEPARATOR);
+    void Promise.all(ids.map((id) => client.entryList(id))).then((results) => {
+      if (active) setList({ key: listKey, attempt: listAttempt, ...mergeLists(ids, results) });
     });
     return () => {
       active = false;
     };
-  }, [client, groupId, listAttempt, listRefresh]);
+  }, [client, listKey, listAttempt, listRefresh]);
 
-  // The stamp on the copied row counts down with the clipboard and goes away when the core clears it.
+  // RF-74: the copy notice counts down with the clipboard and stops at zero.
   useEffect(() => {
-    if (stamp === null) return;
+    const deadline = copyNotice?.deadline ?? null;
+    if (deadline === null) return;
     const timer = setInterval(() => {
       const at = Date.now();
-      if (at >= stamp.deadline) setStamp(null);
-      else setNow(at);
+      setNow(at);
+      if (at >= deadline) clearInterval(timer);
     }, 1000);
     return () => {
       clearInterval(timer);
     };
-  }, [stamp]);
+  }, [copyNotice]);
 
   // Ctrl+F or Ctrl+K go to the search field from anywhere in the vault.
   useEffect(() => {
@@ -202,6 +295,8 @@ export function VaultScreen({
       const key = event.key.toLowerCase();
       if (key !== "f" && key !== "k") return;
       event.preventDefault();
+      // With a modal dialog open, what is behind it is out of reach: the key is still taken from the browser.
+      if (document.querySelector("dialog[open]") !== null) return;
       searchRef.current?.focus();
       searchRef.current?.select();
     }
@@ -220,7 +315,7 @@ export function VaultScreen({
     setQuery(value);
     cancelSearch();
     openFirst.current = false;
-    // RF-92: an empty query (after trimming) does not filter: back to the current group.
+    // RF-92: an empty query (after trimming) does not filter: back to what the rail has open.
     if (value.trim() === "") {
       setSearch({ kind: "idle" });
       return;
@@ -232,20 +327,27 @@ export function VaultScreen({
         if (!mounted.current || mine !== searchSeq.current) return;
         setSearch(result.ok ? { kind: "done", items: result.value } : { kind: "failed", error: result.error });
         const first = result.ok ? result.value[0] : undefined;
-        if (openFirst.current && first !== undefined) openFromKeyboard({ id: first.id, title: first.title });
+        if (openFirst.current && first !== undefined) chooseFromKeyboard({ id: first.id, title: first.title });
         openFirst.current = false;
       });
     }, SEARCH_DELAY_MS);
   }
 
   function clearSearch() {
+    // The focus stays in the search: a pending "focus the copy button of the new entry" must not take it away
+    // when the list comes back (code review, I-3).
+    focusCopy.current = null;
     onQueryChange("");
     searchRef.current?.focus();
   }
 
-  function selectGroup(id: string) {
+  /** A group, or `null` for "Todas las entradas". Choosing in the rail ends a search: the list shows what was chosen. */
+  function selectGroup(id: string | null) {
+    focusCopy.current = null;
+    settleCopyNotice();
     setSelectedGroupId(id);
     setDetail({ kind: "none" });
+    if (query !== "") onQueryChange("");
   }
 
   /** After a change: the tree (counts), the list and an active search, without unmounting the detail. */
@@ -257,8 +359,14 @@ export function VaultScreen({
 
   /** P7: the core answered with the new tree. */
   function onGroupChange(change: GroupChange) {
+    // The list was showing the group that left its place, or one inside it: back to "Todas las entradas".
+    const lost =
+      change.gone !== null &&
+      root !== null &&
+      selectedGroupId !== null &&
+      (trailTo(root, selectedGroupId) ?? []).some((group) => group.id === change.gone);
     setTree({ kind: "ready", root: change.root });
-    setSelectedGroupId(change.select);
+    if (lost) setSelectedGroupId(null);
     setListRefresh((value) => value + 1);
     if (query.trim() !== "") onQueryChange(query);
     if (change.removed) {
@@ -267,27 +375,100 @@ export function VaultScreen({
     }
   }
 
-  function selectEntry(entry: SelectedEntry) {
-    setNotice(NO_NOTICE);
-    setKeyboardOpen(null);
-    setDetail({ kind: "entry", entry });
+  /**
+   * Another entry is chosen: the copy notice goes with the one it spoke of, unless the clipboard still holds a
+   * protected value that is counting down. That one stays until the core clears it.
+   */
+  function settleCopyNotice() {
+    const at = Date.now();
+    setCopyNotice((current) => (current !== null && current.deadline !== null && current.deadline > at ? current : null));
   }
 
-  /** RF-59, UX "buscar y copiar en 3 pasos": open from the keyboard and hand the focus to the detail. */
-  function openFromKeyboard(entry: SelectedEntry) {
+  /**
+   * RF-106: a click on any cell chooses its row, and nothing else. Choosing the row that is already chosen changes
+   * nothing: the second click of a double click must find the row as the first one left it.
+   */
+  function selectEntry(entry: SelectedEntry) {
+    if (detail.kind === "entry" && detail.entry.id === entry.id) return;
+    focusCopy.current = null;
+    settleCopyNotice();
     setNotice(NO_NOTICE);
-    setKeyboardOpen((current) => ({ entryId: entry.id, seq: (current?.seq ?? 0) + 1 }));
-    setDetail({ kind: "entry", entry });
+    setListError(null);
+    setDetail({ kind: "entry", entry, open: false });
+  }
+
+  /** RF-43: the window of the entry, over the list. */
+  function openWindow(entry: SelectedEntry) {
+    focusCopy.current = null;
+    setNotice(NO_NOTICE);
+    setListError(null);
+    setDetail({ kind: "entry", entry, open: true });
+  }
+
+  /** RF-108: back to the list. The entry stays chosen and its row takes the focus. */
+  function closeWindow(entry: SelectedEntry) {
+    focusRow.current = entry.id;
+    setDetail({ kind: "entry", entry, open: false });
+  }
+
+  /** RF-71, RF-106: a copy asked from the list. Always through the core: the window never holds what is copied. */
+  async function copyFromList(entry: SelectedEntry, field: FieldName) {
+    setListError(null);
+    const result = await client.entryCopy(entry.id, field);
+    if (!mounted.current) return;
+    if (!result.ok) {
+      setListError(result.error);
+      return;
+    }
+    // The notice first and the clock after it: the other way round the count could start one second too high.
+    const copied = copyNoticeOf(field, result.value.clearsInSeconds);
+    setNow(Date.now());
+    setCopyNotice(copied);
+  }
+
+  /**
+   * RF-59, "buscar y copiar en 3 pasos": Enter in the search chooses the first result and leaves the focus on its
+   * "Copiar contraseña", so the next Enter copies. The window does not open by itself.
+   */
+  function chooseFromKeyboard(entry: SelectedEntry) {
+    settleCopyNotice();
+    setNotice(NO_NOTICE);
+    setListError(null);
+    focusCopy.current = entry.id;
+    setDetail({ kind: "entry", entry, open: false });
+  }
+
+  /** RF-43, RF-59: Enter on the title of a row opens its window, which takes the focus ("Copiar contraseña"). */
+  function openFromKeyboard(entry: SelectedEntry) {
+    focusCopy.current = null;
+    settleCopyNotice();
+    setNotice(NO_NOTICE);
+    setListError(null);
+    setDetail({ kind: "entry", entry, open: true });
   }
 
   function rowButtons(): HTMLButtonElement[] {
     return [...(listPaneRef.current?.querySelectorAll<HTMLButtonElement>("table.entries tbody th button") ?? [])];
   }
 
-  /** The entries the list shows right now, in order: the search results or the loaded group. */
+  /** RF-49, RF-106: the site of an entry, which the core opens in the browser (only `http` and `https`). */
+  async function openSiteFromList(entry: SelectedEntry) {
+    setListError(null);
+    const result = await client.entryOpenUrl(entry.id);
+    if (!mounted.current) return;
+    if (result.ok) setNotice({ kind: "text", text: "La dirección se abrió en el navegador." });
+    else setListError(result.error);
+  }
+
+  /** The list that answers what is asked right now, or `null` while it is on its way. */
+  function currentList(): ListState | null {
+    return list !== null && list.key === listKey && list.attempt === listAttempt ? list : null;
+  }
+
+  /** The entries the list shows right now, in order: the search results or what the rail has open. */
   function shownItems(): readonly EntrySummary[] {
     if (searching) return search.kind === "done" ? search.items : [];
-    const loaded = list !== null && list.groupId === groupId && list.attempt === listAttempt ? list.result : null;
+    const loaded = currentList()?.result ?? null;
     return loaded?.ok === true ? loaded.value : [];
   }
 
@@ -309,7 +490,7 @@ export function VaultScreen({
           return;
         }
         const first = shownItems()[0];
-        if (first !== undefined) openFromKeyboard({ id: first.id, title: first.title });
+        if (first !== undefined) chooseFromKeyboard({ id: first.id, title: first.title });
         return;
       }
       default:
@@ -346,8 +527,15 @@ export function VaultScreen({
     notice.kind === "text"
       ? notice.text
       : savingText(saveSignal, notice.since, "Entrada creada. Guardándola en el archivo…", "Entrada guardada.");
-  const stamped: Stamped | null =
-    stamp === null ? null : { entryId: stamp.entryId, seconds: Math.max(1, Math.ceil((stamp.deadline - now) / 1000)) };
+  const copyText = copyNoticeText(copyNotice, now);
+  /** RF-74: the one notice of a copy. It is said where the person is looking: in the window while it is open. */
+  const toast = copyText !== "" && (
+    <p className="toast">
+      <CheckIcon />
+      {copyText}
+    </p>
+  );
+  const windowOpen = detail.kind === "entry" && detail.open;
   /** The line colour of every group: by position, so it only changes when the tree does. */
   const lines = tree.kind === "ready" ? assignLines(tree.root) : NO_LINES;
 
@@ -370,14 +558,16 @@ export function VaultScreen({
             aria-keyshortcuts="Control+F Control+K"
             aria-describedby="vault-search-help"
             onChange={(event) => {
+              focusCopy.current = null;
               onQueryChange(event.target.value);
             }}
             onKeyDown={onSearchKeyDown}
           />
           <kbd aria-hidden="true">Ctrl K</kbd>
           <p id="vault-search-help" className="sr-only">
-            Atajo: Ctrl+F o Ctrl+K. Enter abre el primer resultado y flecha abajo lleva a la lista, donde las
-            flechas recorren las entradas, Enter abre una y Escape vuelve aquí. Escape limpia la búsqueda.
+            Atajo: Ctrl+F o Ctrl+K. Enter elige el primer resultado y lleva a su botón de copiar contraseña. Flecha
+            abajo lleva a la lista, donde las flechas recorren las entradas, Enter abre una y Escape vuelve aquí.
+            Escape limpia la búsqueda.
           </p>
         </div>
         {/* The lock countdown, the lock button and the settings come from whoever owns the open vault. */}
@@ -385,89 +575,126 @@ export function VaultScreen({
       </div>
 
       <div className="rail">
-        {railHead !== undefined && <div className="rail-head">{railHead}</div>}
+        <div className="rail-head">
+          {railHead !== undefined && <div className="rail-vault">{railHead}</div>}
+          {/* The root is not a row of the rail (RF-102): what can still be asked of it (its name) is asked here. */}
+          {root !== null && !readOnly && <GroupMenuButton root={root} group={root} onOrder={groupActions.start} />}
+        </div>
         <nav aria-labelledby="groups-title" className="rail-nav">
-          <h3 id="groups-title" ref={groupsTitleRef} tabIndex={-1}>
-            Grupos
-          </h3>
           {renderTree()}
         </nav>
       </div>
 
-      <div className="work" data-detail={detail.kind}>
+      <div className="work">
         <div className="work-banner">{banner}</div>
         <div className="vault-zones">
           <section ref={listPaneRef} aria-labelledby="entries-title" className="list-pane">
             {searching ? renderSearch() : renderGroup()}
-          </section>
-
-          <section aria-labelledby="detail-title" className="detail-pane">
-            {/* The focus target after an entry leaves; the entry title is the visible heading of this zone. */}
-            <h3 id="detail-title" ref={detailTitleRef} tabIndex={-1} className="sr-only">
-              Detalle
-            </h3>
-            <div aria-live="polite">{noticeText !== "" && <p className="notice">{noticeText}</p>}</div>
-            {renderDetail()}
+            <div className="list-foot">
+              {/* What the last order left to say (a new entry, one sent to the bin) and what it could not do. */}
+              <div aria-live="polite" className="list-notice">
+                {noticeText !== "" && <p>{noticeText}</p>}
+              </div>
+              <p role="alert" className="error list-error">
+                {listError === null ? "" : errorMessage(listError)}
+              </p>
+              {/* RF-74: a copy is said here while no window is open; `role="status"` announces it. */}
+              <div role="status" className="toast-zone">
+                {!windowOpen && toast}
+              </div>
+              <p className="list-hint">
+                <span className="list-hint-key">
+                  <MouseIcon />
+                  Doble clic
+                </span>
+                <span>en el título: abre la entrada</span>
+                <span>en usuario o contraseña: copia</span>
+                <span>en el sitio: lo abre en el navegador</span>
+              </p>
+            </div>
           </section>
         </div>
       </div>
+      {renderWindow()}
+      {renderNewEntry()}
     </div>
   );
 
-  function renderDetail() {
+  /** RF-100: "Nueva entrada" is a dialog over the vault; the list stays behind it as it was. */
+  function renderNewEntry() {
+    if (newEntryIn === null || tree.kind !== "ready") return null;
+    const group = findGroup(tree.root, newEntryIn) ?? tree.root;
+    return (
+      <EntryDialog
+        client={client}
+        mode={{
+          kind: "new",
+          group: { id: group.id, name: shown(group.name, "(sin nombre)"), line: entryLine(lines.get(group.id)) },
+        }}
+        onClose={() => {
+          setNewEntryIn(null);
+        }}
+        onSaved={(entry) => {
+          // The new entry is the chosen one, and its window does not open by itself. The focus goes to its "Copiar
+          // contraseña" once its row is in the list (the dialog gives it back to "Nueva entrada" first).
+          settleCopyNotice();
+          setNotice({ kind: "created", since: saveSignal.saved });
+          setListError(null);
+          focusCopy.current = entry.id;
+          setDetail({ kind: "entry", entry: { id: entry.id, title: entry.title }, open: false });
+          refresh();
+        }}
+      />
+    );
+  }
+
+  /**
+   * RF-43, RF-108: the entry in a modal window over the list. The panel brings its own window (and changes it for
+   * the form while editing); it is mounted only while that window is open, so closing it (or a lock, which unmounts
+   * the whole screen) drops every value it was showing.
+   */
+  function renderWindow() {
     switch (detail.kind) {
       case "none":
-        return <p className="pane-state">Elige una entrada para ver su detalle.</p>;
-      case "new": {
-        if (tree.kind !== "ready") return null;
-        const group = findGroup(tree.root, detail.groupId) ?? tree.root;
-        return (
-          <EntryForm
-            client={client}
-            mode={{ kind: "create", groupId: group.id, groupName: shown(group.name, "(sin nombre)") }}
-            onSaved={(entry) => {
-              setNotice({ kind: "created", since: saveSignal.saved });
-              setDetail({ kind: "entry", entry: { id: entry.id, title: entry.title } });
-              refresh();
-            }}
-            onCancel={() => {
-              setDetail({ kind: "none" });
-              detailTitleRef.current?.focus();
-            }}
-          />
-        );
-      }
-      case "entry":
-        if (tree.kind !== "ready") return null;
+        return null;
+      case "entry": {
+        if (!detail.open || tree.kind !== "ready") return null;
+        const { entry } = detail;
         return (
           <EntryPanel
-            key={detail.entry.id}
+            key={entry.id}
             client={client}
-            entryId={detail.entry.id}
-            listTitle={detail.entry.title}
+            entryId={entry.id}
+            listTitle={entry.title}
             root={tree.root}
             readOnly={readOnly}
             saveSignal={saveSignal}
-            focusRequest={keyboardOpen?.entryId === detail.entry.id ? keyboardOpen.seq : 0}
-            onBack={() => {
-              focusRow.current = detail.entry.id;
-              setKeyboardOpen(null);
-              setDetail({ kind: "none" });
+            titleId={windowTitleId}
+            onClose={() => {
+              closeWindow(entry);
             }}
             onChanged={refresh}
-            onCopied={(deadline) => {
+            onCopied={(copy) => {
               setNow(Date.now());
-              setStamp(deadline === null ? null : { entryId: detail.entry.id, deadline });
+              setCopyNotice(copy);
             }}
             onDeleted={(message) => {
+              settleCopyNotice();
               setDetail({ kind: "none" });
               setNotice({ kind: "text", text: message });
               refresh();
               // After the commit: while a modal dialog is open, everything outside it is inert.
-              focusDetail.current = true;
+              focusList.current = true;
             }}
+            // RF-74: while the window is open the copy notice is said inside it, at its foot.
+            foot={
+              <div role="status" className="toast-zone">
+                {toast}
+              </div>
+            }
           />
         );
+      }
       default:
         return assertNever(detail);
     }
@@ -477,90 +704,112 @@ export function VaultScreen({
     switch (tree.kind) {
       case "loading":
         return (
-          <p role="status" className="pane-state">
-            Cargando los grupos…
-          </p>
+          <>
+            <h3 id="groups-title">Grupos</h3>
+            <p role="status" className="pane-state">
+              Cargando los grupos…
+            </p>
+          </>
         );
       case "failed":
         return (
-          <div className="pane-state">
-            <p role="alert" className="error">
-              {errorMessage(tree.error)}
-            </p>
-            <button
-              type="button"
-              onClick={() => {
-                setTree({ kind: "loading" });
-                setTreeAttempt((value) => value + 1);
-              }}
-            >
-              Reintentar
-            </button>
-          </div>
-        );
-      case "ready": {
-        const group = groupId === null ? undefined : findGroup(tree.root, groupId);
-        return (
           <>
-            <GroupList nodes={[tree.root]} selectedId={groupId} lines={lines} depth={0} onSelect={selectGroup} />
-            {readOnly ? (
-              <p className="path">Solo lectura: los grupos no se pueden crear, renombrar, mover ni borrar.</p>
-            ) : group !== undefined && (
-              <GroupActions client={client} root={tree.root} group={group} onChange={onGroupChange} />
-            )}
+            <h3 id="groups-title">Grupos</h3>
+            <div className="pane-state">
+              <p role="alert" className="error">
+                {errorMessage(tree.error)}
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  setTree({ kind: "loading" });
+                  setTreeAttempt((value) => value + 1);
+                }}
+              >
+                Reintentar
+              </button>
+            </div>
           </>
         );
-      }
+      case "ready":
+        return (
+          <GroupRail
+            root={tree.root}
+            lines={lines}
+            selectedId={groupId}
+            marked={!searching}
+            readOnly={readOnly}
+            titleRef={groupsTitleRef}
+            onSelect={selectGroup}
+            onOrder={groupActions.start}
+          >
+            {readOnly && (
+              <p className="path rail-note">
+                Solo lectura: los grupos no se pueden crear, renombrar, mover ni borrar.
+              </p>
+            )}
+            {groupActions.view}
+          </GroupRail>
+        );
       default:
         return assertNever(tree);
     }
   }
 
+  /** RF-38: the main action of the list. From "Todas las entradas", and from a search over it, the entry goes to the root. */
+  function newEntryButton(target: string) {
+    if (readOnly) return null;
+    return (
+      <button
+        type="button"
+        className="btn-primary"
+        onClick={() => {
+          setNewEntryIn(target);
+        }}
+      >
+        <PlusIcon />
+        Nueva entrada
+      </button>
+    );
+  }
+
   function renderGroup() {
-    if (tree.kind !== "ready" || groupId === null) {
+    if (root === null) {
       return (
         <header className="list-head">
           <div className="list-title">
-            <h3 id="entries-title">Entradas</h3>
+            <h3 id="entries-title" tabIndex={-1}>
+              Entradas
+            </h3>
           </div>
         </header>
       );
     }
-    const group = findGroup(tree.root, groupId) ?? tree.root;
-    const name = shown(group.name, "(sin nombre)");
-    const badge: Badge = {
-      line: lines.get(group.id) ?? "neutral",
-      initial: initialOf(name),
-      bin: group.kind === "recycle_bin",
-    };
-    const loaded = list !== null && list.groupId === groupId && list.attempt === listAttempt ? list.result : null;
+    /** `null`: "Todas las entradas" (RF-102). */
+    const group = groupId === null ? null : (findGroup(root, groupId) ?? null);
+    const inBin = group?.kind === "recycle_bin";
+    const groupName = group === null ? "Todas las entradas" : shown(group.name, "(sin nombre)");
+    const current = currentList();
+    const loaded = current?.result ?? null;
     const selectedId = detail.kind === "entry" ? detail.entry.id : null;
     return (
       <>
         <header className="list-head">
-          <Bullet badge={badge} />
           <div className="list-title">
-            <h3 id="entries-title">
-              {/* The space is its own text node: inside the hidden span it would be trimmed out of the name. */}
-              <span className="sr-only">Entradas de</span> {name}
+            {/* One line, cut with an ellipsis: the whole name is in the `title`. */}
+            <h3 id="entries-title" tabIndex={-1} title={groupName}>
+              {group === null ? (
+                groupName
+              ) : (
+                <>
+                  {/* The space is its own text node: inside the hidden span it would be trimmed out of the name. */}
+                  <span className="sr-only">Entradas de</span> {groupName}
+                </>
+              )}
             </h3>
-            {loaded !== null && loaded.ok && loaded.value.length > 0 && (
-              <p role="status">{plural(loaded.value.length, "entrada", "entradas")}</p>
-            )}
+            {loaded !== null && loaded.ok && <p role="status">{plural(loaded.value.length, "entrada", "entradas")}</p>}
           </div>
-          {!readOnly && (
-            <button
-              type="button"
-              className="btn-primary"
-              onClick={() => {
-                setNotice(NO_NOTICE);
-                setDetail({ kind: "new", groupId: group.id });
-              }}
-            >
-              <PlusIcon />
-              Nueva entrada
-            </button>
-          )}
+          {newEntryButton(group?.id ?? root.id)}
         </header>
         {loaded === null ? (
           <p role="status" className="pane-state">
@@ -581,23 +830,26 @@ export function VaultScreen({
             </button>
           </div>
         ) : loaded.value.length === 0 ? (
-          liveEntryCount(tree.root) === 0 && group.kind !== "recycle_bin" ? (
-            <p className="pane-state">
-              Esta bóveda todavía no tiene entradas. Con «Nueva entrada» guardas la primera cuenta.
-            </p>
-          ) : (
-            <p className="pane-state">
-              {group.kind === "recycle_bin" ? "La papelera está vacía." : "Este grupo no tiene entradas."}
-            </p>
-          )
+          <p className="pane-state">
+            {inBin
+              ? "La papelera está vacía."
+              : readOnly
+                ? "No hay entradas aquí."
+                : "No hay entradas aquí. Crea la primera con «Nueva entrada»."}
+          </p>
         ) : (
           <EntryTable
             items={loaded.value}
             groupPaths={null}
-            badgeOf={() => badge}
-            stamped={stamped}
+            lineOf={(index) =>
+              // In "Todas las entradas" each row keeps the colour of the group it was asked from.
+              entryLine(lines.get(current?.groupOf.get(loaded.value[index]?.id ?? "") ?? group?.id ?? root.id))
+            }
             selectedId={selectedId}
             onSelect={selectEntry}
+            onOpen={openWindow}
+            onCopy={(entry, field) => void copyFromList(entry, field)}
+            onOpenSite={(entry) => void openSiteFromList(entry)}
             onRowKeyDown={onRowKeyDown}
           />
         )}
@@ -607,15 +859,15 @@ export function VaultScreen({
 
   function renderSearch() {
     const selectedId = detail.kind === "entry" ? detail.entry.id : null;
-    const root = tree.kind === "ready" ? tree.root : null;
     return (
       <>
         <header className="list-head">
-          <span className="bullet" data-line="station" aria-hidden="true">
-            <SearchIcon />
-          </span>
           <div className="list-title">
-            <h3 id="entries-title">Resultados de la búsqueda</h3>
+            {/* It reads "Resultados"; its name stays "Resultados de la búsqueda". */}
+            <h3 id="entries-title" tabIndex={-1}>
+              {/* The space is its own text node: inside the hidden span it would be trimmed out of the name. */}
+              Resultados <span className="sr-only">de la búsqueda</span>
+            </h3>
             <div role="status" aria-live="polite">
               {search.kind === "searching" && <p>Buscando…</p>}
               {search.kind === "done" && (
@@ -627,6 +879,8 @@ export function VaultScreen({
               )}
             </div>
           </div>
+          {/* The new entry goes where it would go without the search: the group the rail had open, or the root. */}
+          {root !== null && newEntryButton(groupId ?? root.id)}
         </header>
         {search.kind === "failed" && (
           <p role="alert" className="error pane-state">
@@ -648,17 +902,15 @@ export function VaultScreen({
           <EntryTable
             items={search.items}
             groupPaths={search.items.map((item) => item.groupPath)}
-            badgeOf={(index) => {
-              const path = search.items[index]?.groupPath ?? [];
-              return {
-                line: root === null ? "neutral" : lineOfPath(root, lines, path),
-                initial: initialOf(path.at(-1) ?? ""),
-                bin: false,
-              };
-            }}
-            stamped={stamped}
+            lineOf={(index) =>
+              // A result brings the names of its groups, not an id: the path is walked down the tree.
+              root === null ? "neutral" : entryLine(lineOfPath(root, lines, search.items[index]?.groupPath ?? []))
+            }
             selectedId={selectedId}
             onSelect={selectEntry}
+            onOpen={openWindow}
+            onCopy={(entry, field) => void copyFromList(entry, field)}
+            onOpenSite={(entry) => void openSiteFromList(entry)}
             onRowKeyDown={onRowKeyDown}
           />
         )}
@@ -667,146 +919,217 @@ export function VaultScreen({
   }
 }
 
-/**
- * The round badge of a group: decoration next to the group name, hidden from assistive technology. The initial is
- * drawn by CSS from `data-initial`, so the badge adds no text to the control it sits in.
- */
-function Bullet({ badge, sub = false }: { readonly badge: Badge; readonly sub?: boolean }) {
-  return (
-    <span
-      className="bullet"
-      data-line={badge.line}
-      data-initial={badge.bin ? undefined : badge.initial}
-      data-sub={sub ? "" : undefined}
-      aria-hidden="true"
-    >
-      {badge.bin && <TrashIcon />}
-    </span>
-  );
-}
-
-interface GroupListProps {
-  readonly nodes: readonly GroupNode[];
-  readonly selectedId: string | null;
-  readonly lines: ReadonlyMap<string, GroupLine>;
-  /** 0: the root group; 1: the groups that own a line; deeper: stops on that line. */
-  readonly depth: number;
-  readonly onSelect: (id: string) => void;
-}
-
-/** RF-50: nested lists of buttons; Tab moves, Enter or Space opens the group, `aria-current` marks the open one. */
-function GroupList({ nodes, selectedId, lines, depth, onSelect }: GroupListProps) {
-  return (
-    <ul className="groups">
-      {nodes.map((node) => {
-        const name = shown(node.name, "(sin nombre)");
-        const bin = node.kind === "recycle_bin";
-        return (
-          <li key={node.id}>
-            <button
-              type="button"
-              className="rail-item"
-              title={name}
-              aria-current={node.id === selectedId ? "true" : undefined}
-              onClick={() => {
-                onSelect(node.id);
-              }}
-            >
-              <Bullet
-                badge={{ line: lines.get(node.id) ?? "neutral", initial: initialOf(name), bin }}
-                sub={depth > 1}
-              />
-              {/*
-                The text of the button stays "Nombre · N entradas" (its accessible name): the parts that are not
-                drawn are hidden, and every space is its own text node so it is not trimmed out of the name.
-              */}
-              <span className="rail-name">{name}</span>
-              {bin && " "}
-              {bin && <span className="sr-only">(papelera)</span>} <span className="sr-only">·</span>{" "}
-              <span className="rail-count">{node.entryCount}</span>{" "}
-              <span className="sr-only">{node.entryCount === 1 ? "entrada" : "entradas"}</span>
-            </button>
-            {node.children.length > 0 && (
-              <GroupList
-                nodes={node.children}
-                selectedId={selectedId}
-                lines={lines}
-                depth={depth + 1}
-                onSelect={onSelect}
-              />
-            )}
-          </li>
-        );
-      })}
-    </ul>
-  );
-}
-
 interface EntryTableProps {
   readonly items: readonly EntrySummary[];
   /** Search results: the group path of each item, from the root down. */
   readonly groupPaths: readonly (readonly string[])[] | null;
-  /** The badge of the group each row sits in. */
-  readonly badgeOf: (index: number) => Badge;
-  readonly stamped: Stamped | null;
+  /** The line colour of the group each row sits in. */
+  readonly lineOf: (index: number) => GroupLine;
   readonly selectedId: string | null;
   readonly onSelect: (entry: SelectedEntry) => void;
+  /** RF-43: the window of the entry. */
+  readonly onOpen: (entry: SelectedEntry) => void;
+  /** RF-71: a copy, which the core makes. */
+  readonly onCopy: (entry: SelectedEntry, field: FieldName) => void;
+  /** RF-49: the site, which the core opens in the browser. */
+  readonly onOpenSite: (entry: SelectedEntry) => void;
   /** RF-59: arrows move between rows, Enter opens one, Escape goes back to the search. */
   readonly onRowKeyDown: (event: ReactKeyboardEvent<HTMLButtonElement>, entry: SelectedEntry) => void;
 }
 
+/** RF-105: what the password cell draws. Always the same marks: it says nothing of the value, not even its length. */
+const PASSWORD_MASK = "••••••••";
+
 /**
- * RF-42: entries in the order the core sends (by title). The URL is text, never a link (RF-78, RF-49). It is a real
- * table drawn as a list of rows: the title button stretches over its row, and the header row stays for screen readers.
+ * RF-105: the password cell of a row. The list never gets the value, only whether there is one: with a password, the
+ * mask; without one, nothing. This is the one place that decides what the cell draws.
  */
-function EntryTable({ items, groupPaths, badgeOf, stamped, selectedId, onSelect, onRowKeyDown }: EntryTableProps) {
+function passwordCell(entry: EntrySummary): ReactNode {
+  if (!entry.hasPassword) return null;
+  return (
+    <>
+      <span className="mask" aria-hidden="true">
+        {PASSWORD_MASK}
+      </span>
+      <span className="sr-only">Oculta</span>
+    </>
+  );
+}
+
+/**
+ * RF-42: the entries as a table, in the order the core sends (by title): title, user, a fixed mask for the password,
+ * site and the day it was modified. The URL is text, never a link (RF-78, RF-49). The tags and, in search results,
+ * the group stay in the table for screen readers. Each row opens with a circle: the initial of the entry's own title
+ * on the colour of its group, drawn by CSS from `data-initial`, so it adds no text; a protected title never reaches
+ * it. Only the chosen row shows its two buttons, in a cell every row has: choosing a row moves nothing.
+ *
+ * RF-106: a click on a cell chooses its row; a double click does what the `title` of the cell says. The first click
+ * of a double click paints the row as chosen, and the second one has to land on the same element: no cell is
+ * mounted, unmounted or changes its type or its `key` when its row is chosen. A cell without data has no help and
+ * its double click does nothing. A `title` here never carries the value of a field.
+ */
+function EntryTable({
+  items,
+  groupPaths,
+  lineOf,
+  selectedId,
+  onSelect,
+  onOpen,
+  onCopy,
+  onOpenSite,
+  onRowKeyDown,
+}: EntryTableProps) {
+  const today = new Date();
   return (
     <div className="table-scroll">
       <table className="entries" data-search={groupPaths === null ? undefined : ""}>
-        <thead className="sr-only">
+        <thead>
           <tr>
-            <th scope="col">Título</th>
-            <th scope="col">Usuario</th>
-            <th scope="col">URL</th>
-            <th scope="col">Etiquetas</th>
-            {groupPaths !== null && <th scope="col">Grupo</th>}
-            <th scope="col">Modificada</th>
+            <th scope="col" className="cell-title">
+              Título
+            </th>
+            <th scope="col" className="cell-user">
+              Usuario
+            </th>
+            <th scope="col" className="cell-password">
+              Contraseña
+            </th>
+            <th scope="col" className="cell-url">
+              Sitio
+            </th>
+            <th scope="col" className="cell-tags">
+              Etiquetas
+            </th>
+            {groupPaths !== null && (
+              <th scope="col" className="cell-group">
+                Grupo
+              </th>
+            )}
+            <th scope="col" className="cell-date">
+              Modificada
+            </th>
+            <th scope="col" className="cell-actions">
+              <span className="sr-only">Acciones</span>
+            </th>
           </tr>
         </thead>
         <tbody>
-          {items.map((entry, index) => (
-            <tr key={entry.id} data-selected={entry.id === selectedId ? "" : undefined}>
-              <th scope="row">
-                <Bullet badge={badgeOf(index)} />
-                <button
-                  type="button"
-                  aria-current={entry.id === selectedId ? "true" : undefined}
-                  onClick={() => {
-                    onSelect({ id: entry.id, title: entry.title });
-                  }}
-                  onKeyDown={(event) => {
-                    onRowKeyDown(event, { id: entry.id, title: entry.title });
+          {items.map((entry, index) => {
+            const chosen = entry.id === selectedId;
+            const picked: SelectedEntry = { id: entry.id, title: entry.title };
+            // A protected title arrives as `null` and reads "(protegido)": its value never reaches a name.
+            const title = shown(entry.title, "(sin título)");
+            const noUser = entry.username === "";
+            const noSite = entry.url === "";
+            const select = () => {
+              onSelect(picked);
+            };
+            return (
+              <tr key={entry.id} data-selected={chosen ? "" : undefined}>
+                <th scope="row" className="cell-title">
+                  <button
+                    type="button"
+                    title="Doble clic para abrir la entrada"
+                    aria-current={chosen ? "true" : undefined}
+                    onClick={select}
+                    onDoubleClick={() => {
+                      onOpen(picked);
+                    }}
+                    onKeyDown={(event) => {
+                      onRowKeyDown(event, picked);
+                    }}
+                  >
+                    <span
+                      className="bullet"
+                      data-line={lineOf(index)}
+                      data-initial={entryInitial(entry.title)}
+                      aria-hidden="true"
+                    />
+                    <span className="cell-text">{title}</span>
+                  </button>
+                </th>
+                <td
+                  className="cell-user"
+                  data-empty={noUser ? "" : undefined}
+                  title={noUser ? undefined : "Doble clic para copiar el usuario"}
+                  onClick={select}
+                  onDoubleClick={() => {
+                    // A protected user arrives as `null`: the core copies it all the same.
+                    if (!noUser) onCopy(picked, "UserName");
                   }}
                 >
-                  {shown(entry.title, "(sin título)")}
-                </button>
-              </th>
-              <td className="cell-user">{shown(entry.username)}</td>
-              <td className="cell-url">{shown(entry.url)}</td>
-              <td className="cell-tags">{entry.tags.join(", ")}</td>
-              {groupPaths !== null && <td className="cell-group">{(groupPaths[index] ?? []).join(" › ")}</td>}
-              <td className="cell-date">
-                <time
-                  dateTime={entry.modified}
-                  title={formatDate(entry.modified)}
-                  className={stamped?.entryId === entry.id ? "sr-only" : undefined}
+                  <span className="cell-text">{shown(entry.username, "—")}</span>
+                </td>
+                <td
+                  className="cell-password"
+                  title={entry.hasPassword ? "Doble clic para copiar la contraseña" : undefined}
+                  onClick={select}
+                  onDoubleClick={() => {
+                    if (entry.hasPassword) onCopy(picked, "Password");
+                  }}
                 >
-                  {formatDay(entry.modified)}
-                </time>
-                {stamped?.entryId === entry.id && <span className="stamp"><span className="stamp-word">Copiado</span> · {stamped.seconds} s</span>}
-              </td>
-            </tr>
-          ))}
+                  {passwordCell(entry)}
+                </td>
+                {/* The row shows the site without `https://`; the whole address is in the window of the entry. */}
+                <td
+                  className="cell-url"
+                  data-empty={noSite ? "" : undefined}
+                  title={noSite ? undefined : "Doble clic para abrir el sitio en el navegador"}
+                  onClick={select}
+                  onDoubleClick={() => {
+                    if (!noSite) onOpenSite(picked);
+                  }}
+                >
+                  <span className="cell-text">
+                    {entry.url === null ? shown(entry.url) : noSite ? "—" : shortSite(entry.url)}
+                  </span>
+                </td>
+                <td className="cell-tags">{entry.tags.join(", ")}</td>
+                {groupPaths !== null && <td className="cell-group">{(groupPaths[index] ?? []).join(" › ")}</td>}
+                <td
+                  className="cell-date"
+                  title="Doble clic para abrir la entrada"
+                  onClick={select}
+                  onDoubleClick={() => {
+                    onOpen(picked);
+                  }}
+                >
+                  <time dateTime={entry.modified}>{formatShortDay(entry.modified, today)}</time>
+                </td>
+                <td className="cell-actions">
+                  {chosen && (
+                    <>
+                      {/* RF-105: nothing to copy, nothing offered: "Abrir la entrada" keeps its place at the end. */}
+                      {entry.hasPassword && (
+                        <button
+                          type="button"
+                          className="row-copy"
+                          aria-label={`Copiar contraseña de ${title}`}
+                          title="Copiar contraseña"
+                          onClick={() => {
+                            onCopy(picked, "Password");
+                          }}
+                        >
+                          <CopyIcon />
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        className="row-open"
+                        aria-label={`Abrir ${title}`}
+                        title="Abrir la entrada"
+                        onClick={() => {
+                          onOpen(picked);
+                        }}
+                      >
+                        <WindowIcon />
+                      </button>
+                    </>
+                  )}
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>

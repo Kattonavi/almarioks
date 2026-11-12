@@ -1,6 +1,7 @@
 /*
- * The signal frame: app bar, vault bar, group rail and status strip. Inside it the same roles point at the signal
- * palette, so every standard control (button, input, hint, error) adapts without a second set of rules.
+ * The signal frame: app bar, vault bar and status strip (the group rail is in `rail.css`). Inside the frame the same
+ * roles point at the signal palette, so every standard control (button, input, hint, error) adapts without a second
+ * set of rules.
  */
 .app-bar,
 .app-status,
@@ -72,6 +73,26 @@
   letter-spacing: 0.01em;
 }
 
+/*
+ * With the vault open the brand is the start of the vault bar: 16 px of margin, the mark, the name, and the search
+ * begins where the rail ends.
+ */
+.app:has(.open-vault) .app-bar {
+  gap: 10px;
+  padding: 0 var(--space-4);
+}
+
+.app:has(.open-vault) .brand-mark {
+  width: 26px;
+  height: 26px;
+}
+
+.app:has(.open-vault) .app-name {
+  font-size: var(--text-lg);
+  font-weight: var(--weight-display);
+  letter-spacing: 0;
+}
+
 .app-main {
   min-height: 0;
   overflow: auto;
@@ -105,17 +126,9 @@
   margin: 0;
 }
 
-.app-status-note {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  margin-inline-start: auto;
-  color: var(--ink);
-}
-
-.app-status-note .icon {
-  width: 14px;
-  height: 14px;
+/* With the vault open the strip takes no height: the version and the development note are in Settings. */
+.app:has(.open-vault) .app-status {
+  display: none;
 }
 
 /* ---- Group badge: a round sign in the line colour of its group, with dark text on it. ---- */
@@ -176,7 +189,11 @@
   height: 14px;
 }
 
-/* ---- Open vault: rail | work, with the vault bar laid over the app bar. ---- */
+/*
+ * ---- Open vault: one bar on top and two columns below it, at full height: rail | list. The entry opens in a window
+ * over them (RF-43). The window of the app never goes under 1000 × 640 (RF-104), so there is a single composition and
+ * no narrower one. ----
+ */
 .open-vault {
   display: grid;
   grid-template-rows: minmax(0, 1fr) auto;
@@ -187,6 +204,7 @@
   display: contents;
 }
 
+/* The vault bar is laid over the app bar, from the edge of the rail to the end of the window. */
 .vault-bar {
   position: absolute;
   top: 0;
@@ -199,26 +217,34 @@
   padding-inline-end: var(--space-4);
 }
 
+/* The search carries the weight of the bar: a raised field, 44 px high and up to 520 px wide. */
 .vault-search {
   position: relative;
-  flex: 1;
+  flex: 1 1 320px;
   min-width: 0;
-  max-width: 35rem;
+  max-width: 520px;
 }
 
 .vault-search .icon {
   position: absolute;
   top: 50%;
   left: var(--space-3);
+  width: 16px;
+  height: 16px;
   color: var(--ink-muted);
   pointer-events: none;
   transform: translateY(-50%);
 }
 
+/* Room at both ends: the magnifier before the text and the shortcut hint after it, so neither is ever written over. */
 .vault-search input {
   width: 100%;
-  height: 40px;
-  padding-inline: calc(var(--space-3) + 18px + var(--space-2)) var(--space-3);
+  height: var(--control-h);
+  padding-inline: calc(var(--space-3) + 16px + var(--space-2)) calc(var(--space-3) + 3.75rem + var(--space-2));
+  font-size: var(--text-md);
+  background: var(--surface);
+  border: 1px solid var(--control-border);
+  border-radius: var(--radius);
 }
 
 .vault-search kbd {
@@ -226,8 +252,7 @@
   top: 50%;
   right: var(--space-3);
   padding: 1px 6px;
-  font-size: var(--text-xs);
-  font-weight: var(--weight-strong);
+  font: var(--weight-regular) var(--text-xs) / var(--leading) var(--font-mono);
   color: var(--ink-muted);
   pointer-events: none;
   border: 1px solid var(--control-border);
@@ -235,234 +260,54 @@
   transform: translateY(-50%);
 }
 
-.vault-search input:not(:placeholder-shown) ~ kbd {
-  display: none;
-}
-
 .vault-bar-end {
   display: flex;
   flex: none;
   align-items: center;
-  gap: var(--space-2);
+  gap: var(--space-1);
   margin-inline-start: auto;
 }
 
-/* ---- Rail. ---- */
-.rail {
-  display: flex;
-  flex-direction: column;
-  grid-area: 1 / 1;
-  min-height: 0;
-  padding: var(--space-4) var(--space-3) var(--space-3);
-  /* D-6: the rail shares its height out; only the group list scrolls, so its actions never fall off the foot. */
+/* A bar action: text (and its icon) without a plate. "Bloquear" is one; the weight of the bar is the search. */
+.btn-bar {
+  font-size: var(--text-md);
+  border-color: transparent;
+}
+
+.btn-bar .icon {
+  width: 16px;
+  height: 16px;
+}
+
+/* Settings in the vault bar: the icon alone in a 44 px square; its name stays for assistive technology. */
+.vault-bar-end .btn-tool {
+  width: var(--control-h);
+  padding: 0;
+  border-color: transparent;
+}
+
+.vault-bar-end .btn-tool .label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
   overflow: hidden;
-  border-top: 1px solid var(--rule);
-}
-
-.rail-head {
-  flex: none;
-  padding: 0 10px var(--space-4);
-}
-
-.rail-nav {
-  display: flex;
-  flex: 1 1 auto;
-  flex-direction: column;
-  min-height: 0;
-}
-
-.rail-nav > h3,
-.rail-nav > .path,
-.rail-nav > .pane-state,
-.group-actions {
-  flex: none;
-}
-
-/* The top list scrolls on its own; a little room at the foot keeps the focus ring of the last group whole. */
-.rail-nav > .groups {
-  flex: 0 1 auto;
-  min-height: 0;
-  padding-bottom: var(--space-1);
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  /*
-   * Scroll hint: an inner shade at the edge where more groups wait. The two `local` covers in the rail's ground move
-   * with the list and hide the shade once that edge is reached; nothing shows while the whole list fits.
-   */
-  background:
-    linear-gradient(var(--ground) 40%, transparent) top / 100% 24px no-repeat local,
-    linear-gradient(transparent, var(--ground) 60%) bottom / 100% 24px no-repeat local,
-    linear-gradient(var(--control-border), transparent) top / 100% 10px no-repeat scroll,
-    linear-gradient(transparent, var(--control-border)) bottom / 100% 10px no-repeat scroll;
-}
-
-.rail-head h2 {
-  margin: 0 0 var(--space-1);
-  font-size: var(--text-lg);
-}
-
-/* One line with an ellipsis; the whole path is in its `title`. */
-.rail-head .path {
-  margin: 0;
-  overflow: hidden;
-  overflow-wrap: normal;
-  font-size: var(--text-xs);
-  text-overflow: ellipsis;
+  clip-path: inset(50%);
   white-space: nowrap;
 }
 
-.rail-nav > h3 {
-  margin: 0;
-  padding: 0 10px var(--space-2);
-  font-size: var(--text-xs);
-  font-weight: var(--weight-strong);
+/* The lock countdown, when the core reports it: data in the bar, next to the action it announces. */
+.lock-countdown {
+  margin: 0 var(--space-2) 0 0;
+  font-size: var(--text-sm);
+  white-space: nowrap;
   color: var(--ink-muted);
 }
 
-.rail-nav > .path,
-.rail-nav > .pane-state {
-  margin: var(--space-3) 10px 0;
-}
-
-.groups {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.groups .groups .groups {
-  padding-inline-start: var(--space-4);
-}
-
-.rail-item {
-  justify-content: flex-start;
-  gap: var(--space-3);
-  width: 100%;
-  min-height: var(--row-h);
-  padding: 0 10px;
-  font-size: var(--text-md);
-  text-align: start;
-  border-color: transparent;
-}
-
-.groups .groups .groups .rail-item {
-  font-weight: var(--weight-regular);
-}
-
-.rail-item[aria-current="true"],
-.rail-item[aria-current="true"]:hover:not(:disabled) {
-  color: var(--on-panel);
-  background: var(--panel);
-}
-
-.rail-name {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.rail-count {
-  font: var(--weight-regular) var(--text-sm) var(--font-mono);
-  font-variant-numeric: tabular-nums;
-}
-
-.group-actions {
-  margin-top: var(--space-4);
-  padding-top: var(--space-3);
-  border-top: 1px solid var(--rule);
-}
-
-.group-actions > .actions {
-  display: grid;
-  gap: 2px;
-}
-
-.group-actions > .actions > button {
-  justify-content: flex-start;
-  min-height: 32px;
-  padding: 0 10px;
-  font-size: var(--text-sm);
-  border-color: transparent;
-}
-
-/* On the rail the rarest action is the quietest: red only under the pointer, with focus, and in its dialog. */
-.group-actions > .actions > .btn-danger {
-  justify-self: start;
-  margin-top: var(--space-1);
+.lock-countdown .mono {
   color: var(--ink);
 }
 
-.group-actions > .actions > .btn-danger:hover:not(:disabled) {
-  color: var(--on-danger);
-}
-
-.group-actions > .actions > .btn-danger:focus-visible:not(:hover) {
-  color: var(--danger);
-  border-color: var(--danger);
-}
-
-/*
- * The default and short windows: the actions become one row of icon buttons (name and `title` kept), so the height
- * goes to the list of groups. The smallest window (≤ 719 px) keeps its own column of badges-wide buttons.
- */
-@media (min-width: 720px) and (max-width: 1099px), (min-width: 720px) and (max-height: 640px) {
-  .group-actions {
-    margin-top: var(--space-2);
-    padding-top: var(--space-2);
-  }
-
-  .group-actions > .actions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-1);
-  }
-
-  .group-actions > .actions > button,
-  .group-actions > .actions > .btn-danger {
-    justify-content: center;
-    width: var(--control-h);
-    min-height: var(--control-h);
-    margin: 0;
-    padding: 0;
-  }
-
-  .group-actions > .actions .label {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip-path: inset(50%);
-    white-space: nowrap;
-  }
-}
-
-/* Only the rail's own lines: the dialogs of a group are mounted in here and keep the standard look. */
-.group-actions > p,
-.group-actions > [aria-live] p {
-  margin: var(--space-2) 10px 0;
-  font-size: var(--text-sm);
-}
-
-/* The save state is the foot of the rail: discreet, and it stays in place while the vault screens remount. */
-.save-state {
-  grid-area: 2 / 1;
-  padding: 0 22px var(--space-3);
-  font-size: var(--text-xs);
-  color: var(--ink-muted);
-}
-
-.save-state p {
-  margin: 0;
-}
-
-/* Only the smallest window needs a way back from the detail: there the detail replaces the list. */
-.back-to-list {
-  display: none;
-}
-
-/* ---- Work area: notices, then list | detail. ---- */
+/* ---- Work area: notices, then the list. ---- */
 .work {
   display: grid;
   grid-area: 1 / 2 / 3 / 3;
@@ -478,7 +323,6 @@
 .work-banner {
   max-height: 40vh;
   overflow-y: auto;
-  container: banner / inline-size;
 }
 
 .work-banner:empty {
@@ -541,38 +385,20 @@
   font-size: var(--text-sm);
 }
 
-@container banner (max-width: 46rem) {
-  .work-banner > section.notice {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .work-banner > section.notice > .actions {
-    flex-direction: row;
-    grid-row: auto;
-    grid-column: 1;
-    margin: var(--space-2) 0 var(--space-1) calc(18px + var(--space-2));
-  }
-}
-
+/* The list takes everything the rail leaves. */
 .vault-zones {
   display: grid;
   grid-row: 2;
-  grid-template-columns: minmax(15rem, 2fr) minmax(0, 3fr);
+  grid-template-columns: minmax(0, 1fr);
   min-height: 0;
 }
 
+/* What scrolls is its table (`vault.css`): the header and the foot of the list stay still. */
 .list-pane {
   min-width: 0;
-  overflow-y: auto;
+  min-height: 0;
+  overflow: hidden;
   background: var(--surface);
-  border-inline-end: 1px solid var(--rule);
-}
-
-.detail-pane {
-  min-width: 0;
-  padding: var(--space-6) var(--space-10);
-  overflow-y: auto;
-  container: detail / inline-size;
 }
 
 .pane-state {
@@ -580,190 +406,7 @@
 }
 
 .list-pane > .pane-state {
+  flex: none;
   margin: 0;
-  padding: var(--space-4) var(--space-6);
-}
-
-/*
- * ---- Window sizes. ----
- * From 1100 px to just under 1290 px (the app opens at 1120 × 720) the list and the detail share the width, so the
- * detail keeps room for the 44 px title and fields in rows. Wide: the approved composition, list fixed at 456 px.
- */
-@media (min-width: 1100px) and (max-width: 1289px) {
-  .vault-zones {
-    grid-template-columns: minmax(18rem, 2fr) minmax(0, 3fr);
-  }
-}
-
-@media (min-width: 1290px) {
-  .vault-zones {
-    grid-template-columns: 456px minmax(0, 1fr);
-  }
-}
-
-/* The default window (800 × 600): a narrower rail and the three zones side by side. */
-@media (max-width: 1099px) {
-  :root {
-    --rail-w: 208px;
-  }
-
-  .detail-pane {
-    padding: var(--space-5) var(--space-6);
-  }
-
-  .btn-tool {
-    width: var(--control-h);
-    padding: 0;
-  }
-
-  .btn-tool .label {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip-path: inset(50%);
-    white-space: nowrap;
-  }
-}
-
-/*
- * The smallest window (480 × 360): the rail keeps only the badges, and one work zone shows at a time. The list
- * shows until an entry is chosen; choosing the group again goes back to the list.
- */
-@media (max-width: 719px) {
-  :root {
-    --rail-w: 56px;
-  }
-
-  .app:has(.open-vault) .app-bar {
-    justify-content: center;
-    width: var(--rail-w);
-    padding: 0;
-  }
-
-  .app:has(.open-vault) .app-name,
-  .app-status > p:first-child,
-  .rail-head,
-  .rail-nav > h3,
-  .rail-nav > .path,
-  .rail-name,
-  .rail-count,
-  .group-actions > .actions .label,
-  .group-actions > p,
-  .group-actions > [aria-live] p,
-  .vault-search kbd {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    margin: -1px;
-    padding: 0;
-    overflow: hidden;
-    clip-path: inset(50%);
-    white-space: nowrap;
-  }
-
-  .vault-bar {
-    gap: var(--space-2);
-    padding-inline-end: var(--space-2);
-  }
-
-  .rail {
-    padding: var(--space-2) 0;
-  }
-
-  .groups .groups .groups {
-    padding-inline-start: 0;
-  }
-
-  .rail-item,
-  .group-actions > .actions > button {
-    justify-content: center;
-    width: 44px;
-    margin-inline: auto;
-    padding: 0;
-  }
-
-  .group-actions {
-    margin-top: var(--space-2);
-    padding-top: var(--space-2);
-  }
-
-  .save-state {
-    grid-area: 2 / 2;
-    padding: var(--space-1) var(--space-4);
-  }
-
-  .save-state:empty {
-    padding: 0;
-  }
-
-  .work {
-    grid-area: 1 / 2;
-  }
-
-  .vault-zones {
-    grid-template-rows: minmax(0, 1fr) auto;
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .list-pane {
-    border-inline-end: 0;
-  }
-
-  .detail-pane {
-    padding: var(--space-4);
-  }
-
-  .work[data-detail="none"] .detail-pane {
-    padding: var(--space-2) var(--space-4);
-    border-top: 1px solid var(--rule);
-  }
-
-  .work:not([data-detail="none"]) .list-pane {
-    display: none;
-  }
-
-  .back-to-list {
-    display: inline-flex;
-    margin-bottom: var(--space-3);
-  }
-
-  .work:not([data-detail="none"]) .vault-zones {
-    grid-template-rows: minmax(0, 1fr);
-  }
-
-  .app-status {
-    padding-inline: var(--space-3);
-  }
-}
-
-/* A short window gives the height to the content: lower bar and compact rows (targets stay at 32 px). */
-@media (max-height: 480px) {
-  :root {
-    --bar-h: 48px;
-    --row-h: 32px;
-    --control-h: 32px;
-  }
-
-  .vault-search input {
-    height: 32px;
-  }
-}
-
-/* The lock countdown, when the core reports it: data in the bar, next to the action it announces. */
-.lock-countdown {
-  margin: 0;
-  font-size: var(--text-sm);
-  white-space: nowrap;
-  color: var(--ink-muted);
-}
-
-.lock-countdown .mono {
-  color: var(--ink);
-}
-
-@media (max-width: 719px) {
-  .lock-countdown .label {
-    display: none;
-  }
+  padding: var(--space-6);
 }

@@ -1,16 +1,22 @@
-/* The two work zones of the open vault: the entry list and the detail of an entry. */
+/* The work zone of the open vault: the entry list, as a table, and the window of an entry over it. */
 
-/* ---- List header: the badge and the group name, large. ---- */
+/*
+ * ---- The list is a column: its header (the name of what it shows on one line, how many entries under it, and the
+ * main action), the table, which takes the room left and is the part that scrolls, and its foot. ----
+ */
 .list-pane {
+  display: flex;
+  flex-direction: column;
   container: list / inline-size;
 }
 
 .list-head {
   display: flex;
-  flex-wrap: wrap;
+  flex: none;
   align-items: center;
   gap: var(--space-3);
-  padding: var(--space-5) var(--space-6) var(--space-4);
+  padding: 14px var(--space-6);
+  border-bottom: 1px solid var(--rule);
 }
 
 .list-title {
@@ -18,392 +24,570 @@
   min-width: 0;
 }
 
+/* One line: a long name is cut with an ellipsis (the whole name is in its `title`). */
 .list-title h3 {
   margin: 0;
-  overflow-wrap: anywhere;
+  overflow: hidden;
   font-size: var(--text-xl);
-  line-height: 1;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .list-title p {
-  margin: var(--space-1) 0 0;
-  font-size: var(--text-control);
+  margin: 0;
+  font-size: var(--text-sm);
   color: var(--ink-muted);
 }
 
 .list-head > button {
   flex: none;
+  padding-inline: 14px;
+  font-size: var(--text-md);
+  white-space: nowrap;
 }
 
-@container list (max-width: 22rem) {
-  .list-head {
-    padding: var(--space-4) var(--space-4) var(--space-3);
-  }
-
-  .list-title h3 {
-    font-size: 1.5rem;
-  }
-
-  .list-head > button {
-    width: 100%;
-  }
+.list-head > button > .icon {
+  width: 16px;
+  height: 16px;
 }
 
 /*
- * ---- Rows. A real table drawn as a list: the title button stretches over its row, the user and the address make
- * the second line, and the date (or the "copied" stamp) closes the row. ----
+ * ---- The table (RF-42). A real table laid out as rows of flexible cells: the title, the user and the site share the
+ * room left and never go under 160, 120 and 120 px; the password (112), the day (80) and the actions (92) keep their
+ * width. With 16 px at both ends of a row and 8 px between columns the minimums add up to 756 px, which fit in the
+ * smallest window (1000 - 232 = 768); the wrapper scrolls sideways only as a safety net. A row is 52 px over its rule
+ * and the row of labels 36 px over its own. ----
  */
-.entries,
-.entries tbody {
-  display: block;
-  width: 100%;
+.table-scroll {
+  --entry-head-h: 36px;
+  --entry-row-h: 52px;
+  --entry-badge: 32px;
+
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  /* A row the focus brings into view stops under the row of labels, not behind it. */
+  scroll-padding-top: var(--entry-head-h);
 }
 
-.entries tbody tr {
+.entries,
+.entries thead,
+.entries tbody {
+  display: block;
+}
+
+.entries {
+  min-width: 756px;
+}
+
+.entries tr {
   position: relative;
-  display: grid;
-  grid-template-areas:
-    "title title date"
-    "user  rest  date";
-  grid-template-columns: minmax(0, auto) minmax(0, 1fr) max-content;
-  align-content: center;
+  box-sizing: content-box;
+  display: flex;
   align-items: center;
-  min-height: calc(var(--row-h) + var(--space-4));
-  padding: var(--space-2) var(--space-6) var(--space-2) calc(var(--space-6) + var(--bullet) + var(--space-3));
-  border-top: 1px solid var(--rule);
+  gap: var(--space-2);
+  padding: 0 var(--space-4);
+  border-bottom: 1px solid var(--rule);
+}
+
+.entries :is(th, td) {
+  min-width: 0;
+  padding: 0 var(--space-2);
+  font-weight: var(--weight-regular);
+  text-align: start;
+}
+
+.entries .cell-title {
+  flex: 1.6 1 160px;
+}
+
+.entries :is(.cell-user, .cell-url) {
+  flex: 1.2 1 120px;
+}
+
+.entries .cell-password {
+  flex: 0 0 112px;
+}
+
+.entries .cell-date {
+  flex: 0 0 80px;
+}
+
+.entries .cell-actions {
+  flex: 0 0 92px;
+}
+
+/* The row of labels stays in sight while the rows scroll under it. */
+.entries thead {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--surface);
+}
+
+.entries thead tr {
+  height: var(--entry-head-h);
+}
+
+.entries thead th {
+  overflow: hidden;
+  font-size: var(--text-xs);
+  letter-spacing: 0.04em;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: var(--ink-muted);
+}
+
+/* "Modificada" is wider than its 80 px: it runs on over the column of the actions, which has no label. */
+.entries thead .cell-date {
+  overflow: visible;
+}
+
+/* A double click is an order here (RF-106), not a way to select a word. */
+.entries tbody tr {
+  min-height: var(--entry-row-h);
+  cursor: default;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 .entries tbody tr:hover {
   background: var(--hover);
 }
 
+/* The chosen one: the light plate, with its own inks. */
 .entries tbody tr[data-selected] {
   --focus: var(--on-panel);
 
   color: var(--on-panel);
   background: var(--panel);
-  border-color: var(--panel);
 }
 
-.entries tbody tr:has(button:focus-visible) {
+.entries tbody tr:has(.cell-title button:focus-visible) {
   outline: var(--focus-width) solid var(--focus);
   outline-offset: calc(-1 * var(--focus-width));
 }
 
-.entries th {
-  grid-area: title;
+.entries tbody :is(th, td) {
+  display: flex;
+  align-items: center;
+  height: var(--entry-row-h);
+}
+
+/* Long text is cut with an ellipsis: nothing in a row takes two lines. */
+.cell-text {
   min-width: 0;
-  padding: 0;
-  text-align: start;
-}
-
-.entries .bullet {
-  position: absolute;
-  top: 50%;
-  left: var(--space-6);
-  transform: translateY(-50%);
-}
-
-.entries th button {
-  display: block;
-  max-width: 100%;
-  min-height: 0;
-  padding: 0;
   overflow: hidden;
-  font-size: var(--text-md);
-  text-align: start;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* The title cell is its button: the circle with the initial of the entry on the colour of its group, and the title. */
+.entries tbody .cell-title {
+  padding: 0;
+}
+
+.entries .cell-title button {
+  justify-content: flex-start;
+  gap: var(--space-3);
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  padding: 0 var(--space-2);
+  font-size: var(--text-md);
+  line-height: var(--leading);
+  text-align: start;
   color: inherit;
   background: none;
   border: 0;
+  border-radius: 0;
+  cursor: default;
 }
 
-.entries th button:focus-visible {
+.entries .cell-title button:focus-visible {
   outline: none;
 }
 
 /* The row answers to the pointer and to the press; its title button does not paint a second patch inside it. */
-.entries th button:hover:not(:disabled),
-.entries th button:active:not(:disabled) {
+.entries .cell-title button:hover:not(:disabled),
+.entries .cell-title button:active:not(:disabled) {
   background: none;
   transform: none;
 }
 
-.entries th button::after {
-  position: absolute;
-  inset: 0;
-  content: "";
+.entries .bullet {
+  width: var(--entry-badge);
+  height: var(--entry-badge);
+  font-size: var(--text-control);
 }
 
-.entries td {
-  min-width: 0;
-  padding: 0;
-  overflow: hidden;
-  font-size: var(--text-sm);
-  text-overflow: ellipsis;
-  white-space: nowrap;
+/* What is secondary in a row: the mask, the day and the dash of a cell without data. */
+.entries tbody :is(.cell-password, .cell-date, [data-empty]) {
   color: var(--ink-muted);
 }
 
-.entries tr[data-selected] td {
+.entries tbody tr[data-selected] :is(.cell-password, .cell-date, [data-empty]) {
   color: var(--on-panel-muted);
 }
 
-.cell-user {
-  grid-area: user;
+/* RF-105: always the same marks, in the data face. The value is not in the list, so neither is its length. */
+.entries .mask {
+  font: var(--weight-regular) var(--text-control) / 1 var(--font-mono);
+  letter-spacing: 0.08em;
 }
 
-.cell-url,
-.entries[data-search] .cell-group {
-  grid-area: rest;
+.entries tbody .cell-date {
+  font-size: var(--text-sm);
+  white-space: nowrap;
 }
 
-/* The separator belongs to the pair: it only shows when both sides have something. */
-.cell-user:not(:empty) ~ .cell-url:not(:empty)::before,
-.entries[data-search] .cell-user:not(:empty) ~ .cell-group:not(:empty)::before {
-  display: inline-block;
-  width: 1em;
-  text-align: center;
-  content: "·";
-}
-
-/* In the list the tags stay for screen readers; search results show the group instead of the address. */
-.cell-tags,
-.entries[data-search] .cell-url {
+/*
+ * The tags and, in the search results, the path of the group stay in the table for screen readers: the row says the
+ * group with the colour of its circle. They are out of the flow, so they add no width.
+ */
+.entries :is(.cell-tags, .cell-group) {
   position: absolute;
   width: 1px;
   height: 1px;
+  padding: 0;
   overflow: hidden;
   clip-path: inset(50%);
   white-space: nowrap;
 }
 
-.entries .cell-date {
-  grid-area: date;
-  padding-inline-start: var(--space-3);
-  overflow: visible;
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
+/*
+ * Every row keeps the 92 px of its last cell; only the chosen one fills it, with two icon buttons of 44 px: "Copiar
+ * contraseña" on a plate in the ink of the row, and "Abrir la entrada" without one.
+ */
+.entries tbody .cell-actions {
+  justify-content: flex-end;
+  gap: var(--space-1);
+  padding: 0;
 }
 
-/* The copied state is stamped on the row and stays while the clipboard holds the value. */
-.stamp {
-  display: inline-block;
-  padding: 2px 7px;
-  font: var(--weight-strong) var(--text-xs) / 1.3 var(--font-mono);
-  font-variant-numeric: tabular-nums;
-  letter-spacing: 0.04em;
-  color: var(--ok);
-  border: 1.5px solid currentColor;
-  border-radius: var(--radius-sm);
-  transform: rotate(-2deg);
-  animation: stamp-in 180ms cubic-bezier(0.16, 1, 0.3, 1);
+.entries .cell-actions button {
+  width: var(--control-h);
+  height: var(--control-h);
+  min-height: 0;
+  padding: 0;
+  border: 0;
 }
 
-/* Only the word is a capital-letter stamp: the unit "s" keeps its case. */
-.stamp-word {
-  text-transform: uppercase;
+.row-copy {
+  color: var(--panel);
+  background: var(--on-panel);
 }
 
-.entries tr[data-selected] .stamp {
+.row-copy:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--on-panel) 86%, var(--panel));
+}
+
+.row-open {
   color: var(--on-panel);
 }
 
-@keyframes stamp-in {
-  from {
-    opacity: 0;
-    transform: rotate(-2deg) scale(1.3);
-  }
+.row-open:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--on-panel) 9%, transparent);
 }
 
-@container list (max-width: 22rem) {
-  .entries tbody tr {
-    padding-inline: calc(var(--space-4) + var(--bullet) + var(--space-3)) var(--space-4);
-  }
-
-  .entries .bullet {
-    left: var(--space-4);
-  }
-
-  /* A narrow row has no room for the address: it stays for screen readers, and the user closes the line. */
-  .entries:not([data-search]) .cell-url,
-  .entries .cell-date:not(:has(.stamp)) {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip-path: inset(50%);
-  }
-
-  /* A narrow list gives the stamp its own line under the row. */
-  .entries tbody tr:has(.stamp) {
-    grid-template-areas:
-      "title title title"
-      "user  rest  rest"
-      "date  date  date";
-  }
-
-  .entries .cell-date:has(.stamp) {
-    padding: var(--space-1) 0 0;
-  }
+[data-density="compact"] .table-scroll {
+  --entry-row-h: 36px;
+  --entry-badge: 24px;
 }
 
-[data-density="compact"] .entries tbody tr {
-  grid-template-areas: "title user date";
-  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) auto;
-  column-gap: var(--space-3);
-  min-height: var(--row-h);
-  padding-block: var(--space-1);
+/*
+ * ---- The foot of the list: what the last order left to say, the copy notice while no window is open, and the line
+ * that says what a double click does in each column. ----
+ */
+.list-foot {
+  flex: none;
+  margin-top: auto;
+  padding-top: var(--space-4);
 }
 
-[data-density="compact"] .entries :is(.cell-url, .cell-group) {
+.list-notice p,
+.list-error {
+  max-width: none;
+  margin: 0;
+  padding: 0 var(--space-6) var(--space-2);
+  font-size: var(--text-sm);
+}
+
+.list-notice p {
+  color: var(--ink-muted);
+}
+
+.list-error:empty {
   display: none;
 }
 
-/* ---- Detail: the route of the group as stops, the title, and the fields in rows. ---- */
-.detail-pane > [aria-live] .notice {
-  margin-bottom: var(--space-5);
+.list-foot > .toast-zone:not(:empty) {
+  padding: 0 var(--space-4) var(--space-3);
 }
 
-.entry-route {
-  margin: 0 0 var(--space-5);
-}
-
-.entry-route dd {
-  margin: 0;
-}
-
-.route {
+.list-hint {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  row-gap: var(--space-2);
+  gap: var(--space-1) var(--space-5);
   margin: 0;
-  padding: 0;
+  padding: 10px var(--space-6);
   font-size: var(--text-sm);
-  font-weight: var(--weight-strong);
   color: var(--ink-muted);
-  list-style: none;
+  border-top: 1px solid var(--rule);
 }
 
-.route li {
+.list-hint-key {
   display: flex;
   align-items: center;
-}
-
-/* A stop: a dot in the line colour, outlined in ink so it reads on any ground. */
-.route li::before {
-  flex: none;
-  width: 14px;
-  height: 14px;
-  margin-inline-end: var(--space-2);
-  content: "";
-  background: var(--line);
-  border: 2px solid var(--ink);
-  border-radius: var(--radius-round);
-}
-
-.route li:not(:last-child)::after {
-  flex: none;
-  width: 56px;
-  height: 4px;
-  margin-inline: var(--space-2);
-  content: "";
-  background: var(--line);
-}
-
-.route li:last-child {
+  gap: var(--space-2);
+  font-weight: var(--weight-strong);
   color: var(--ink);
 }
 
-.entry-title {
-  margin: 0 0 var(--space-2);
-  overflow-wrap: anywhere;
-  font-size: var(--text-2xl);
-  line-height: 1.05;
-  letter-spacing: -0.01em;
+.list-hint-key > .icon {
+  width: 16px;
+  height: 16px;
 }
 
-.entry-meta {
+/*
+ * ---- The window of an entry (RF-43): a modal sheet whose content brings its own head. Header: the circle of the
+ * entry, its title with the group under it, and at the end "Editar", the menu with the rest of what can be asked of
+ * the entry, and "Cerrar". ----
+ */
+dialog[data-layout="entry"] {
+  width: min(600px, calc(100vw - var(--space-6) * 2));
+  max-height: calc(100vh - var(--space-6) * 2);
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-dialog);
+}
+
+/*
+ * The blocks of the entry, one under the other: the header with its own relief, the card 24 px from each side and,
+ * under it, the dates and what the last order left to say, 20 px from the foot of the window.
+ */
+.entry {
+  display: flex;
+  flex-direction: column;
+  padding-bottom: var(--space-5);
+}
+
+.entry > :is(p, .entry-status, .actions) {
+  max-width: none;
+  margin: var(--space-2) var(--space-6) 0;
+}
+
+.entry-head {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-1) var(--space-5);
-  margin: 0 0 var(--space-6);
+  align-items: center;
+  gap: 14px;
+  padding: var(--space-5) var(--space-3) var(--space-4) var(--space-6);
+}
+
+.entry-badge {
+  width: 48px;
+  height: 48px;
+  font-size: var(--text-xl);
+}
+
+.entry-heading {
+  flex: 1 1 200px;
+  min-width: 0;
+}
+
+.entry-title {
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-size: 1.5rem; /* 24: the title of the window, as approved */
+  font-weight: var(--weight-display);
+  line-height: 1.15;
+}
+
+.entry-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
   font-size: var(--text-sm);
   color: var(--ink-muted);
 }
 
-.entry-meta div {
+.group-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  background: var(--line);
+  border-radius: var(--radius-round);
+}
+
+/* Secondary actions: a plate in the surface colour with the control border. */
+.entry-head-actions {
   display: flex;
-  gap: var(--space-2);
+  flex: none;
+  gap: var(--space-1);
 }
 
-.entry-meta dd {
-  margin: 0;
-  font-family: var(--font-mono);
+.entry-head-actions button:not([role="menuitem"], :hover) {
+  background: var(--surface);
 }
 
-.entry-fields {
-  margin: 0;
+.entry-head-actions > button {
+  padding-inline: 14px;
+  font-size: var(--text-md);
 }
 
-.entry-meta + .entry-fields {
-  border-top: 2px solid var(--ink);
+.entry-head-actions .icon {
+  width: 16px;
+  height: 16px;
 }
 
-.entry-fields > div {
+.entry-menu {
+  display: flex;
+}
+
+.entry-more,
+.entry-close {
+  width: var(--control-h);
+  padding: 0;
+}
+
+/* "Cerrar" is the way out, not an order: no plate and no border. */
+.entry-head-actions > .entry-close {
+  padding: 0;
+  border-color: transparent;
+}
+
+.entry-head-actions > .entry-close > .icon {
+  width: 18px;
+  height: 18px;
+}
+
+/* The menu hangs from its button, 4 px under it and flush with its right edge; without room below, it opens upward. */
+.entry-more[aria-expanded="true"] {
+  anchor-name: --entry-menu;
+}
+
+.entry-menu > .menu {
+  top: anchor(bottom);
+  background: var(--ground);
+  right: anchor(right);
+  min-width: 224px;
+  margin-block: var(--space-1);
+  position-anchor: --entry-menu;
+  position-try-fallbacks: flip-block;
+}
+
+/*
+ * ---- The card: one row of 56 px per field. Label (104 px) | value | icon buttons of 44 px, which line up in one
+ * column at the end because every row ends at the same edge. ----
+ */
+.entry-card {
+  margin: 0 var(--space-6);
+  background: var(--ground);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-card);
+}
+
+.card-row {
   display: grid;
-  grid-template-columns: 7.5rem minmax(0, 1fr);
+  grid-template-columns: 104px minmax(0, 1fr);
   column-gap: var(--space-3);
-  align-items: center;
-  min-height: calc(var(--row-h) + var(--space-3));
-  padding: var(--space-2) 0;
+  /* From the top: label, first line of the value and buttons stay level when a value takes many lines. */
+  align-items: start;
+  min-height: 56px;
+  /* 6 + the 44 px of the buttons + 5 + the rule under the row: 56. */
+  padding: 6px var(--space-2) 5px var(--space-4);
   border-bottom: 1px solid var(--rule);
 }
 
-.entry-fields dt {
+.card-row:last-child {
+  border-bottom: 0;
+}
+
+.card-row > dt {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
   overflow-wrap: anywhere;
   font-size: var(--text-sm);
-  font-weight: var(--weight-strong);
   color: var(--ink-muted);
 }
 
-.entry-fields dd {
+.card-row > dd {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-2) var(--space-3);
+  gap: var(--space-3);
   min-width: 0;
   margin: 0;
-  overflow-wrap: anywhere;
-  font-size: 1rem;
 }
 
-.entry-fields dd > :first-child:not(.secret[data-masked]) {
-  flex: 1 1 8rem;
+/*
+ * The cell of the value: at least the 44 px of the icon buttons beside it, so one line sits level with them. With a
+ * gesture (RF-106) its `title` is the help, and a double click must not leave a word selected.
+ */
+.card-main {
+  display: flex;
+  flex: 1;
+  align-items: center;
   min-width: 0;
+  min-height: 44px;
 }
 
-.entry-fields dd .path {
-  font-size: inherit;
-  color: inherit;
+.card-main[title] {
+  -webkit-user-select: none;
+  user-select: none;
+  cursor: default;
 }
 
-.entry-fields .notes {
-  max-width: 65ch;
+/* A value that is not protected is read whole here: a long one breaks into lines instead of being cut. */
+.card-value {
+  flex: 1;
+  min-width: 0;
+  /* One line plus this relief is the 44 px of the buttons: the first line of a long value stays level with them. */
+  padding-block: 11px;
+  overflow-wrap: anywhere;
 }
 
-.field-actions {
+.card-empty {
+  flex: 1;
+  color: var(--ink-muted);
+}
+
+.card-row :is(.tags, .attachments) {
+  flex: 1;
+  min-width: 0;
+  padding-block: var(--space-2);
+}
+
+.attachments {
+  margin: 0;
+  padding: 0;
+  overflow-wrap: anywhere;
+  list-style: none;
+}
+
+/* At the top of the row: beside a value of many lines (a long password, shown) they stay with its first line. */
+.card-actions {
   display: flex;
   flex: none;
-  gap: var(--space-2);
+  align-self: flex-start;
   margin-inline-start: auto;
 }
 
-.field-actions .btn-icon {
-  width: var(--control-h);
+/* An icon alone in a 44 px square, without a plate: only "Copiar contraseña" has one (`.btn-primary`). */
+.card-actions > button {
+  width: 44px;
+  height: 44px;
+  min-height: 44px;
   padding: 0;
+}
+
+.card-actions > button:not(.btn-primary) {
+  border-color: transparent;
 }
 
 /*
@@ -421,325 +605,121 @@
   border-radius: 2px;
 }
 
-/* The hint under the protected fields of the detail, in line with the values. */
-.detail-pane .field-hint {
-  margin: 0;
-  padding: var(--space-2) 0 var(--space-2) calc(7.5rem + var(--space-3));
-  border-bottom: 1px solid var(--rule);
-}
-.detail-pane h5 {
-  margin: var(--space-6) 0 var(--space-2);
-  color: var(--ink-muted);
-}
-
-.entry-actions {
-  margin-top: var(--space-6);
-}
-
 /*
- * Sending an entry to the bin can be undone, so in its resting state it reads like the other actions: red only under
- * the pointer and with focus. Inside the bin, "Borrar definitivamente…" keeps the red border of `.btn-danger`.
+ * A shown secret is read whole: it cannot be selected or put in a `title`, so it breaks into lines instead of being
+ * cut with an ellipsis.
  */
-.entry-actions > .btn-to-bin:hover:not(:disabled) {
-  color: var(--on-danger);
-  background: var(--danger);
-  border-color: var(--danger);
+.card-row .secret:not([data-masked]) {
+  flex: 1;
+  min-width: 0;
+  padding-block: 11px;
+  letter-spacing: 0.06em;
 }
 
-.entry-actions > .btn-to-bin:focus-visible:not(:hover) {
-  color: var(--danger);
-  border-color: var(--danger);
+/* The notes close the card: the label at the top, the text with its own line breaks. */
+.card-row-notes {
+  align-items: start;
+  padding: var(--space-4);
 }
 
-.entry-status p {
-  margin: var(--space-4) 0 0;
+.card-row-notes .card-actions {
+  margin-block: calc(-1 * var(--space-3));
+}
+
+.card-row-notes .card-main {
+  align-items: flex-start;
+  min-height: 0;
+}
+
+.card-row-notes > dt {
+  display: block;
+  min-height: 0;
+}
+
+.card-notes {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  white-space: pre-line;
+}
+
+/* RF-107: both dates with their hour. Each one stays whole; when they do not fit, the line breaks between them. */
+.entry > .entry-dates {
+  display: flex;
+  flex-wrap: wrap;
+  margin-top: var(--space-4);
   font-size: var(--text-sm);
   color: var(--ink-muted);
 }
 
-.entry-status + .error {
-  margin-top: var(--space-3);
-}
-
-/*
- * ---- Entry form (create and edit): the same rows as the detail, with a control where the value was. The label keeps
- * the column of the field names, and hints, strength and errors hang under their control. ----
- */
-.entry-form > h4 {
-  margin: 0 0 var(--space-5);
-  overflow-wrap: anywhere;
-  font-size: var(--text-xl);
-  line-height: 1.05;
-  letter-spacing: -0.01em;
-}
-
-.entry-form > fieldset {
-  gap: 0;
-  min-width: 0;
-  padding: 0;
-  border: 0;
-  border-top: 2px solid var(--ink);
-  border-radius: 0;
-}
-
-/* The heading of the form already says it: the legend stays for assistive technology. */
-.entry-form > fieldset > legend {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  overflow: hidden;
-  clip-path: inset(50%);
+.entry-date {
   white-space: nowrap;
 }
 
-.entry-form > fieldset > .field {
-  grid-template-columns: 7.5rem minmax(0, 1fr);
-  gap: var(--space-1) var(--space-3);
-  align-items: start;
-  padding: var(--space-3) 0;
-  border-bottom: 1px solid var(--rule);
+/*
+ * The dot between the two dates is drawn, with the same room on each side; its text (" · ") stays for whoever reads
+ * the line aloud or copies it.
+ */
+.entry-dates > .dot-sep {
+  display: flex;
+  align-items: center;
+  font-size: 0;
 }
 
-.entry-form > fieldset > .field > label {
-  padding-top: calc((var(--control-h) - 1.45em) / 2);
-  overflow-wrap: anywhere;
+.entry-dates > .dot-sep::before {
+  width: 3px;
+  height: 3px;
+  margin-inline: 6px;
+  content: "";
+  background: currentColor;
+  border-radius: var(--radius-round);
+}
+
+.entry-status p {
+  margin: 0;
+  font-size: var(--text-sm);
   color: var(--ink-muted);
 }
 
-.entry-form > fieldset > .field > :not(label) {
-  grid-column: 2;
+/* While they have nothing to say they take no room; they stay rendered, so their next text is announced. */
+.entry > :is(.entry-status, .error):empty {
+  margin-top: 0;
 }
 
-.entry-form > fieldset > .field > :is(input, textarea) {
-  width: 100%;
+/*
+ * ---- The copy notice: a light plate, centred, with a green check. At the foot of the list, over the line of the
+ * double click; inside the window of an entry while it is open, where it stays in sight while the window scrolls. ----
+ */
+.toast-zone {
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
 }
 
-.entry-form .field > .error:empty,
-.entry-form > .error:empty {
-  display: none;
+dialog[data-layout="entry"] > .toast-zone {
+  position: sticky;
+  bottom: 0;
 }
 
-.entry-form .field > .actions {
-  margin-top: var(--space-1);
+dialog[data-layout="entry"] > .toast-zone:not(:empty) {
+  padding: 0 var(--space-6) var(--space-5);
 }
 
-/* With the generator open its own panel has "Generar" and "Cerrar generador": the button that opened it steps aside. */
-.entry-form .field > .actions:has(> [aria-expanded="true"]) {
-  display: none;
-}
-
-.entry-form > fieldset > .actions {
-  margin-top: var(--space-5);
-}
-
-.entry-form > [aria-live] p,
-.entry-form > .error {
-  margin: var(--space-4) 0 0;
-  font-size: var(--text-sm);
-}
-
-/* ---- Generator: one panel under the password it fills. ---- */
-.generator {
-  gap: var(--space-3);
-  min-width: 0;
-  margin-top: var(--space-2);
-  padding: var(--space-3) var(--space-4) var(--space-4);
-  background: var(--surface);
-}
-
-.generator legend {
-  font-size: var(--text-sm);
-}
-
-.generator > .field > input {
-  width: 7rem;
-}
-
-.generator fieldset {
-  grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr));
-  gap: 0 var(--space-4);
-  min-width: 0;
-  padding: 0;
-  border: 0;
-}
-
-.generator fieldset > legend {
-  margin-bottom: var(--space-1);
-  padding: 0;
-}
-
-.generator .actions {
+.toast {
+  display: flex;
+  gap: 10px;
+  align-items: center;
   margin: 0;
+  padding: 10px var(--space-4);
+  font-weight: var(--weight-strong);
+  color: var(--on-panel);
+  background: var(--panel);
+  border-radius: var(--radius);
 }
 
-.generator-result {
-  display: grid;
-  gap: var(--space-2);
-}
-
-.generator p {
-  margin: 0;
-  font-size: var(--text-sm);
-}
-
-/*
- * The generated password, to be read before it is used: data type, one box per character. A digit is underlined and
- * a symbol is outlined, both heavier than the letters, so the three are told apart without any colour.
- */
-.generated {
-  display: block;
-  margin-top: var(--space-1);
-  padding: var(--space-2) var(--space-3);
-  font-size: var(--text-lg);
-  line-height: 1.8;
-  color: var(--ink);
-  background: var(--ground);
-  border: 1px solid var(--rule);
-  border-radius: var(--radius-sm);
-}
-
-.generated span {
-  display: inline-block;
-  min-width: 1.15ch;
-  margin-inline-end: 2px;
-  line-height: 1.25;
-  text-align: center;
-}
-
-.generated [data-kind] {
-  font-weight: 700;
-}
-
-.generated [data-kind="digit"] {
-  border-bottom: 2px solid var(--ink);
-}
-
-.generated [data-kind="symbol"] {
-  border-radius: 2px;
-  box-shadow: inset 0 0 0 1px var(--ink);
-}
-
-/*
- * Only a narrow detail shrinks the entry title: the 800 × 600 window (about 16rem) and the smallest one (480 × 360,
- * about 24.5rem, where "Copiar" must show without scrolling). The default window (1120 × 720, about 27rem) keeps 44 px.
- */
-@container detail (max-width: 25rem) {
-  .entry-title {
-    font-size: var(--text-xl);
-  }
-}
-
-@container detail (max-width: 30rem) {
-  .entry-form > h4 {
-    font-size: 1.5rem;
-  }
-
-  .entry-form > fieldset > .field {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .entry-form > fieldset > .field > label {
-    padding-top: 0;
-  }
-
-  .entry-form > fieldset > .field > :not(label) {
-    grid-column: 1;
-  }
-
-  /* Each field stays one row — label | value | actions — with a narrower label column and short action labels. */
-  .entry-fields > div {
-    grid-template-columns: 5.5rem minmax(0, 1fr);
-    column-gap: var(--space-2);
-  }
-
-  /*
-   * A value is never cut: it breaks into lines inside its column, and the actions stay at the top right. The top
-   * padding centres a one-line value on the actions.
-   */
-  .entry-fields dd:has(> .field-actions) {
-    flex-wrap: nowrap;
-    align-items: flex-start;
-    gap: var(--space-2);
-  }
-
-  .entry-fields dd:has(> .field-actions) > :first-child:not(.secret[data-masked]) {
-    min-width: 0;
-    padding-top: calc((var(--control-h) - 1lh) / 2);
-    overflow-wrap: anywhere;
-  }
-
-  .entry-fields dd:has(> .field-actions) > :first-child:not(.secret) {
-    flex: 1 1 0;
-  }
-
-  .entry-fields dd:has(> .field-actions) > .secret[data-masked] {
-    margin-top: calc((var(--control-h) - 14px) / 2);
-  }
-
-  /* A revealed secret wraps under its actions instead of being cut. */
-  .entry-fields dd:has(> .secret:not([data-masked])) {
-    flex-wrap: wrap;
-  }
-
-  .secret[data-masked] {
-    width: calc(5 * var(--mask-period));
-  }
-
-  .field-actions {
-    gap: var(--space-1);
-  }
-
-  .field-actions > button:not(.btn-icon) {
-    padding-inline: var(--space-2);
-  }
-
-  /* "Copiar contraseña" reads "Copiar": the button keeps its full name in `aria-label`. */
-  .field-actions .label-more {
-    display: none;
-  }
-
-  .detail-pane .field-hint {
-    padding-inline-start: calc(5.5rem + var(--space-2));
-  }
-
-  .route li:not(:last-child)::after {
-    width: 24px;
-  }
-}
-
-/*
- * A short window (the smallest is 480 × 360): the main action, "Copiar" the password, must show without scrolling. The
- * route and the dates tighten, and only "Modificada" stays in view ("Creada" stays for screen readers).
- */
-@media (max-height: 480px) {
-  .entry-route {
-    margin-bottom: var(--space-2);
-  }
-
-  .entry-title {
-    margin-bottom: var(--space-1);
-  }
-
-  .entry-meta {
-    margin-bottom: var(--space-3);
-  }
-
-  .entry-meta > div:first-child {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip-path: inset(50%);
-    white-space: nowrap;
-  }
-
-  .entry-fields > div {
-    min-height: calc(var(--row-h) + var(--space-2));
-    padding-block: var(--space-1);
-  }
-
-  .back-to-list {
-    margin-bottom: var(--space-2);
-  }
+.toast > .icon {
+  width: 16px;
+  height: 16px;
+  color: var(--on-panel-ok);
+  stroke-width: 2.5;
 }

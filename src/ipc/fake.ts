@@ -75,9 +75,23 @@ export interface FakeEntry {
 
 export interface FakeOptions {
   readonly vaults?: readonly FakeVaultFile[];
-  /** Other files that already exist on disk (e.g. a key file), for `ArchivoExiste`. */
+  /**
+   * Other files that already exist on disk (e.g. a key file), for `ArchivoExiste`. It is also where
+   * `unlock_key_suggestion` looks (RF-110): to seed "there is a key file beside this vault", put
+   * `keyFileBeside(vaultPath)` here and make the vault one the core answers about (`recent`, a `locked` status or
+   * an answer of `pick_vault_to_open` in `picks`).
+   */
   readonly files?: readonly string[];
   readonly recent?: readonly { readonly path: string; readonly exists: boolean }[];
+  /**
+   * RF-111: the key file the core remembers for a recent vault, vault path → key file path, as if the vault had
+   * been opened with it before. To seed "the remembered one comes already chosen", put the vault in `recent` and
+   * the key file also in `files`; to seed "the remembered one is missing", leave the key file out of `files`.
+   * As the core does when it reads its settings, an entry whose vault is not in `recent`, or whose path
+   * `isRememberableKeyFile` refuses, is dropped. After that the fake follows the rule of the core: only a
+   * `vault_open` that works sets, replaces or forgets it.
+   */
+  readonly keyFiles?: Readonly<Record<string, string>>;
   readonly status?: WireStatus;
   /** Answers of the native file dialogs, in order; `null` = the person cancelled. */
   readonly picks?: Partial<Record<PickCommand, readonly (string | null)[]>>;
@@ -225,6 +239,67 @@ export function hasForbidden(text: string): boolean {
   return FORBIDDEN.test(text);
 }
 
+/** The folder the fake proposes new vaults in (RF-97): its "Documents › AlmarioKS". */
+export const FAKE_DEFAULT_FOLDER = "D:/Documentos/AlmarioKS";
+
+const DEFAULT_FILE_STEM = "bóveda";
+const MAX_FILE_STEM_CHARS = 100;
+/** The characters Windows refuses in a file name, and every control character. */
+const NOT_IN_A_FILE_NAME = /[\\/:*?"<>|\p{Cc}]/gu;
+const END_DOTS_AND_SPACES = /[.\p{White_Space}]+$/u;
+const END_SPACES = /\p{White_Space}+$/u;
+const DEVICE_NAME = /^(?:CON|PRN|AUX|NUL|CONIN\$|CONOUT\$|(?:COM|LPT)[0-9¹²³])$/u;
+
+/**
+ * RF-97: the file name (without extension) of a vault called `name`. The same steps, in the same order, as
+ * `almarioks_core::location::file_stem`; both are tested against `tests/fixtures/location/file-names.json`.
+ */
+export function fileStem(name: string): string {
+  const kept = trimSpace(name.replace(NOT_IN_A_FILE_NAME, "")).replace(END_DOTS_AND_SPACES, "");
+  // By code points, like the core: `slice` on the string would count UTF-16 units and could split a character.
+  const stem = Array.from(kept).slice(0, MAX_FILE_STEM_CHARS).join("").replace(END_DOTS_AND_SPACES, "");
+  if (stem === "") return DEFAULT_FILE_STEM;
+  const dot = stem.indexOf(".");
+  const base = dot === -1 ? stem : stem.slice(0, dot);
+  const rest = dot === -1 ? "" : stem.slice(dot);
+  // ASCII letters only, like the core: `toUpperCase` on the whole text would turn `ı` into `I`.
+  const device = base.replace(END_SPACES, "").replace(/[a-z]/g, (letter) => letter.toUpperCase());
+  return DEVICE_NAME.test(device) ? `${base}_${rest}` : stem;
+}
+
+/** RF-99: the key file beside a vault file: `.keyx` in the place of a final `.kdbx`, or added to any other name. */
+export function keyFileName(vaultFile: string): string {
+  const stem = /\.kdbx$/i.test(vaultFile) ? vaultFile.slice(0, -".kdbx".length) : vaultFile;
+  return `${stem}.keyx`;
+}
+
+/** A path cut after its last separator: the folder, with that separator, and the file name. */
+function splitPath(path: string): { readonly folder: string; readonly file: string } {
+  const cut = Math.max(path.lastIndexOf("/"), path.lastIndexOf("\\")) + 1;
+  return { folder: path.slice(0, cut), file: path.slice(cut) };
+}
+
+/**
+ * RF-110: the path of the key file beside a vault file (same folder, `keyFileName`). For the `files` option of the
+ * fake: `createFakeBackend({ recent: [{ path, exists: true }], files: [keyFileBeside(path)] })`.
+ */
+export function keyFileBeside(vaultPath: string): string {
+  const { folder, file } = splitPath(vaultPath);
+  return `${folder}${keyFileName(file)}`;
+}
+
+/**
+ * RF-111: whether the core would remember this key file path (`settings::is_rememberable_key_file`, tested with
+ * the same cases): a letter, `:`, a separator, no other `:`, a file name at the end and at most 1024 characters.
+ * Network paths, `\\?\` and `\\.\` paths, relative ones and alternate streams are left out.
+ */
+export function isRememberableKeyFile(path: string): boolean {
+  if (!/^[A-Za-z]:[\\/]/.test(path)) return false;
+  const rest = path.slice(3);
+  const { file } = splitPath(rest);
+  return !rest.includes(":") && file !== "" && file !== "." && file !== ".." && charCount(path) <= 1024;
+}
+
 function byTitle(a: { title: string | null; id: string }, b: { title: string | null; id: string }): number {
   const ta = fold(a.title ?? "");
   const tb = fold(b.title ?? "");
@@ -296,6 +371,8 @@ function summaryOf(entry: StoredEntry) {
     id: entry.id,
     title: entry.title,
     username: entry.username,
+    // RF-105: yes or no, never the password itself.
+    has_password: entry.password !== "",
     url: entry.url,
     tags: [...entry.tags],
     modified: entry.modified,
@@ -389,6 +466,16 @@ export function createFakeBackend(options: FakeOptions = {}): FakeBackend {
   const holds = new Map<string, Promise<void>>();
   const openedUrls: string[] = [];
   let clipboard: string | null = null;
+  /** RF-110: the last path `pick_vault_to_open` answered. */
+  let pickedVault: string | null = null;
+  /** RF-111: the last path `pick_key_file` answered. */
+  let pickedKeyFile: string | null = null;
+  /** RF-111: recent vault → the key file it was last opened with. Read like the core reads its settings. */
+  const keyFiles = new Map(
+    Object.entries(options.keyFiles ?? {}).filter(
+      ([vault, keyFile]) => recent.some((item) => item.path === vault) && isRememberableKeyFile(keyFile),
+    ),
+  );
   let sequence = 0;
 
   function nextId(prefix: string): string {
@@ -433,8 +520,33 @@ export function createFakeBackend(options: FakeOptions = {}): FakeBackend {
     emit("vault-locked");
   }
 
+  /** RF-111: a key file is remembered only for a recent vault. */
+  function forgetKeyFilesOfVaultsNotRecent() {
+    for (const vault of [...keyFiles.keys()]) {
+      if (!recent.some((item) => item.path === vault)) keyFiles.delete(vault);
+    }
+  }
+
   function remember(path: string) {
     recent = [{ path, exists: true }, ...recent.filter((item) => item.path !== path)].slice(0, 5);
+    forgetKeyFilesOfVaultsNotRecent();
+  }
+
+  /**
+   * RF-111, the rule of the core after an unlock that worked: the key file is remembered for the vault only if the
+   * unlock carried a password, the path may be remembered, it is not the one beside the vault, and it is the last
+   * one `pick_key_file` answered or the one already remembered. Otherwise nothing stays remembered for the vault.
+   */
+  function rememberKeyFile(path: string, password: string | undefined, keyFilePath: string | undefined) {
+    const keep =
+      keyFilePath !== undefined &&
+      password !== undefined &&
+      password !== "" &&
+      isRememberableKeyFile(keyFilePath) &&
+      keyFilePath !== keyFileBeside(path) &&
+      (keyFilePath === pickedKeyFile || keyFilePath === keyFiles.get(path));
+    if (keep) keyFiles.set(path, keyFilePath);
+    else keyFiles.delete(path);
   }
 
   function openStatus(path: string, name: string, recovery: WireRecovery, file?: FakeVaultFile): WireStatus {
@@ -486,7 +598,75 @@ export function createFakeBackend(options: FakeOptions = {}): FakeBackend {
     if (stateNow() !== "deriving") return opened;
     status = opened;
     remember(path);
+    rememberKeyFile(path, password, keyFilePath);
     return status;
+  }
+
+  function somethingAt(path: string): boolean {
+    return files.has(path) || vaults.some((vault) => vault.path === path);
+  }
+
+  /** RF-97 to RF-99: paths only; nothing is added to the fake disk. */
+  function vaultCreateLocation(args: Record<string, unknown>) {
+    onlyKeys(args, ["name", "chosen_path"]);
+    const name = requiredString(args.name);
+    // Always sent: a missing key is not "nothing chosen".
+    if (!("chosen_path" in args)) failWith("ArgumentoInvalido");
+    const chosen = args.chosen_path === null ? null : requiredString(args.chosen_path);
+
+    let folder = `${FAKE_DEFAULT_FOLDER}/`;
+    let vaultFile = `${fileStem(name)}.kdbx`;
+    if (chosen !== null) {
+      // The folder keeps its last separator, so the key file is joined the way the chosen path was written.
+      const cut = Math.max(chosen.lastIndexOf("/"), chosen.lastIndexOf("\\")) + 1;
+      folder = chosen.slice(0, cut);
+      vaultFile = chosen.slice(cut);
+      if (vaultFile === "" || vaultFile === "." || vaultFile === "..") failWith("ArgumentoInvalido");
+    }
+    const keyFile = keyFileName(vaultFile);
+    const vaultPath = `${folder}${vaultFile}`;
+    const keyFilePath = `${folder}${keyFile}`;
+    return {
+      vault_path: vaultPath,
+      vault_file: vaultFile,
+      key_file_path: keyFilePath,
+      key_file: keyFile,
+      in_default_folder: folder === `${FAKE_DEFAULT_FOLDER}/`,
+      vault_exists: somethingAt(vaultPath),
+      key_file_exists: somethingAt(keyFilePath),
+    };
+  }
+
+  /** RF-110: the key file beside a vault, if that file is on the fake disk. */
+  function keyFileBesideOnDisk(path: string): { key_file_path: string; key_file: string } | null {
+    const { file } = splitPath(path);
+    if (file === "" || file === "." || file === "..") return null;
+    const keyFilePath = keyFileBeside(path);
+    return files.has(keyFilePath) ? { key_file_path: keyFilePath, key_file: keyFileName(file) } : null;
+  }
+
+  /**
+   * RF-110 and RF-111, for a vault the core knows the person is about to unlock (locked, just picked or recent):
+   * the key file remembered for it, if it is on the fake disk, or else the key file beside it; and if the
+   * remembered one is not on the fake disk, its path in `remembered_missing`. A key that does not apply is left
+   * out, like the core does. Any other path is `null`, like "nothing to propose". Reads only.
+   */
+  function unlockKeySuggestion(args: Record<string, unknown>) {
+    onlyKeys(args, ["path"]);
+    const path = requiredString(args.path);
+    if (path === "") failWith("ArgumentoInvalido");
+    const known =
+      (status.state === "locked" && status.path === path) ||
+      pickedVault === path ||
+      recent.some((item) => item.path === path);
+    if (!known) return null;
+    const remembered = keyFiles.get(path);
+    if (remembered !== undefined && files.has(remembered)) {
+      return { key_file_path: remembered, key_file: splitPath(remembered).file, source: "remembered" };
+    }
+    const beside = keyFileBesideOnDisk(path);
+    if (remembered === undefined) return beside;
+    return { ...beside, remembered_missing: remembered };
   }
 
   async function vaultCreate(args: Record<string, unknown>): Promise<WireStatus> {
@@ -520,6 +700,8 @@ export function createFakeBackend(options: FakeOptions = {}): FakeBackend {
     if (kind === "generate" && keyPath !== undefined) files.add(keyPath);
     status = openStatus(path, name, null);
     remember(path);
+    // A new file at this path: the key file remembered for the one before is not its key file (review, U-1).
+    keyFiles.delete(path);
     return status;
   }
 
@@ -743,8 +925,12 @@ export function createFakeBackend(options: FakeOptions = {}): FakeBackend {
     return null;
   }
 
+  /** The core gives the value of any field the entry has (`reveal_field`): standard or custom, protected or not. */
   function protectedOrStandard(entry: StoredEntry, field: string): string {
-    const known = protectedFieldsOf(entry).includes(field) || (STANDARD_FIELDS as readonly string[]).includes(field);
+    const known =
+      protectedFieldsOf(entry).includes(field) ||
+      (STANDARD_FIELDS as readonly string[]).includes(field) ||
+      entry.customFields.some((custom) => custom.name === field);
     const value = fieldValue(entry, field);
     if (!known || value === undefined) failWith("NoEncontrado");
     return value;
@@ -774,7 +960,7 @@ export function createFakeBackend(options: FakeOptions = {}): FakeBackend {
     const sets = (Object.keys(chosen) as (keyof typeof chosen)[])
       .filter((kind) => chosen[kind])
       .map((kind) => Array.from(CHARSETS[kind]).filter((char) => !avoid || !LOOKALIKES.has(char)).join(""));
-    if (!Number.isInteger(length) || length < 8 || length > 128 || sets.length === 0) failWith("ReglasImposibles");
+    if (!Number.isInteger(length) || length < 8 || length > 500 || sets.length === 0) failWith("ReglasImposibles");
     const password = generate(length, sets);
     return { password, score: strength(password) };
   }
@@ -817,6 +1003,10 @@ export function createFakeBackend(options: FakeOptions = {}): FakeBackend {
         return vaultOpen(args);
       case "vault_create":
         return vaultCreate(args);
+      case "vault_create_location":
+        return vaultCreateLocation(args);
+      case "unlock_key_suggestion":
+        return unlockKeySuggestion(args);
       case "vault_lock":
         if (status.state === "open") status = { state: "locked", path: status.path, recovery: null };
         clipboard = null;
@@ -836,6 +1026,7 @@ export function createFakeBackend(options: FakeOptions = {}): FakeBackend {
         openNow();
         files.add(path);
         remember(path);
+        keyFiles.delete(path);
         return settle({ path });
       }
       case "vault_convert": {
@@ -846,18 +1037,26 @@ export function createFakeBackend(options: FakeOptions = {}): FakeBackend {
         // RF-15: a new KDBX 4 file; the original one stays as it was.
         files.add(path);
         remember(path);
+        keyFiles.delete(path);
         return settle({ path, read_only: false, weak_kdf: false });
       }
       case "recent_list":
         return recent;
       case "recent_remove":
         recent = recent.filter((item) => item.path !== args.path);
+        forgetKeyFilesOfVaultsNotRecent();
         return recent;
       case "pick_vault_to_open":
       case "pick_vault_to_create":
       case "pick_key_file":
-      case "pick_new_key_file":
-        return picks.get(command)?.shift() ?? null;
+      case "pick_new_key_file": {
+        const answer = picks.get(command)?.shift() ?? null;
+        // RF-110: only "the vault to open" counts, and a cancelled dialog leaves the last one.
+        if (command === "pick_vault_to_open" && answer !== null) pickedVault = answer;
+        // RF-111: only "the key file to open with" counts, the same way.
+        if (command === "pick_key_file" && answer !== null) pickedKeyFile = answer;
+        return answer;
+      }
       case "password_strength":
         return { score: strength(optionalString(args.password) ?? "") };
       case "group_tree":

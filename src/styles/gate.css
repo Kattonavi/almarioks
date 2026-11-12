@@ -43,14 +43,6 @@
     border-top: 0;
   }
 
-  .app:not(:has(.open-vault)) .app-status-note {
-    align-items: flex-start;
-    margin-inline-start: 0;
-  }
-
-  .app:not(:has(.open-vault)) .app-status-note .icon {
-    margin-top: 2px;
-  }
 }
 
 /* The totem of the default window is narrow: the title leaves the corner to the settings button. */
@@ -70,7 +62,7 @@
 .gate-title {
   margin: 0 0 var(--space-5);
   overflow-wrap: anywhere;
-  font-size: var(--text-xl);
+  font-size: var(--text-2xl);
   line-height: 1.05;
   letter-spacing: -0.01em;
 }
@@ -118,6 +110,12 @@
 
 .gate-actions {
   margin-top: var(--space-2);
+}
+
+/* The key file that goes with the unlock, and the line that says the app chose it by itself. */
+.unlock-key {
+  display: grid;
+  gap: var(--space-1);
 }
 
 /* ---- Forms of the gate: one column under a signal rule. ---- */
@@ -355,4 +353,418 @@
     gap: var(--space-4);
     padding-top: var(--space-4);
   }
+}
+
+/*
+ * ---- Create vault: the approved prototype (docs/diseno/prototipo-0.1/Crear.dc.html). The brand panel is the totem
+ * of the frame, a little wider here and with its tagline; the form is one centred column on the work ground, with
+ * 20 px between blocks. Nothing below reaches the welcome or the unlock screen. ----
+ */
+.app-tagline {
+  display: none;
+}
+
+@media (min-width: 720px) {
+  .app:has(.create) {
+    grid-template-columns: 240px minmax(0, 1fr);
+  }
+
+  .app:has(.create) > .app-bar {
+    gap: var(--space-4);
+    padding: var(--space-8) 1.75rem 0;
+  }
+
+  .app:has(.create) .brand-mark {
+    width: 56px;
+    height: 56px;
+  }
+
+  .app:has(.create) .app-name {
+    font-size: 1.625rem; /* 26 */
+    line-height: var(--leading-tight);
+    letter-spacing: 0;
+  }
+
+  .app:has(.create) .app-tagline {
+    display: block;
+    margin: 0;
+    color: var(--ink-muted);
+  }
+
+  .app:has(.create) > .app-status {
+    padding-inline: 1.75rem;
+  }
+
+  /* The approved create screen has no tools on it: "Ajustes y Acerca de" is one "Cancelar" away, on the welcome. */
+  .app:has(.create) .app-tools {
+    display: none;
+  }
+}
+
+.create {
+  display: flex;
+  justify-content: center;
+  padding: var(--space-8) var(--space-6);
+}
+
+.create-column {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  width: 100%;
+  max-width: 32.5rem; /* 520 */
+}
+
+/*
+ * At the default window (1120 x 720) the form with a password typed was 14 px taller than the window and its last
+ * notice slid under the buttons (walkthrough on the installed app). A shorter window takes one step off the
+ * spacing, so the usual state fits; the taller one keeps the measures of the approved prototype.
+ */
+@media (max-height: 760px) {
+  .create {
+    padding-block: var(--space-4);
+  }
+
+  /* Two steps: with the key-file help or the weak-password notice on two lines, one step still left the last
+     notice under the buttons at 1120 x 720. */
+  .create-column,
+  .create-form > fieldset {
+    gap: var(--space-3);
+  }
+}
+
+.create-title {
+  margin: 0;
+  font-size: var(--text-2xl);
+  line-height: 1.15;
+}
+
+.create-lead {
+  margin: var(--space-1) 0 0;
+  color: var(--ink-muted);
+}
+
+/* One disabled fieldset turns the whole form off while the vault is created; the title already names it. */
+.create-form > fieldset {
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-5);
+  min-width: 0;
+  padding: 0;
+  border: 0;
+}
+
+.create-field {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.375rem;
+}
+
+.create-field > label,
+.create-keyfile > legend {
+  font-size: var(--text-control);
+  font-weight: var(--weight-strong);
+}
+
+.create-field > input,
+.create-secret {
+  width: 100%;
+  height: var(--control-h);
+}
+
+.create-field > input {
+  padding-block: 0;
+}
+
+.create-error,
+.create-hint {
+  margin: 0;
+  font-size: var(--text-sm);
+}
+
+.create-error {
+  color: var(--danger);
+}
+
+.create-hint {
+  color: var(--ink-muted);
+}
+
+/* A line of small print with its link: where the vault goes, which key file was chosen. */
+.create-line {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-3);
+  align-items: center;
+  font-size: var(--text-sm);
+  color: var(--ink-muted);
+}
+
+.create-line-text {
+  display: flex;
+  gap: 0.375rem;
+  align-items: center;
+  min-width: 0;
+}
+
+.create-line .icon {
+  width: 14px;
+  height: 14px;
+}
+
+/* A file name or a whole path: one line, cut with an ellipsis; its `title` has all of it. */
+.create-file {
+  overflow: hidden;
+  color: var(--ink);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Where the new key file goes, inside a sentence: the file and its full stop stay together on one line. */
+.create-key-where {
+  white-space: nowrap;
+}
+
+.create-key-where > .create-file {
+  display: inline-block;
+  max-width: calc(100% - 1ch);
+  vertical-align: bottom;
+}
+
+.create-link,
+.create-link:hover:not(:disabled) {
+  padding: 0;
+  font-size: var(--text-sm);
+  text-decoration: underline;
+  background: none;
+  border: 0;
+}
+
+.create-link:hover:not(:disabled) {
+  color: var(--ink-muted);
+}
+
+/* A secret field with its eye inside: the frame is the field, so the frame takes the hover and the focus ring. */
+.create-secret {
+  display: flex;
+  align-items: center;
+  background: var(--surface);
+  border: 1px solid var(--control-border);
+  border-radius: var(--radius);
+}
+
+.create-secret:hover:not(:has(:disabled)) {
+  border-color: var(--ink);
+}
+
+.create-secret:has(> input:focus-visible) {
+  outline: var(--focus-width) solid var(--focus);
+  outline-offset: 2px;
+}
+
+.create-secret > input {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  padding-block: 0;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  outline: 0;
+}
+
+/* A full 44 px target over the frame's border. */
+.create-secret > button {
+  flex: none;
+  width: var(--control-h);
+  height: var(--control-h);
+  min-height: 0;
+  margin: -1px -1px -1px 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0 var(--radius) var(--radius) 0;
+}
+
+/* The live region stays rendered while empty (or its next text is not announced) without taking a gap. */
+.create-strength {
+  display: grid;
+  gap: 0.375rem;
+}
+
+.create-strength:empty {
+  margin-top: -0.375rem;
+}
+
+.create-strength-line {
+  display: flex;
+  gap: 0.625rem;
+  align-items: center;
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--ink-muted);
+}
+
+/* The bar of the prototype: 120 × 6, ink on rule. The level is in the words next to it. */
+.create meter {
+  flex: none;
+  width: 120px;
+  height: 6px;
+}
+
+.create meter::-webkit-meter-bar {
+  height: 6px;
+  overflow: hidden;
+  background: var(--rule);
+  border: 0;
+  border-radius: 3px;
+}
+
+.create meter::-webkit-meter-optimum-value,
+.create meter::-webkit-meter-suboptimum-value,
+.create meter::-webkit-meter-even-less-good-value {
+  background: var(--ink);
+}
+
+/* ---- Key file: three radio cards in one row; the chosen one is a light plate. ---- */
+.create-keyfile {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.375rem;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+}
+
+.create-keyfile > legend {
+  margin-bottom: 0.375rem;
+  padding: 0;
+}
+
+.create-keys {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+
+.create-key {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+  min-height: var(--control-h);
+  padding: 0 var(--space-3);
+  font-size: var(--text-control);
+  font-weight: var(--weight-strong);
+  background: var(--surface);
+  border: 1px solid var(--control-border);
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+
+.create-key:hover:not(:has(:disabled)) {
+  border-color: var(--ink);
+}
+
+.create-key:has(input:checked) {
+  color: var(--on-panel);
+  background: var(--panel);
+  border-color: var(--panel);
+}
+
+.create-key:has(input:focus-visible) {
+  outline: var(--focus-width) solid var(--focus);
+  outline-offset: 2px;
+}
+
+.create-key:has(input:disabled) {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.create-key > input {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--line-2);
+}
+
+.create-key > input:focus-visible {
+  outline: 0;
+}
+
+.create-key > input:disabled {
+  opacity: 1;
+}
+
+.create-notice {
+  display: flex;
+  gap: var(--space-3);
+  padding: var(--space-3) 0.875rem;
+  font-size: var(--text-control);
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-card);
+}
+
+.create-notice > .icon {
+  margin-top: 2px;
+}
+
+.create-notice p {
+  margin: 0;
+}
+
+.create-notice p + p {
+  margin-top: var(--space-2);
+}
+
+.create-notice .path {
+  font-size: inherit;
+  color: var(--ink);
+}
+
+/*
+ * The actions stay in sight: in a short window the form scrolls under them instead of cutting them off. When
+ * everything fits they sit where the prototype puts them, 20 px under the notice.
+ */
+.create-foot {
+  position: sticky;
+  bottom: 0;
+  margin: calc(-1 * var(--space-3)) 0 calc(-1 * var(--space-8));
+  padding: var(--space-3) 0 var(--space-8);
+  background: var(--ground);
+}
+
+.create-foot > .create-error,
+.create-progress:not(:empty) {
+  margin-bottom: var(--space-3);
+}
+
+.create-progress p {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-sm);
+}
+
+.create-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  justify-content: flex-end;
+}
+
+.create-actions > button {
+  padding: 0 var(--space-4);
+  font-size: var(--text-md);
+}
+
+.create-actions > .btn-primary {
+  padding: 0 1.125rem;
+}
+
+/* Secondary: a surface plate with the control border; the hover veil goes over it. */
+.create-actions > button:not(.btn-primary) {
+  background: var(--surface);
+}
+
+.create-actions > button:not(.btn-primary):hover:not(:disabled) {
+  background: linear-gradient(var(--hover), var(--hover)) var(--surface);
 }

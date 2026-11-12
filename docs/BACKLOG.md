@@ -56,3 +56,49 @@ Lo que no cabe en la fase va aquí, un renglón por ítem: `- [origen] qué · s
 - [QA 0.1] Un texto no protegido (título, usuario, notas) copiado con Ctrl+C desde la página sobrevive al bloqueo y no se limpia por tiempo (no entra al historial de Win+V): decidir si las notas merecen el trato de un valor protegido · Medio, para seguridad
 - [QA 0.1] Con un valor protegido mostrado, Ctrl+A + Ctrl+C no copia nada (tampoco el resto del texto): efecto del arreglo de R-4 · Bajo
 - [QA 0.1] Sin probar en la ventana real: arrastrar un valor mostrado hacia otra ventana y la contraseña candidata del generador · Bajo
+- [pase de interacción] Duplicar una entrada: el prototipo lo muestra en el menú de la entrada y el núcleo no lo tiene · Medio
+- [pase de interacción] Tema claro como opción en Ajustes (hoy la app es siempre oscura; los valores claros siguen en `tokens.css`) · Bajo
+- [pase de interacción] Elegir con un diálogo dónde crear el archivo llave nuevo: dejó de ofrecerse (se crea junto a la bóveda); el comando `pick_new_key_file` sigue existiendo sin uso · Bajo
+- [pase de interacción] Ventana por debajo de 1000 × 640 y versión de una sola columna · Bajo
+- [pase de interacción] `vault_create_location` dice si existe cualquier ruta que nombre la ventana: revisar con seguridad · para la revisión del delta
+- [pase de interacción] Los menús usan posicionamiento por ancla de CSS, sin respaldo para un WebView2 anterior a Chromium 128 · Bajo
+- [pase de interacción] Dos componentes de menú con el mismo contrato (`GroupMenuButton` en `GroupRail.tsx` y `ui/MenuButton.tsx`): unificarlos · Bajo
+- [pase de interacción] La cuenta regresiva del aviso de copiado se anuncia cada segundo al lector de pantalla (igual que el sello anterior) · Medio
+- [pase de interacción] Editar campos propios desde el diálogo de entrada (hoy solo se conservan; pide un comando del núcleo) · Medio
+- [pase de interacción] Se perdió frente al formulario anterior: "(N de 4)" junto a la fortaleza en el diálogo y el marcado por carácter de dígitos y símbolos de una contraseña a la vista · Bajo
+- [pase de interacción] "Enviar a la papelera…" de una entrada lleva puntos suspensivos (como el prototipo) pero actúa sin diálogo (RF-47): quitar los puntos o confirmar · Bajo
+- [pase de interacción] Mover el aviso "Entrada guardada" al aviso del pie del detalle (hoy sigue en su sitio anterior) · Bajo
+- [seguridad pase, P-3] `vault_create_location` acepta en `chosen_path` rutas relativas, UNC y de dispositivo: limitarlo a rutas que salieron del diálogo o de la propuesta (se arregla con el punto 2 de S-2) · Bajo
+- [seguridad pase, P-4] Una ruta `archivo-existente:flujo.kdbx` pasa la comprobación de existencia y crea un flujo alterno sobre ese archivo (solo con un script en la ventana; anterior al pase): rechazar `:` fuera de la unidad · Bajo
+- [seguridad pase, P-5] Si `Documentos\AlmarioKS` existe como archivo, crear falla sin un mensaje que lo explique · Bajo
+- [seguridad pase, P-6 a P-8] Unión de carpetas seguida al crear, dos ventanas de milisegundos entre consultar la ubicación y crear, y rutas completas en pantalla y `title` · Info
+- [recorrido del pase] Desbloquear una bóveda con archivo llave obliga a buscar el `.keyx` en el diálogo de Windows cada vez, aunque esté junto a la bóveda, y con solo la contraseña el error no dice que esa bóveda usa archivo llave: proponerlo solo o recordarlo por bóveda · Medio (pesa más si "Crear uno nuevo" queda como opción marcada)
+- [recorrido del pase] El diálogo de entrada desplaza su cuerpo a 1120 × 720 incluso vacío ("Más campos" queda bajo el pie); a 1280 × 800 cabe · Medio
+- [recorrido del pase] Al fallar "Crear bóveda" por cualquier motivo se vacían las dos contraseñas y hay que escribirlas otra vez · Medio
+- [recorrido del pase] "Papelera" no aparece en el riel hasta el primer uso (el prototipo la muestra siempre); "Nueva entrada" sigue activa dentro de la Papelera; el foco se pierde tras mover un grupo, "Ir a la bóveda" y desbloquear; los avisos «X se movió a Y» no caducan; no hay "Cerrar bóveda" desde la bóveda abierta · Bajo
+- [recorrido del pase] Una entrada creada con contraseña tecleada quedó una vez sin su sitio; al repetir, lo guardó. Sin explicar (¿app o guion de prueba?): reproducir a mano · por verificar
+- [diseño del pase] Tres medidas del prototipo están como número suelto y el detector las marca: 26 px (marca en crear), 17 px (nombre de la bóveda en el riel), radio de 2 px (barra de oculto): pasarlas a tokens · Bajo
+- [diseño del pase] El contrato de dirección de `.impeccable/surfaces/` quedó desactualizado en composición; manda `DESIGN.md` y `docs/revisiones/0.1-ux-dueno.md` · Info
+- [seguridad ronda 2, Q-1] `unlock_key_suggestion` puede contestar para una ruta que una ventana comprometida volvió "conocida" sin gesto (no agrega capacidad sobre `vault_open`): se cierra con el punto 2 de S-2 · Bajo
+- [seguridad ronda 2, Q-6] Las pruebas estadísticas del generador miden solo frecuencias marginales: no ven dependencia entre caracteres consecutivos ni posiciones intermedias; los subconjuntos de tipos van a ±3 % · Info
+- [seguridad ronda 2, Q-7] Una contraseña guardada sin proteger en el archivo da `has_password: true` sin estar en `protected_fields`: revisar cómo la muestra la ventana de la entrada · Info
+- [ronda 2] RF-111: una letra de unidad mapeada a una carpeta de red no se distingue de un disco local sin código nativo nuevo · residuo declarado
+- [ronda 2, RF-111] Un archivo llave recordado de más de 1 MiB (RF-87 admite cualquier archivo) deja de proponerse y la pantalla dice "No encuentro…", que es inexacto · Bajo
+- [ronda 2, RF-111] Tercer estado "abrió sin llave" que recomendó seguridad (para que una llave vieja junto a una bóveda que no la usa deje de proponerse): no entró; hoy la pantalla dice "si esta bóveda no la usa, quítala" · Bajo
+- [ronda 2] Sin verificar: si Windows muestra "no hay disco en la unidad" cuando la llave recordada estaba en un lector vacío · por verificar
+- [seguridad ronda 2, U-3] Recordar una llave solo si es un archivo que se puede proponer (≤ 1 MiB, no un enlace): hoy una más grande se recuerda y luego la pantalla dice que no la encuentra · Bajo
+- [seguridad ronda 2, U-4 a U-8] Se guarda la grafía de la ruta que mandó la ventana, no la del diálogo; nombres de dispositivo con letra y caracteres de control pasan el filtro si se edita `settings.json` a mano; falta la prueba de comando para una contraseña sin proteger en el archivo (Q-7); ninguna prueba falla si se quita `user-select: none` (jsdom no aplica CSS: se comprueba en la ventana real); `vault_convert` contra C-1 solo leído · Info
+- [recorrido ronda 2] En "Nueva entrada", al teclear la contraseña aparece el medidor y baja el campo Sitio unos 25 px: un clic inmediato cae fuera y lo tecleado se pierde sin aviso (con 0,6 s de espera no pasa). Reservar el alto del medidor cambia la distribución del prototipo: decidir · Bajo
+- [recorrido ronda 2] El aviso "Contraseña copiada…" de una copia anterior se ve dentro de la ventana de otra entrada abierta después · Bajo
+- [recorrido ronda 2] El rótulo MODIFICADA sobresale 3 px de su columna de 80 px (no se corta ni toca nada); en resultados de búsqueda la columna Grupo existe solo para el lector de pantalla · Bajo
+- [código ronda 2, I-8] La exigencia de contraseña con "Crear uno nuevo" (RF-99) vive solo en la ventana: `vault_create` acepta una llave generada sin contraseña. Llevarla al comando obliga a ajustar dos pruebas existentes que crean una bóveda de solo llave nueva · Bajo
+- [código ronda 2, I-2] Un refresco fallido del árbol de grupos desmonta el formulario de entrada con su borrador (hoy solo falla al bloquear): conservar el último árbol bueno · Bajo
+- [código ronda 2, I-4] Un "Mostrar" se descarta en silencio si otro campo se oculta mientras el núcleo contesta (el contador es global): contador por campo · Bajo
+- [código ronda 2, I-5] "Todas las entradas" pide `entry_list` por cada grupo en cada refresco: un comando del núcleo que liste todo, o conservar la lista anterior mientras carga · Bajo
+- [código ronda 2, I-6] `unlockKeySuggestion` y su esquema solo los usan las pruebas (la pantalla usa `unlockKeyProposal`): quitarlos · Bajo
+- [código ronda 2, I-7] Enviar el desbloqueo antes de que llegue la propuesta de llave lo manda sin llave (ventana de milisegundos) · Bajo
+- [diseño ronda 2] Los círculos de las tres opciones de archivo llave usan un color de línea (`--line-2`) como color de selección, contra la regla de que las líneas solo nombran grupos (así está en el prototipo); `--list-w` y `--detail-min-w` quedaron sin uso en `tokens.css`; las fechas van en Overpass y no en mono · Bajo
+- [recorrido ronda 2] Con la ventana de la entrada abierta no se puede bloquear a mano ("Bloquear" queda detrás del modal y no hay atajo); el bloqueo automático sí actúa · Bajo
+- [recorrido ronda 2] "Mostrar contraseña" con un valor de más de un renglón hace crecer la ventana centrada y "Editar" sube unos 24 px: un clic inmediato cae fuera. Anclar la ventana arriba la aparta del prototipo: decidir · Bajo
+- [recorrido ronda 2] Una contraseña larga mostrada se parte en guiones y signos, con renglones desiguales · Bajo
+- [recorrido ronda 2] Sin probar en la app real: "Usar uno mío", llave recordada en una unidad desconectada, el mensaje de 4d (aleatoriedad caída), la entrada de 500 a 1000 × 640, otras escalas y lector de pantalla · por verificar

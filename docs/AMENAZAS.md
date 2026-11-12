@@ -106,6 +106,10 @@
 - **Maestra débil sin archivo llave:** el KDF solo encarece; se avisa, no se bloquea.
 - **Perder la maestra o el `.keyx`:** no hay recuperación, por diseño.
 - **Forks con malware bajo el mismo nombre** y la nube donde el usuario copie su `.kdbx`.
+- **Dónde está el archivo llave (RF-111, aceptado):** la ubicación del archivo llave de cada bóveda reciente queda
+  en claro en `settings.json` del perfil; solo la ruta, nunca el contenido, y solo si la bóveda lleva además
+  contraseña. Solo se recuerdan rutas `X:\…`; una letra que sea una unidad de red mapeada o un `subst` no se distingue
+  de un disco local (pediría código nativo nuevo).
 
 ## 6. Conflictos con la arquitectura (los resuelve el director)
 

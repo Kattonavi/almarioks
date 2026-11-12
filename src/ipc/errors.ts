@@ -29,6 +29,7 @@ export const ERROR_CODES = [
   "MovimientoInvalido",
   "GrupoProtegido",
   "ReglasImposibles",
+  "GeneradorNoDisponible",
   // Proposed contract change: docs/UX.md P3 needs "archivo llave no encontrado" and P1 a vault that is gone.
   "ArchivoNoEncontrado",
   "ArchivoLlaveNoEncontrado",
@@ -108,8 +109,9 @@ export const ERROR_MESSAGES: Readonly<Record<ErrorCode, string>> = {
   LlaveVacia: "Falta la llave. Escribe una contraseña maestra, elige un archivo llave o usa los dos.",
   ArchivoExiste:
     "Ya hay un archivo con ese nombre en esa carpeta y no se tocó. Elige otro nombre u otra carpeta.",
+  // RF-112: a KDBX file does not say whether it uses a key file, so the text does not say it either.
   LlaveIncorrecta:
-    "La contraseña o el archivo llave no abren esta bóveda. Revisa los dos y vuelve a intentarlo.",
+    "La contraseña o el archivo llave no coinciden. Si esta bóveda usa archivo llave, elígelo.",
   ArchivoLlaveDanado:
     "El archivo llave está dañado y no se usó. Elige una copia sana de tu archivo llave.",
   ArchivoDanado:
@@ -135,7 +137,8 @@ export const ERROR_MESSAGES: Readonly<Record<ErrorCode, string>> = {
     "Un grupo no puede ir dentro de sí mismo ni de uno de sus subgrupos. Elige otro destino.",
   GrupoProtegido: "Ese grupo no se puede mover, renombrar ni borrar. Elige otro.",
   ReglasImposibles:
-    "Con estas opciones no se puede generar una contraseña. Elige al menos un tipo de carácter y una longitud entre 8 y 128.",
+    "Con estas opciones no se puede generar una contraseña. Elige al menos un tipo de carácter y una longitud entre 8 y 500.",
+  GeneradorNoDisponible: "No se pudo generar la contraseña. Inténtalo otra vez.",
   ArchivoNoEncontrado: "El archivo de la bóveda ya no está en esa ubicación. Búscalo o elige otro.",
   ArchivoLlaveNoEncontrado: "No se encontró el archivo llave. Vuelve a elegirlo.",
   PortapapelesNoDisponible:

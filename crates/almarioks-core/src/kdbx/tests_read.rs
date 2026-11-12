@@ -295,3 +295,107 @@ fn rf_93_unknown_ids_answer_no_encontrado() {
         CoreError::NoEncontrado
     );
 }
+
+// ---------- RF-105: the list learns whether there is a password, and nothing else ----------
+
+/// One entry per way a password can be in a file, all in the root group; the title says which.
+fn password_cases() -> OpenedVault {
+    let mut db = empty_db();
+    let mut root = db.root_mut();
+    let mut add = |n: u8, title: &str, password: Option<Value<String>>| {
+        root.add_entry_with_id(KpEntryId::from_uuid(uuid(n)))
+            .unwrap()
+            .edit(|e| {
+                e.set_unprotected(fields::TITLE, title);
+                e.set_unprotected(fields::USERNAME, "ana");
+                if let Some(password) = password {
+                    e.fields.insert(fields::PASSWORD.to_owned(), password);
+                }
+            });
+    };
+    let secret = |text: &str| Some(Value::protected(text.to_owned()));
+    let plain = |text: &str| Some(Value::unprotected(text.to_owned()));
+    add(1, "caso protegida", secret(&format!("{CANARY}-corta")));
+    add(
+        2,
+        "caso protegida larga",
+        secret(&format!("{CANARY}-una-mucho-mas-larga-que-la-otra")),
+    );
+    add(3, "caso sin proteger", plain(&format!("{CANARY}-llana")));
+    add(4, "caso solo espacios", secret(" "));
+    add(5, "caso vacia protegida", secret(""));
+    add(6, "caso vacia sin proteger", plain(""));
+    add(7, "caso sin el campo", None);
+    reopen(&db)
+}
+
+const WITH_PASSWORD: [&str; 4] = [
+    "caso protegida",
+    "caso protegida larga",
+    "caso sin proteger",
+    "caso solo espacios",
+];
+const WITHOUT_PASSWORD: [&str; 3] = [
+    "caso vacia protegida",
+    "caso vacia sin proteger",
+    "caso sin el campo",
+];
+
+#[test]
+fn rf_105_the_summary_says_whether_the_entry_has_a_password() {
+    let vault = password_cases();
+    let list = vault.list_entries(vault.root_id()).unwrap();
+    assert_eq!(list.len(), WITH_PASSWORD.len() + WITHOUT_PASSWORD.len());
+    for summary in &list {
+        let title = summary.title.as_deref().unwrap();
+        assert_eq!(
+            summary.has_password,
+            WITH_PASSWORD.contains(&title),
+            "{title}"
+        );
+        assert_eq!(WITHOUT_PASSWORD.contains(&title), !summary.has_password);
+        // The detail carries the same summary.
+        assert_eq!(&vault.entry(summary.id).unwrap().summary, summary);
+    }
+}
+
+#[test]
+fn rf_105_search_results_say_it_too() {
+    let vault = password_cases();
+    let crate::search::SearchResult::Matches(hits) = vault.search("caso") else {
+        panic!("the query filters");
+    };
+    assert_eq!(hits.len(), WITH_PASSWORD.len() + WITHOUT_PASSWORD.len());
+    for hit in &hits {
+        let title = hit.summary.title.as_deref().unwrap();
+        assert_eq!(
+            hit.summary.has_password,
+            WITH_PASSWORD.contains(&title),
+            "{title}"
+        );
+    }
+}
+
+#[test]
+fn rf_105_the_summary_carries_nothing_taken_from_the_password() {
+    let vault = password_cases();
+    let list = vault.list_entries(vault.root_id()).unwrap();
+    let crate::search::SearchResult::Matches(hits) = vault.search("caso") else {
+        panic!("the query filters");
+    };
+    let seen = format!("{list:?} {hits:?}");
+    assert!(!seen.contains(CANARY), "a password leaked: {seen}");
+
+    // Two entries that differ only in their passwords (one much longer) give the same summary but for what
+    // names the entry: no length, no hash, nothing derived.
+    let by_id = |n: u8| {
+        let id = EntryId::from_uuid(uuid(n));
+        list.iter().find(|summary| summary.id == id).unwrap()
+    };
+    let (short, long) = (by_id(1), by_id(2));
+    let mut renamed = short.clone();
+    renamed.id = long.id;
+    renamed.title.clone_from(&long.title);
+    renamed.modified = long.modified;
+    assert_eq!(&renamed, long);
+}

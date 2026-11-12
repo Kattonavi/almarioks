@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { createClient } from "../ipc/client";
 import { ERROR_MESSAGES } from "../ipc/errors";
 import { createFakeBackend, SAMPLE_ENTRIES, SAMPLE_GROUPS, type FakeEntry, type FakeOptions } from "../ipc/fake";
+import { formatDate } from "./format";
 import { VaultRoot } from "./VaultRoot";
 
 afterEach(() => {
@@ -64,7 +65,12 @@ async function setup(options: FakeOptions = {}) {
   return { backend, container: view.container };
 }
 
-const detailZone = () => screen.getByRole("region", { name: "Detalle" });
+/** RF-43: the window of the entry, the modal dialog its panel is shown in. */
+function detailZone(): HTMLElement {
+  const entryWindow = document.querySelector<HTMLElement>('dialog[data-layout="entry"]');
+  if (entryWindow === null) throw new Error("the window of the entry is not open");
+  return entryWindow;
+}
 const lastArgs = (backend: { calls: readonly { command: string; args: unknown }[] }, command: string) =>
   backend.calls.filter((call) => call.command === command).at(-1)?.args;
 
@@ -76,16 +82,55 @@ async function openGroup(name: string) {
   });
 }
 
+/** RF-106: chooses the row of that entry (a click) and opens its window (a double click on its title). */
+async function openRow(title: string) {
+  const row = within(screen.getByRole("table")).getByRole("button", { name: title });
+  fireEvent.click(row);
+  fireEvent.doubleClick(row);
+  await within(detailZone()).findByRole("heading", { name: title });
+}
+
 async function openEntry(group: string, title: string) {
   await openGroup(group);
-  fireEvent.click(within(screen.getByRole("table")).getByRole("button", { name: title }));
+  await openRow(title);
   await within(detailZone()).findByRole("button", { name: "Editar" });
 }
+
+/** RF-108: "Cerrar" in the head of the window. Behind a modal window the list is out of reach, so it goes first. */
+function closeWindow() {
+  fireEvent.click(within(detailZone()).getByRole("button", { name: "Cerrar" }));
+}
+
+const moreButton = () => within(detailZone()).getByRole("button", { name: "Más acciones de la entrada" });
+
+/** Opens the menu of the entry and chooses one of its orders, the way a person does with the pointer. */
+function chooseOrder(label: string) {
+  fireEvent.click(moreButton());
+  fireEvent.click(screen.getByRole("menuitem", { name: label }));
+}
+
+/** The row of the card with that label. */
+function rowOf(label: string): HTMLElement {
+  const row = within(detailZone()).getByText(label, { selector: "dt" }).closest<HTMLElement>(".card-row");
+  if (row === null) throw new Error(`missing row ${label}`);
+  return row;
+}
+
+/** The copy notice: said in the window of the entry while it is open, and at the foot of the list when it is not. */
+const copyNotice = () =>
+  [...document.querySelectorAll('.toast-zone[role="status"]')].map((zone) => zone.textContent).join("");
 
 async function startNewEntry(group = "Personal") {
   await openGroup(group);
   fireEvent.click(screen.getByRole("button", { name: "Nueva entrada" }));
-  return screen.findByRole("form", { name: `Nueva entrada en ${group}` });
+  return screen.findByRole("dialog", { name: "Nueva entrada" });
+}
+
+/** The tags sit under "Más campos", which is folded on a new entry. */
+function tagsField() {
+  const more = screen.getByRole("button", { name: "Más campos" });
+  if (more.getAttribute("aria-expanded") !== "true") fireEvent.click(more);
+  return screen.getByLabelText<HTMLTextAreaElement>("Etiquetas (una por línea)");
 }
 
 function passwordField() {
@@ -128,15 +173,57 @@ describe("P5 Entrada — ver, mostrar y copiar", () => {
     expect(bodyContains("4321")).toBe(false);
   });
 
-  it("RF-43: un campo estándar protegido (null) se ve «(protegido)» y solo se muestra a pedido", async () => {
+  it("RF-43: un campo estándar protegido (null) se ve oculto tras la barra, en su propia fila, y solo se muestra a pedido", async () => {
     await setup();
 
     await openEntry("Trabajo", "VPN");
 
     const detail = detailZone();
-    expect(within(detail).getByText("(protegido)")).toBeDefined();
-    expect(within(detail).getByRole("button", { name: "Mostrar usuario" })).toBeDefined();
+    // One row for the user, not two: its value is behind the bar of fixed width, with show and copy next to it.
+    const row = rowOf("Usuario");
+    expect(within(detail).getAllByText("Usuario")).toHaveLength(1);
+    expect(row.querySelector(".secret[data-masked]")?.textContent).toBe("(oculto)");
+    expect(within(row).getByRole("button", { name: "Mostrar usuario" })).toBeDefined();
+    expect(within(row).getByRole("button", { name: "Copiar usuario" })).toBeDefined();
     expect(within(detail).queryByText("usuario-vpn")).toBeNull();
+
+    fireEvent.click(within(row).getByRole("button", { name: "Mostrar usuario" }));
+    expect((await within(row).findByText("usuario-vpn")).className).toBe("secret");
+  });
+
+  it("RF-44: RF-108: un «Mostrar» que responde tarde, después de pulsar «Editar», no deja el valor a la vista al volver", async () => {
+    const { backend } = await setup();
+    await openEntry("Trabajo", "GitHub");
+
+    // The core is still answering the reveal when the person goes to edit.
+    const release = backend.hold("entry_reveal");
+    fireEvent.click(screen.getByRole("button", { name: "Mostrar contraseña" }));
+    fireEvent.click(within(detailZone()).getByRole("button", { name: "Editar" }));
+    await screen.findByRole("dialog", { name: "Editar entrada" });
+    release();
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    // Back in the window of the entry, the late value is not there: it was dropped, not shown.
+    fireEvent.click(screen.getByRole("button", { name: "Cancelar" }));
+    await within(detailZone()).findByRole("button", { name: "Editar" });
+    expect(bodyContains(PASSWORD)).toBe(false);
+    expect(within(detailZone()).getByRole("button", { name: "Mostrar contraseña" })).toBeDefined();
+  });
+
+  it("RF-74: copiar y cerrar la ventana antes de que conteste el núcleo deja igual el aviso con su cuenta en la lista", async () => {
+    const { backend } = await setup();
+    await openEntry("Trabajo", "GitHub");
+
+    const release = backend.hold("entry_copy");
+    fireEvent.click(within(detailZone()).getByRole("button", { name: "Copiar contraseña" }));
+    closeWindow();
+    release();
+
+    // The value is in the clipboard, so the list says it and counts down, though the window is gone.
+    expect(await screen.findByText(/Contraseña copiada\. Se borra del portapapeles en \d+ s/)).toBeDefined();
   });
 
   it("RF-44: mostrar pide solo ese campo, lo oculta con el botón y al cambiar de entrada", async () => {
@@ -153,7 +240,10 @@ describe("P5 Entrada — ver, mostrar y copiar", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Mostrar contraseña" }));
     expect(await screen.findByText(PASSWORD)).toBeDefined();
-    fireEvent.click(within(screen.getByRole("table")).getByRole("button", { name: "VPN" }));
+    // RF-108: closing the window hides what was shown, and so does opening another entry.
+    closeWindow();
+    expect(bodyContains(PASSWORD)).toBe(false);
+    await openRow("VPN");
     await within(detailZone()).findByRole("button", { name: "Editar" });
     expect(bodyContains(PASSWORD)).toBe(false);
   });
@@ -179,16 +269,20 @@ describe("P5 Entrada — ver, mostrar y copiar", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Copiar contraseña" }));
 
-    expect(await screen.findByText("Copiado: se borra en 20 s")).toBeDefined();
+    expect(await screen.findByText("Contraseña copiada. Se borra del portapapeles en 20 s")).toBeDefined();
     expect(lastArgs(backend, "entry_copy")).toEqual({ id: "entry-github", field: "Password" });
     expect(backend.clipboard()).toBe(PASSWORD);
     expect(bodyContains(PASSWORD)).toBe(false);
     expect(backend.count("entry_reveal")).toBe(0);
 
     await act(() => vi.advanceTimersByTimeAsync(5_000));
-    expect(screen.getByText("Copiado: se borra en 15 s")).toBeDefined();
+    expect(screen.getByText("Contraseña copiada. Se borra del portapapeles en 15 s")).toBeDefined();
+    // One source: the notice is the only thing on screen that speaks of the copy.
+    expect(screen.getAllByText(/copiad/i)).toHaveLength(1);
+    expect(copyNotice()).toBe("Contraseña copiada. Se borra del portapapeles en 15 s");
     await act(() => vi.advanceTimersByTimeAsync(15_000));
     expect(screen.getByText(/limpió el portapapeles/)).toBeDefined();
+    expect(screen.queryByText(/Se borra del portapapeles/)).toBeNull();
   });
 
   it("RF-74: copiar el usuario también va por entry_copy; como no es protegido, no hay cuenta regresiva", async () => {
@@ -198,8 +292,9 @@ describe("P5 Entrada — ver, mostrar y copiar", () => {
     fireEvent.click(screen.getByRole("button", { name: "Copiar usuario" }));
 
     // plan.md, precision 16: `clears_in_seconds` is `null` for a field that is not protected.
-    expect(await screen.findByText(/^Usuario: copiado\. No es un dato protegido/)).toBeDefined();
-    expect(screen.queryByText(/se borra en/)).toBeNull();
+    expect(await screen.findByText("Usuario copiado")).toBeDefined();
+    expect(copyNotice()).toBe("Usuario copiado");
+    expect(screen.queryByText(/Se borra del portapapeles/)).toBeNull();
     expect(lastArgs(backend, "entry_copy")).toEqual({ id: "entry-github", field: "UserName" });
     expect(backend.clipboard()).toBe("ana@example.com");
   });
@@ -212,20 +307,22 @@ describe("P5 Entrada — ver, mostrar y copiar", () => {
     fireEvent.click(screen.getByRole("button", { name: "Copiar contraseña" }));
 
     expect(await screen.findByText(ERROR_MESSAGES.Bloqueada)).toBeDefined();
-    expect(screen.queryByText(/Copiado/)).toBeNull();
+    expect(screen.queryByText(/copiad/i)).toBeNull();
+    expect(copyNotice()).toBe("");
   });
 
   it("RF-49: abre una URL http(s) por el núcleo y explica UrlNoPermitida sin anteponer https://", async () => {
     const { backend } = await setup();
     await openEntry("Trabajo", "GitHub");
 
-    fireEvent.click(screen.getByRole("button", { name: "Abrir URL en el navegador" }));
+    fireEvent.click(screen.getByRole("button", { name: "Abrir el sitio en el navegador" }));
     expect(await screen.findByText("La dirección se abrió en el navegador.")).toBeDefined();
     expect(backend.openedUrls).toEqual(["https://github.com/login"]);
 
-    fireEvent.click(within(screen.getByRole("table")).getByRole("button", { name: "VPN" }));
+    closeWindow();
+    await openRow("VPN");
     await within(detailZone()).findByRole("button", { name: "Editar" });
-    fireEvent.click(screen.getByRole("button", { name: "Abrir URL en el navegador" }));
+    fireEvent.click(screen.getByRole("button", { name: "Abrir el sitio en el navegador" }));
 
     expect(await screen.findByText(ERROR_MESSAGES.UrlNoPermitida)).toBeDefined();
     expect(lastArgs(backend, "entry_open_url")).toEqual({ id: "entry-vpn" });
@@ -271,7 +368,7 @@ describe("P5 Entrada — ver, mostrar y copiar", () => {
     await openGroup("Trabajo");
     const release = backend.hold("entry_get");
 
-    fireEvent.click(within(screen.getByRole("table")).getByRole("button", { name: "GitHub" }));
+    await openRow("GitHub");
     expect(await screen.findByText("Cargando la entrada…")).toBeDefined();
     await act(async () => {
       release();
@@ -280,7 +377,8 @@ describe("P5 Entrada — ver, mostrar y copiar", () => {
     await within(detailZone()).findByRole("button", { name: "Editar" });
 
     backend.rejectOnce("entry_get", { code: "NoEncontrado", message: "core text" });
-    fireEvent.click(within(screen.getByRole("table")).getByRole("button", { name: "VPN" }));
+    closeWindow();
+    await openRow("VPN");
     expect(await screen.findByText(ERROR_MESSAGES.NoEncontrado)).toBeDefined();
     fireEvent.click(within(detailZone()).getByRole("button", { name: "Reintentar" }));
     expect(await within(detailZone()).findByRole("heading", { name: "VPN" })).toBeDefined();
@@ -295,11 +393,11 @@ describe("P5 Entrada — crear y editar", () => {
     expect(screen.getByLabelText<HTMLInputElement>("Título").value).toBe("");
     expect(document.activeElement).toBe(screen.getByLabelText("Título"));
     fireEvent.change(screen.getByLabelText("Título"), { target: { value: "Correo" } });
-    fireEvent.change(screen.getByLabelText("Usuario"), { target: { value: "ana" } });
+    fireEvent.change(screen.getByLabelText("Usuario o correo"), { target: { value: "ana" } });
     typePassword("clave larga 123");
-    fireEvent.change(screen.getByLabelText("URL"), { target: { value: "https://correo.example" } });
+    fireEvent.change(screen.getByLabelText("Sitio"), { target: { value: "https://correo.example" } });
     fireEvent.change(screen.getByLabelText("Notas"), { target: { value: "personal" } });
-    fireEvent.change(screen.getByLabelText("Etiquetas (una por línea)"), { target: { value: "correo\n\n hogar \n" } });
+    fireEvent.change(tagsField(), { target: { value: "correo\n\n hogar \n" } });
     fireEvent.click(screen.getByRole("button", { name: "Guardar entrada" }));
 
     expect(await screen.findByText("Entrada creada. Guardándola en el archivo…")).toBeDefined();
@@ -312,10 +410,12 @@ describe("P5 Entrada — crear y editar", () => {
       notes: "personal",
       tags: ["correo", "hogar"],
     });
-    expect(await within(detailZone()).findByRole("heading", { name: "Correo" })).toBeDefined();
+    // The new entry is the chosen row of the list; its window does not open by itself (RF-106).
     await waitFor(() => {
-      expect(within(screen.getByRole("table")).getByRole("button", { name: "Correo" })).toBeDefined();
+      const row = within(screen.getByRole("table")).getByRole("button", { name: "Correo" });
+      expect(row.getAttribute("aria-current")).toBe("true");
     });
+    expect(screen.queryByRole("dialog")).toBeNull();
     expect(bodyContains("clave larga 123")).toBe(false);
   });
 
@@ -361,9 +461,9 @@ describe("P5 Entrada — crear y editar", () => {
     for (const empty of ["   ", " ".repeat(300)]) {
       fireEvent.change(title(), { target: { value: empty } });
       save();
-      expect(await screen.findByText(ERROR_MESSAGES.TituloVacio)).toBeDefined();
+      expect(await screen.findByText("Ponle un título para poder encontrarla después.")).toBeDefined();
       expect(title().getAttribute("aria-invalid")).toBe("true");
-      expect(title().getAttribute("aria-describedby")).toContain("entry-title-error");
+      expect(title().getAttribute("aria-describedby")).toContain("entry-dialog-title-error");
       expect(document.activeElement).toBe(title());
     }
 
@@ -384,7 +484,11 @@ describe("P5 Entrada — crear y editar", () => {
     });
     const created = backend.calls.filter((call) => call.command === "entry_create").at(-1);
     expect(created?.args?.title).toBe("  Banco  ");
-    expect(await within(detailZone()).findByRole("heading", { name: "Banco" })).toBeDefined();
+    // The core trims it: the new entry is the chosen row of the list, with the title as the core left it.
+    await waitFor(() => {
+      const rows = within(screen.getByRole("table")).getAllByRole("button", { name: "Banco" });
+      expect(rows.filter((row) => row.getAttribute("aria-current") === "true")).toHaveLength(1);
+    });
   });
 
   it("RF-91: una etiqueta con ; o , se rechaza junto al campo sin llamar al núcleo", async () => {
@@ -392,11 +496,11 @@ describe("P5 Entrada — crear y editar", () => {
     await startNewEntry();
 
     fireEvent.change(screen.getByLabelText("Título"), { target: { value: "Etiquetas" } });
-    fireEvent.change(screen.getByLabelText("Etiquetas (una por línea)"), { target: { value: "uno, dos" } });
+    fireEvent.change(tagsField(), { target: { value: "uno, dos" } });
     fireEvent.click(screen.getByRole("button", { name: "Guardar entrada" }));
 
     expect(await screen.findByText(ERROR_MESSAGES.EtiquetaInvalida)).toBeDefined();
-    expect(screen.getByLabelText("Etiquetas (una por línea)").getAttribute("aria-invalid")).toBe("true");
+    expect(tagsField().getAttribute("aria-invalid")).toBe("true");
     expect(backend.count("entry_create")).toBe(0);
   });
 
@@ -405,16 +509,16 @@ describe("P5 Entrada — crear y editar", () => {
     await startNewEntry();
 
     fireEvent.change(screen.getByLabelText("Título"), { target: { value: "Bien" } });
-    fireEvent.change(screen.getByLabelText("Usuario"), { target: { value: "ana\u0007" } });
+    fireEvent.change(screen.getByLabelText("Usuario o correo"), { target: { value: "ana\u0007" } });
     fireEvent.click(screen.getByRole("button", { name: "Guardar entrada" }));
     expect(await screen.findByText(ERROR_MESSAGES.CaracterNoPermitido)).toBeDefined();
-    expect(screen.getByLabelText("Usuario").getAttribute("aria-invalid")).toBe("true");
+    expect(screen.getByLabelText("Usuario o correo").getAttribute("aria-invalid")).toBe("true");
     expect(backend.count("entry_create")).toBe(0);
 
-    fireEvent.change(screen.getByLabelText("Usuario"), { target: { value: "ana" } });
+    fireEvent.change(screen.getByLabelText("Usuario o correo"), { target: { value: "ana" } });
     backend.rejectOnce("entry_create", { code: "TituloVacio", message: "core text" });
     fireEvent.click(screen.getByRole("button", { name: "Guardar entrada" }));
-    expect(await screen.findByText(ERROR_MESSAGES.TituloVacio)).toBeDefined();
+    expect(await screen.findByText("Ponle un título para poder encontrarla después.")).toBeDefined();
     expect(screen.getByLabelText("Título").getAttribute("aria-invalid")).toBe("true");
   });
 
@@ -439,7 +543,7 @@ describe("P5 Entrada — crear y editar", () => {
 
     typePassword("Abcdef12!");
 
-    expect(await screen.findByText(/Fortaleza: muy buena \(4 de 4\)/)).toBeDefined();
+    expect(await screen.findByText(/^Fortaleza: muy buena$/)).toBeDefined();
     expect(lastArgs(backend, "password_strength")).toEqual({ password: "Abcdef12!" });
     expect(passwordField().type).toBe("password");
     expect(passwordField().getAttribute("autocomplete")).toBe("new-password");
@@ -451,7 +555,7 @@ describe("P5 Entrada — crear y editar", () => {
     await openEntry("Trabajo", "GitHub");
 
     fireEvent.click(screen.getByRole("button", { name: "Editar" }));
-    await screen.findByRole("form", { name: "Editar GitHub" });
+    await screen.findByRole("dialog", { name: "Editar entrada" });
     expect(passwordField().value).toBe("");
     fireEvent.change(screen.getByLabelText("Título"), { target: { value: "GitHub personal" } });
     fireEvent.click(screen.getByRole("button", { name: "Guardar entrada" }));
@@ -461,11 +565,14 @@ describe("P5 Entrada — crear y editar", () => {
     expect(backend.entry("entry-github")?.password).toBe(PASSWORD);
     expect(backend.entry("entry-github")?.history).toBe(1);
     const modified = backend.entry("entry-github")?.modified;
-    expect(document.activeElement).toBe(screen.getByRole("button", { name: "Editar" }));
+    // The window of the entry comes back in place of the form and opens in an effect: wait for it.
+    await waitFor(() => {
+      expect(document.activeElement).toBe(screen.getByRole("button", { name: "Editar" }));
+    });
 
     // Confirm again without changing anything: neither the date nor the history move.
     fireEvent.click(screen.getByRole("button", { name: "Editar" }));
-    await screen.findByRole("form", { name: "Editar GitHub personal" });
+    await screen.findByRole("dialog", { name: "Editar entrada" });
     fireEvent.click(screen.getByRole("button", { name: "Guardar entrada" }));
 
     expect(await screen.findByText("No había cambios que guardar.")).toBeDefined();
@@ -479,8 +586,8 @@ describe("P5 Entrada — crear y editar", () => {
     await openEntry("Trabajo", "VPN");
 
     fireEvent.click(screen.getByRole("button", { name: "Editar" }));
-    await screen.findByRole("form", { name: "Editar VPN" });
-    expect(screen.getByLabelText<HTMLInputElement>("Usuario").value).toBe("");
+    await screen.findByRole("dialog", { name: "Editar entrada" });
+    expect(screen.getByLabelText<HTMLInputElement>("Usuario o correo").value).toBe("");
     expect(screen.getByText(/Este campo está protegido en la bóveda/)).toBeDefined();
     typePassword("nueva-clave");
     fireEvent.change(screen.getByLabelText("Notas"), { target: { value: "" } });
@@ -497,9 +604,9 @@ describe("P5 Entrada — crear y editar", () => {
     await openEntry("Trabajo", "GitHub");
 
     fireEvent.click(screen.getByRole("button", { name: "Editar" }));
-    await screen.findByRole("form", { name: "Editar GitHub" });
+    await screen.findByRole("dialog", { name: "Editar entrada" });
     fireEvent.change(screen.getByLabelText("Notas"), { target: { value: "" } });
-    fireEvent.change(screen.getByLabelText("Etiquetas (una por línea)"), { target: { value: "código" } });
+    fireEvent.change(tagsField(), { target: { value: "código" } });
     fireEvent.click(screen.getByRole("button", { name: "Guardar entrada" }));
 
     expect(await screen.findByText("Cambios aplicados. Guardando la entrada en el archivo…")).toBeDefined();
@@ -511,19 +618,20 @@ describe("P5 Entrada — mover y borrar", () => {
   it("RF-46: mover abre un diálogo con el destino y devuelve el foco al cancelar", async () => {
     const { backend } = await setup();
     await openEntry("Trabajo", "GitHub");
-    const opener = screen.getByRole("button", { name: "Mover a otro grupo…" });
+    // The order is in the menu of the entry: what opened the dialog, and gets the focus back, is the menu button.
+    const opener = moreButton();
 
-    opener.focus();
-    fireEvent.click(opener);
+    chooseOrder("Mover a otro grupo…");
     const dialog = await screen.findByRole("dialog", { name: "Mover «GitHub»" });
     const options = within(dialog).getAllByRole("option").map((option) => option.textContent);
     expect(options).not.toContain("Cuentas › Trabajo");
     expect(options.some((label) => label.includes("Papelera"))).toBe(false);
     fireEvent.click(within(dialog).getByRole("button", { name: "Cancelar" }));
-    expect(screen.queryByRole("dialog")).toBeNull();
+    // Only the window of the entry is left, and the focus is back inside it.
+    expect(screen.getAllByRole("dialog")).toEqual([detailZone()]);
     expect(document.activeElement).toBe(opener);
 
-    fireEvent.click(opener);
+    chooseOrder("Mover a otro grupo…");
     const again = await screen.findByRole("dialog", { name: "Mover «GitHub»" });
     fireEvent.change(within(again).getByLabelText("Grupo de destino"), { target: { value: "group-personal" } });
     fireEvent.click(within(again).getByRole("button", { name: "Mover" }));
@@ -540,13 +648,14 @@ describe("P5 Entrada — mover y borrar", () => {
     const { backend } = await setup();
     await openEntry("Trabajo", "GitHub");
 
-    fireEvent.click(screen.getByRole("button", { name: "Enviar a la papelera" }));
+    chooseOrder("Enviar a la papelera");
 
     expect(await screen.findByText(/«GitHub» se movió a la papelera/)).toBeDefined();
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(backend.entry("entry-github")?.groupId).toBe("group-bin");
+    // The window went with its entry: the focus goes to the title of the list.
     await waitFor(() => {
-      expect(document.activeElement).toBe(screen.getByRole("heading", { name: "Detalle" }));
+      expect(document.activeElement).toBe(screen.getByRole("heading", { name: "Entradas de Trabajo" }));
     });
     expect(await screen.findByRole("button", { name: "Papelera de reciclaje (papelera) · 2 entradas" })).toBeDefined();
   });
@@ -558,7 +667,7 @@ describe("P5 Entrada — mover y borrar", () => {
     });
     await openEntry("Personal", "Única");
 
-    fireEvent.click(screen.getByRole("button", { name: "Enviar a la papelera" }));
+    chooseOrder("Enviar a la papelera");
 
     expect(await screen.findByRole("button", { name: "Papelera de reciclaje (papelera) · 1 entrada" })).toBeDefined();
     expect(backend.groupTrail(backend.entry("e")?.groupId ?? "")).toEqual(["Cuentas", "Papelera de reciclaje"]);
@@ -568,166 +677,380 @@ describe("P5 Entrada — mover y borrar", () => {
     const { backend } = await setup();
     await openEntry("Papelera de reciclaje", "Canción borrada");
 
-    fireEvent.click(screen.getByRole("button", { name: "Borrar definitivamente…" }));
+    chooseOrder("Borrar definitivamente…");
     const dialog = await screen.findByRole("dialog", { name: "Borrar «Canción borrada» de forma definitiva" });
     expect(within(dialog).getByText(/no se puede deshacer/)).toBeDefined();
     fireEvent.click(within(dialog).getByRole("button", { name: "Cancelar" }));
     expect(backend.entry("entry-old")).toBeDefined();
 
-    fireEvent.click(screen.getByRole("button", { name: "Borrar definitivamente…" }));
+    chooseOrder("Borrar definitivamente…");
     fireEvent.click(
-      within(await screen.findByRole("dialog")).getByRole("button", { name: "Borrar definitivamente" }),
+      within(
+        await screen.findByRole("dialog", { name: "Borrar «Canción borrada» de forma definitiva" }),
+      ).getByRole("button", { name: "Borrar definitivamente" }),
     );
 
     expect(await screen.findByText("Se borró «Canción borrada» de forma definitiva.")).toBeDefined();
     expect(backend.entry("entry-old")).toBeUndefined();
     expect(screen.queryByRole("dialog")).toBeNull();
     await waitFor(() => {
-      expect(document.activeElement).toBe(screen.getByRole("heading", { name: "Detalle" }));
+      expect(document.activeElement).toBe(screen.getByRole("heading", { name: "Entradas de Papelera de reciclaje" }));
     });
     expect(await screen.findByText("La papelera está vacía.")).toBeDefined();
   });
 });
 
-describe("P6 Generador", () => {
-  it("RF-65: RF-70: vacío y éxito — valores por defecto, genera, muestra la fortaleza y la usa en el formulario", async () => {
-    const { backend } = await setup();
-    await startNewEntry();
-
-    fireEvent.click(screen.getByRole("button", { name: "Generar contraseña" }));
-    const generator = screen.getByRole("group", { name: "Generador de contraseñas" });
-    expect(within(generator).getByLabelText<HTMLInputElement>("Longitud (entre 8 y 128)").value).toBe("20");
-    for (const kind of ["Minúsculas (a-z)", "Mayúsculas (A-Z)", "Dígitos (0-9)", "Símbolos (!@#$…)"]) {
-      expect(within(generator).getByLabelText<HTMLInputElement>(kind).checked).toBe(true);
-    }
-    expect(within(generator).getByLabelText<HTMLInputElement>(/Evitar caracteres parecidos/).checked).toBe(false);
-
-    fireEvent.click(within(generator).getByRole("button", { name: "Generar" }));
-    const generated = (await waitFor(() => {
-      const node = generator.querySelector("output");
-      if (node === null) throw new Error("not yet");
-      return node;
-    })).textContent;
-    expect(Array.from(generated)).toHaveLength(20);
-    expect(lastArgs(backend, "generate_password")).toEqual({
-      length: 20,
-      lower: true,
-      upper: true,
-      digits: true,
-      symbols: true,
-      avoid_lookalikes: false,
-    });
-    expect(within(generator).getByText(/Fortaleza:/)).toBeDefined();
-
-    fireEvent.click(within(generator).getByRole("button", { name: "Usar esta contraseña" }));
-
-    expect(passwordField().value).toBe(generated);
-    expect(passwordField().type).toBe("password");
-    expect(document.activeElement).toBe(passwordField());
-    expect(screen.queryByRole("group", { name: "Generador de contraseñas" })).toBeNull();
-    expect(document.body.innerHTML.includes(generated)).toBe(false);
-    expect(screen.getByText(/Fortaleza:/)).toBeDefined();
-  });
-
-  it("RF-66: RF-67: ejemplo 5 —longitud 8, cuatro tipos y evitar parecidos: así viaja la petición y así sale", async () => {
-    const { backend } = await setup();
-    await startNewEntry();
-    fireEvent.click(screen.getByRole("button", { name: "Generar contraseña" }));
-    const generator = screen.getByRole("group", { name: "Generador de contraseñas" });
-
-    fireEvent.change(within(generator).getByLabelText("Longitud (entre 8 y 128)"), { target: { value: "8" } });
-    fireEvent.click(within(generator).getByLabelText(/Evitar caracteres parecidos/));
-    fireEvent.click(within(generator).getByRole("button", { name: "Generar" }));
-
-    const node = await waitFor(() => {
-      const found = generator.querySelector("output");
-      if (found === null) throw new Error("not yet");
-      return found;
-    });
-    expect(lastArgs(backend, "generate_password")).toEqual({
-      length: 8,
-      lower: true,
-      upper: true,
-      digits: true,
-      symbols: true,
-      avoid_lookalikes: true,
-    });
-    const password = node.textContent;
-    expect(Array.from(password)).toHaveLength(8);
-    expect(password).toMatch(/[a-z]/);
-    expect(password).toMatch(/[A-Z]/);
-    expect(password).toMatch(/[0-9]/);
-    expect(password).toMatch(/[^a-zA-Z0-9]/);
-    expect(password).not.toMatch(/[0Oo1lI|]/);
-  });
-
-  it("RF-68: error — sin tipos o con longitud fuera de rango dice por qué y no llama al núcleo", async () => {
-    const { backend } = await setup();
-    await startNewEntry();
-    fireEvent.click(screen.getByRole("button", { name: "Generar contraseña" }));
-    const generator = screen.getByRole("group", { name: "Generador de contraseñas" });
-
-    for (const kind of ["Minúsculas (a-z)", "Mayúsculas (A-Z)", "Dígitos (0-9)", "Símbolos (!@#$…)"]) {
-      fireEvent.click(within(generator).getByLabelText(kind));
-    }
-    fireEvent.click(within(generator).getByRole("button", { name: "Generar" }));
-    expect(await within(generator).findByText(ERROR_MESSAGES.ReglasImposibles)).toBeDefined();
-
-    fireEvent.click(within(generator).getByLabelText("Dígitos (0-9)"));
-    for (const length of ["7", "129", "8.5", ""]) {
-      fireEvent.change(within(generator).getByLabelText("Longitud (entre 8 y 128)"), { target: { value: length } });
-      fireEvent.click(within(generator).getByRole("button", { name: "Generar" }));
-      expect(await within(generator).findByText(ERROR_MESSAGES.ReglasImposibles)).toBeDefined();
-    }
-    expect(backend.count("generate_password")).toBe(0);
-
-    fireEvent.change(within(generator).getByLabelText("Longitud (entre 8 y 128)"), { target: { value: "12" } });
-    backend.rejectOnce("generate_password", { code: "ReglasImposibles", message: "core text" });
-    fireEvent.click(within(generator).getByRole("button", { name: "Generar" }));
-    await waitFor(() => {
-      expect(backend.count("generate_password")).toBe(1);
-    });
-    expect(within(generator).getByText(ERROR_MESSAGES.ReglasImposibles)).toBeDefined();
-  });
-
-  it("RF-65: Enter en un campo del generador genera y no guarda la entrada", async () => {
-    const { backend } = await setup();
-    await startNewEntry();
-    fireEvent.change(screen.getByLabelText("Título"), { target: { value: "No guardar" } });
-    fireEvent.click(screen.getByRole("button", { name: "Generar contraseña" }));
-    const length = screen.getByLabelText("Longitud (entre 8 y 128)");
-
-    const notCancelled = fireEvent.keyDown(length, { key: "Enter" });
-
-    expect(notCancelled).toBe(false);
-    await waitFor(() => {
-      expect(backend.count("generate_password")).toBe(1);
-    });
-    expect(backend.count("entry_create")).toBe(0);
-  });
-
-  it("RF-65: cerrar el generador descarta la contraseña generada y devuelve el foco", async () => {
+describe("P5 Entrada — la tarjeta de campos", () => {
+  it("RF-43: una fila por campo, en orden: usuario, contraseña, sitio, campos propios, etiquetas, adjuntos y las notas al final", async () => {
     await setup();
-    await startNewEntry();
-    const toggle = screen.getByRole("button", { name: "Generar contraseña" });
-    fireEvent.click(toggle);
-    expect(toggle.getAttribute("aria-expanded")).toBe("true");
-    const generator = screen.getByRole("group", { name: "Generador de contraseñas" });
-    fireEvent.click(within(generator).getByRole("button", { name: "Generar" }));
-    const generated = (
-      await waitFor(() => {
-        const found = generator.querySelector("output");
-        if (found === null) throw new Error("not yet");
-        return found;
-      })
-    ).textContent;
+    await openEntry("Trabajo", "GitHub");
 
-    fireEvent.click(within(generator).getByRole("button", { name: "Cerrar generador" }));
+    const labels = [...detailZone().querySelectorAll(".entry-card > .card-row > dt")].map((dt) => dt.textContent);
+    expect(labels).toEqual(["Usuario", "Contraseña", "Sitio", "PIN", "Recuperación", "Etiquetas", "Adjuntos", "Notas"]);
+    // The tags and the attachments are rows without buttons; the notes too.
+    for (const label of ["Etiquetas", "Adjuntos", "Notas"]) expect(within(rowOf(label)).queryAllByRole("button")).toEqual([]);
+    expect(within(rowOf("Etiquetas")).getAllByRole("listitem").map((tag) => tag.textContent)).toEqual(["código", "trabajo"]);
+    expect(rowOf("Adjuntos").textContent).toContain("codigos.txt (120 bytes)");
+    expect(within(rowOf("Notas")).getByText("cuenta del trabajo").className).toBe("card-notes");
+  });
 
-    expect(bodyContains(generated)).toBe(false);
-    expect(passwordField().value).toBe("");
-    expect(document.activeElement).toBe(toggle);
-    expect(toggle.getAttribute("aria-expanded")).toBe("false");
+  it("RF-43: los botones de cada fila son solo de icono, con nombre y ayuda al pasar el cursor, y van en una columna al final", async () => {
+    await setup();
+    await openEntry("Trabajo", "GitHub");
+
+    const names = (label: string) =>
+      within(rowOf(label)).getAllByRole("button").map((button) => button.getAttribute("aria-label"));
+    expect(names("Usuario")).toEqual(["Copiar usuario"]);
+    expect(names("Contraseña")).toEqual(["Mostrar contraseña", "Copiar contraseña"]);
+    expect(names("Sitio")).toEqual(["Abrir el sitio en el navegador", "Copiar dirección del sitio"]);
+    expect(names("PIN")).toEqual(["Mostrar «PIN»", "Copiar «PIN»"]);
+    expect(names("Recuperación")).toEqual(["Copiar «Recuperación»"]);
+    const buttons = [...detailZone().querySelectorAll<HTMLElement>(".entry-card button")];
+    for (const button of buttons) {
+      // No text of its own: the name is the `aria-label`, and the same words are the help under the pointer.
+      expect(button.textContent).toBe("");
+      expect(button.getAttribute("title")).toBe(button.getAttribute("aria-label"));
+      // Every button sits in the actions column that closes its row.
+      expect(button.parentElement?.className).toBe("card-actions");
+      expect(button.parentElement?.parentElement?.lastElementChild).toBe(button.parentElement);
+    }
+  });
+
+  it("RF-71: «Copiar contraseña» es el único botón de icono con fondo", async () => {
+    await setup();
+    await openEntry("Trabajo", "GitHub");
+
+    const plated = [...detailZone().querySelectorAll(".entry-card button.btn-primary")];
+    expect(plated.map((button) => button.getAttribute("aria-label"))).toEqual(["Copiar contraseña"]);
+    // Showing a value does not give any other button a plate.
+    fireEvent.click(screen.getByRole("button", { name: "Mostrar «PIN»" }));
+    await screen.findByText("4321");
+    expect(detailZone().querySelectorAll(".entry-card button.btn-primary")).toHaveLength(1);
+  });
+
+  it("RF-44: RF-76: un valor mostrado va en un elemento `.secret`, oculto es la barra de ancho fijo, y nunca entra a un atributo", async () => {
+    await setup();
+    await openEntry("Trabajo", "GitHub");
+
+    const hidden = rowOf("Contraseña").querySelector(".secret");
+    expect(hidden?.hasAttribute("data-masked")).toBe(true);
+    // The bar says nothing of the value: the same element, with the same text, whatever its length.
+    expect(hidden?.textContent).toBe("(oculto)");
+    expect(rowOf("PIN").querySelector(".secret")?.outerHTML).toBe(hidden?.outerHTML);
+
+    fireEvent.click(screen.getByRole("button", { name: "Mostrar contraseña" }));
+    const shownValue = await screen.findByText(PASSWORD);
+    expect(shownValue.className).toBe("secret");
+    expect(shownValue.hasAttribute("data-masked")).toBe(false);
+    fireEvent.click(screen.getByRole("button", { name: "Mostrar «PIN»" }));
+    expect((await screen.findByText("4321")).className).toBe("secret");
+
+    // Neither value is in any attribute of the page: no `title`, no `aria-label`, no `data-*`.
+    for (const element of document.querySelectorAll("*")) {
+      for (const attribute of element.attributes) {
+        expect(attribute.value).not.toContain(PASSWORD);
+        expect(attribute.value).not.toContain("4321");
+      }
+    }
+  });
+
+  it("RF-44: la nota de los 20 segundos se ve solo mientras hay algo mostrado", async () => {
+    await setup();
+    await openEntry("Trabajo", "GitHub");
+    const hint = () => screen.queryByText("Lo que muestres se oculta solo a los 20 segundos.");
+
+    expect(hint()).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Mostrar contraseña" }));
+    await screen.findByText(PASSWORD);
+    expect(hint()).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Ocultar contraseña" }));
+    expect(hint()).toBeNull();
+  });
+
+  it("RF-43: sin usuario, sin contraseña, sin sitio o sin notas lo dice y no ofrece botones que no tengan sentido", async () => {
+    await setup({ entries: [{ id: "x", groupId: "group-personal", title: "Vacía", username: "", url: "", notes: "" }] });
+    await openEntry("Personal", "Vacía");
+
+    expect(rowOf("Usuario").textContent).toBe("UsuarioSin usuario");
+    expect(rowOf("Contraseña").textContent).toBe("ContraseñaSin contraseña");
+    expect(rowOf("Sitio").textContent).toBe("SitioSin sitio");
+    expect(rowOf("Notas").textContent).toBe("NotasSin notas");
+    expect(detailZone().querySelectorAll(".entry-card button")).toHaveLength(0);
+    // Without tags or attachments there is no row for them.
+    expect(within(detailZone()).queryByText("Etiquetas")).toBeNull();
+    expect(within(detailZone()).queryByText("Adjuntos")).toBeNull();
+  });
+
+  it("RF-107: bajo la tarjeta dice cuándo se creó y cuándo se modificó, con el día y la hora del equipo; editar cambia la de «Modificada»", async () => {
+    await setup();
+    await openEntry("Trabajo", "GitHub");
+    const CREATED = "2026-10-01T08:00:00Z";
+    const MODIFIED = "2026-11-01T08:00:00Z";
+    const dates = () => detailZone().querySelector(".entry-dates")?.textContent;
+    const times = () => [...detailZone().querySelectorAll<HTMLTimeElement>(".entry-dates time")];
+
+    // The same words `formatDate` gives: they depend on the time zone of the computer the tests run on.
+    expect(dates()).toBe(`Creada el ${formatDate(CREATED)} · Modificada el ${formatDate(MODIFIED)}`);
+    expect(times().map((time) => time.getAttribute("datetime"))).toEqual([CREATED, MODIFIED]);
+    // Day and hour, to the minute: "1 oct 2026, 3:00 a. m.".
+    for (const time of times()) expect(time.textContent).toMatch(/2026\D+\d{1,2}:\d{2}/);
+
+    fireEvent.click(within(detailZone()).getByRole("button", { name: "Editar" }));
+    const dialog = await screen.findByRole("dialog", { name: "Editar entrada" });
+    fireEvent.change(within(dialog).getByLabelText("Título"), { target: { value: "GitHub del equipo" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Guardar entrada" }));
+    // The form is in the place of the window until the core answers: the window comes back with the new data.
+    await waitFor(() => {
+      expect(within(detailZone()).getByRole("heading", { name: "GitHub del equipo" })).toBeDefined();
+    });
+
+    const [created, modified] = times().map((time) => time.getAttribute("datetime") ?? "");
+    expect(created).toBe(CREATED);
+    expect(modified).not.toBe(MODIFIED);
+    expect(dates()).toBe(`Creada el ${formatDate(CREATED)} · Modificada el ${formatDate(modified ?? "")}`);
+  });
+});
+
+describe("P5 Entrada — el aviso de copiado", () => {
+  it("RF-74: copiar la dirección del sitio va por el núcleo y avisa «Dirección copiada», sin cuenta", async () => {
+    const { backend } = await setup();
+    await openEntry("Trabajo", "GitHub");
+
+    fireEvent.click(screen.getByRole("button", { name: "Copiar dirección del sitio" }));
+
+    expect(await screen.findByText("Dirección copiada")).toBeDefined();
+    expect(lastArgs(backend, "entry_copy")).toEqual({ id: "entry-github", field: "URL" });
+    expect(backend.clipboard()).toBe("https://github.com/login");
+  });
+
+  it("RF-74: un campo propio no protegido se copia sin cuenta; uno protegido, con la cuenta del ajuste real", async () => {
+    const { backend } = await setup({ clipboardSeconds: 45 });
+    await openEntry("Trabajo", "GitHub");
+
+    fireEvent.click(screen.getByRole("button", { name: "Copiar «Recuperación»" }));
+    expect(await screen.findByText("«Recuperación» copiado")).toBeDefined();
+    expect(backend.clipboard()).toBe("pregunta: mascota");
+
+    fireEvent.click(screen.getByRole("button", { name: "Copiar «PIN»" }));
+    expect(await screen.findByText("«PIN» copiado. Se borra del portapapeles en 45 s")).toBeDefined();
+    expect(lastArgs(backend, "entry_copy")).toEqual({ id: "entry-github", field: "PIN" });
+    // The last copy is the one the notice speaks of.
+    expect(screen.queryByText("«Recuperación» copiado")).toBeNull();
+    expect(bodyContains("4321")).toBe(false);
+  });
+
+  it("RF-74: el aviso es un `role=status` al pie del detalle, con el visto bueno, y existe antes de tener algo que decir", async () => {
+    await setup();
+    await openEntry("Trabajo", "GitHub");
+
+    const zone = detailZone().querySelector(".toast-zone");
+    expect(zone?.getAttribute("role")).toBe("status");
+    expect(zone?.childElementCount).toBe(0);
+    // The last thing in the detail zone: the stylesheet pins it to the foot.
+    expect(detailZone().lastElementChild).toBe(zone);
+
+    fireEvent.click(screen.getByRole("button", { name: "Copiar usuario" }));
+    const notice = await screen.findByText("Usuario copiado");
+    expect(notice.className).toBe("toast");
+    expect(notice.parentElement).toBe(zone);
+    expect(notice.querySelector("svg")?.getAttribute("aria-hidden")).toBe("true");
+  });
+
+  it("RF-74: la cuenta sigue al elegir otra entrada mientras el portapapeles tenga el valor; un aviso sin cuenta se va con su entrada", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    await setup();
+    await openEntry("Trabajo", "GitHub");
+
+    fireEvent.click(screen.getByRole("button", { name: "Copiar contraseña" }));
+    await screen.findByText("Contraseña copiada. Se borra del portapapeles en 20 s");
+    // With the window closed the notice goes on at the foot of the list.
+    closeWindow();
+    expect(copyNotice()).toBe("Contraseña copiada. Se borra del portapapeles en 20 s");
+    await openRow("VPN");
+    await act(() => vi.advanceTimersByTimeAsync(3_000));
+    expect(copyNotice()).toBe("Contraseña copiada. Se borra del portapapeles en 17 s");
+
+    // Once the time is over it says so, and choosing another entry takes that away.
+    await act(() => vi.advanceTimersByTimeAsync(17_000));
+    expect(copyNotice()).toMatch(/limpió el portapapeles/);
+    closeWindow();
+    await openRow("GitHub");
+    expect(copyNotice()).toBe("");
+
+    fireEvent.click(await screen.findByRole("button", { name: "Copiar usuario" }));
+    await screen.findByText("Usuario copiado");
+    closeWindow();
+    await openRow("VPN");
+    expect(copyNotice()).toBe("");
+  });
+});
+
+describe("P5 Entrada — cabecera y menú de la entrada", () => {
+  const items = () => screen.getAllByRole("menuitem").map((item) => item.textContent);
+
+  it("RF-43: la cabecera lleva el círculo con la inicial del título sobre el color de su grupo, y el grupo debajo", async () => {
+    await setup();
+    await openEntry("Trabajo", "GitHub");
+
+    const head = detailZone().querySelector(".entry-head");
+    const circle = head?.querySelector(".bullet");
+    expect(circle?.getAttribute("data-initial")).toBe("G");
+    // Trabajo is the second group of the rail: line 2. The dot of the group line has the same colour.
+    expect(circle?.getAttribute("data-line")).toBe("2");
+    expect(circle?.getAttribute("aria-hidden")).toBe("true");
+    const group = head?.querySelector(".entry-group");
+    expect(group?.textContent).toBe("Grupo: Trabajo");
+    expect(group?.querySelector(".group-dot")?.getAttribute("data-line")).toBe("2");
+    // Only the group of the entry is read; the whole way from the root is in the `title`.
+    expect(group?.getAttribute("title")).toBe("Cuentas › Trabajo");
+  });
+
+  it("RF-43: un subgrupo se nombra solo y lleva el color de su grupo de primer nivel", async () => {
+    await setup();
+    await openEntry("Clientes", "Banana");
+
+    const group = detailZone().querySelector(".entry-group");
+    expect(group?.textContent).toBe("Grupo: Clientes");
+    expect(group?.getAttribute("title")).toBe("Cuentas › Trabajo › Clientes");
+    expect(detailZone().querySelector(".entry-head .bullet")?.getAttribute("data-line")).toBe("2");
+  });
+
+  it("RF-46: RF-47: «Editar» queda a la vista y mover y enviar a la papelera van en el menú, lo destructivo al final", async () => {
+    await setup();
+    await openEntry("Trabajo", "GitHub");
+
+    const detail = detailZone();
+    expect(within(detail).getByRole("button", { name: "Editar" })).toBeDefined();
+    // Nothing destructive is in sight until the menu opens, and the old row of buttons at the foot is gone.
+    expect(within(detail).queryByRole("button", { name: /papelera/i })).toBeNull();
+    expect(within(detail).queryByRole("button", { name: /^Mover/ })).toBeNull();
+    expect(screen.queryByRole("menu")).toBeNull();
+    const more = moreButton();
+    expect(more.getAttribute("aria-haspopup")).toBe("menu");
+    expect(more.getAttribute("aria-expanded")).toBe("false");
+    expect(more.getAttribute("title")).toBe("Más acciones de la entrada");
+
+    fireEvent.click(more);
+
+    expect(more.getAttribute("aria-expanded")).toBe("true");
+    expect(screen.getByRole("menu", { name: "Acciones de la entrada" })).toBeDefined();
+    // "Duplicar" is not offered: the core has no such command.
+    // It acts at once, without asking: no ellipsis (RF-47).
+    expect(items()).toEqual(["Mover a otro grupo…", "Enviar a la papelera"]);
+    expect(screen.getByRole("menuitem", { name: "Enviar a la papelera" }).className).toBe("menu-danger");
+    expect(screen.getByRole("menuitem", { name: "Mover a otro grupo…" }).className).toBe("");
+  });
+
+  it("RF-48: en la papelera el menú ofrece mover (así se restaura) y borrar definitivamente", async () => {
+    await setup();
+    await openEntry("Papelera de reciclaje", "Canción borrada");
+
+    fireEvent.click(moreButton());
+
+    expect(items()).toEqual(["Mover a otro grupo…", "Borrar definitivamente…"]);
+    expect(screen.getByRole("menuitem", { name: "Borrar definitivamente…" }).className).toBe("menu-danger");
+  });
+
+  it("RF-46: el menú de la entrada se recorre con las flechas, Inicio y Fin, y abre con flecha abajo", async () => {
+    await setup();
+    await openEntry("Trabajo", "GitHub");
+    const more = moreButton();
+
+    more.focus();
+    fireEvent.keyDown(more, { key: "ArrowDown" });
+    const [move, bin] = screen.getAllByRole("menuitem");
+    if (move === undefined || bin === undefined) throw new Error("expected two orders");
+    // Opening puts the focus on the first order.
+    expect(document.activeElement).toBe(move);
+
+    fireEvent.keyDown(move, { key: "ArrowDown" });
+    expect(document.activeElement).toBe(bin);
+    fireEvent.keyDown(bin, { key: "ArrowDown" });
+    expect(document.activeElement).toBe(move);
+    fireEvent.keyDown(move, { key: "ArrowUp" });
+    expect(document.activeElement).toBe(bin);
+    fireEvent.keyDown(bin, { key: "Home" });
+    expect(document.activeElement).toBe(move);
+    fireEvent.keyDown(move, { key: "End" });
+    expect(document.activeElement).toBe(bin);
+  });
+
+  it("RF-46: Escape cierra el menú de la entrada sin ordenar nada y devuelve el foco a su botón; un clic fuera también lo cierra", async () => {
+    const { backend } = await setup();
+    await openEntry("Trabajo", "GitHub");
+    const more = moreButton();
+
+    fireEvent.click(more);
+    fireEvent.keyDown(screen.getAllByRole("menuitem")[0] ?? more, { key: "Escape" });
+
+    expect(screen.queryByRole("menu")).toBeNull();
+    expect(document.activeElement).toBe(more);
+    expect(more.getAttribute("aria-expanded")).toBe("false");
+
+    fireEvent.click(more);
+    // The menu is inside the modal window, or it would be inert behind it.
+    expect(detailZone().contains(screen.getByRole("menu"))).toBe(true);
+    fireEvent.pointerDown(document.body);
+    expect(screen.queryByRole("menu")).toBeNull();
+
+    // The button also closes the menu it opened.
+    fireEvent.click(more);
+    fireEvent.click(more);
+    expect(screen.queryByRole("menu")).toBeNull();
+    expect(backend.count("entry_move")).toBe(0);
+    expect(backend.count("entry_delete")).toBe(0);
+    // No dialog of an order opened: only the window of the entry is there.
+    expect(screen.getAllByRole("dialog")).toEqual([detailZone()]);
+  });
+
+  it("RF-47: elegir «Enviar a la papelera» en el menú lo cierra y actúa de una vez, sin diálogo", async () => {
+    const { backend } = await setup();
+    await openEntry("Trabajo", "GitHub");
+
+    chooseOrder("Enviar a la papelera");
+
+    expect(screen.queryByRole("menu")).toBeNull();
+    // No dialog asks first: only the window of the entry is there, and it closes once the entry is in the bin.
+    expect(screen.getAllByRole("dialog")).toEqual([detailZone()]);
+    await waitFor(() => {
+      expect(backend.entry("entry-github")?.groupId).toBe("group-bin");
+    });
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog")).toBeNull();
+    });
+  });
+
+  it("RF-14: en solo lectura no hay «Editar» ni menú de la entrada, y lo dice", async () => {
+    await setup({ status: { ...OPEN, read_only: true } });
+    await openGroup("Trabajo");
+    await openRow("GitHub");
+
+    const detail = detailZone();
+    expect(await within(detail).findByText(/Solo lectura: esta entrada no se puede editar, mover ni borrar/)).toBeDefined();
+    expect(within(detail).queryByRole("button", { name: "Editar" })).toBeNull();
+    expect(within(detail).queryByRole("button", { name: "Más acciones de la entrada" })).toBeNull();
+    // Looking and copying stay.
+    expect(within(detail).getByRole("button", { name: "Copiar contraseña" })).toBeDefined();
   });
 });
 
@@ -741,7 +1064,7 @@ describe("P5 Entrada — bloqueada", () => {
     const release = backend.hold("entry_reveal");
     fireEvent.click(screen.getByRole("button", { name: "Mostrar «PIN»" }));
     fireEvent.click(screen.getByRole("button", { name: "Copiar contraseña" }));
-    expect(await screen.findByText("Copiado: se borra en 20 s")).toBeDefined();
+    expect(await screen.findByText("Contraseña copiada. Se borra del portapapeles en 20 s")).toBeDefined();
 
     act(() => {
       backend.lockFromCore();
@@ -752,7 +1075,7 @@ describe("P5 Entrada — bloqueada", () => {
     });
 
     expect(await screen.findByRole("heading", { name: "Desbloquear cuentas.kdbx" })).toBeDefined();
-    for (const value of [PASSWORD, "4321", "ana@example.com", "Copiado"]) {
+    for (const value of [PASSWORD, "4321", "ana@example.com", "copiada", "portapapeles"]) {
       expect(bodyContains(value)).toBe(false);
     }
     expect(backend.clipboard()).toBeNull();
@@ -762,25 +1085,25 @@ describe("P5 Entrada — bloqueada", () => {
     const { backend } = await setup();
     await openGroup("Trabajo");
     fireEvent.click(screen.getByRole("button", { name: "Nueva entrada" }));
-    await screen.findByRole("form", { name: "Nueva entrada en Trabajo" });
+    await screen.findByRole("dialog", { name: "Nueva entrada" });
     fireEvent.change(screen.getByLabelText("Título"), { target: { value: "borrador-a-medias" } });
-    typePassword("escrita-sin-guardar");
-    fireEvent.click(screen.getByRole("button", { name: "Generar contraseña" }));
-    const generator = screen.getByRole("group", { name: "Generador de contraseñas" });
-    fireEvent.click(within(generator).getByRole("button", { name: "Generar" }));
-    const generated = (
-      await waitFor(() => {
-        const found = generator.querySelector("output");
-        if (found === null) throw new Error("not yet");
-        return found;
-      })
-    ).textContent;
+    fireEvent.change(screen.getByLabelText("Notas"), { target: { value: "escrita-sin-guardar" } });
+    fireEvent.click(screen.getByRole("button", { name: "Generar" }));
+    await waitFor(() => {
+      expect(passwordField().value).not.toBe("");
+    });
+    const generated = passwordField().value;
+    // The draft is there to lose: the three values are on screen before the lock.
+    for (const value of ["borrador-a-medias", "escrita-sin-guardar", generated]) {
+      expect(bodyContains(value)).toBe(true);
+    }
 
     act(() => {
       backend.lockFromCore();
     });
 
     expect(await screen.findByRole("heading", { name: "Desbloquear cuentas.kdbx" })).toBeDefined();
+    expect(screen.queryByRole("dialog")).toBeNull();
     for (const value of ["borrador-a-medias", "escrita-sin-guardar", generated]) {
       expect(bodyContains(value)).toBe(false);
     }
@@ -797,7 +1120,7 @@ describe("P5 Entrada — el aviso espera al disco", () => {
   async function editGitHubTitle() {
     await openEntry("Trabajo", "GitHub");
     fireEvent.click(screen.getByRole("button", { name: "Editar" }));
-    await screen.findByRole("form", { name: "Editar GitHub" });
+    await screen.findByRole("dialog", { name: "Editar entrada" });
     fireEvent.change(screen.getByLabelText("Título"), { target: { value: "GitHub personal" } });
     fireEvent.click(screen.getByRole("button", { name: "Guardar entrada" }));
   }
@@ -820,7 +1143,7 @@ describe("P5 Entrada — el aviso espera al disco", () => {
     await openEntry("Trabajo", "GitHub");
     emitSave(backend, "saved");
     fireEvent.click(screen.getByRole("button", { name: "Editar" }));
-    await screen.findByRole("form", { name: "Editar GitHub" });
+    await screen.findByRole("dialog", { name: "Editar entrada" });
     fireEvent.change(screen.getByLabelText("Título"), { target: { value: "GitHub personal" } });
     fireEvent.click(screen.getByRole("button", { name: "Guardar entrada" }));
 
@@ -850,8 +1173,8 @@ describe("P4 Bóveda — buscar y copiar con teclado", () => {
   const search = () => screen.getByRole("searchbox", { name: "Buscar en la bóveda" });
   const rows = () => within(screen.getByRole("table")).getAllByRole("button");
 
-  it("RF-59: Enter en la búsqueda abre el primer resultado y deja «Copiar contraseña» con el foco", async () => {
-    await setup();
+  it("RF-59: Ctrl+K, escribir y Enter elige el primer resultado y deja el foco en su «Copiar contraseña»; otro Enter copia", async () => {
+    const { backend } = await setup();
     // The shortcut listener is attached in an effect: press again until it is there (focusing twice is harmless).
     await waitFor(() => {
       fireEvent.keyDown(window, { key: "k", ctrlKey: true });
@@ -861,11 +1184,21 @@ describe("P4 Bóveda — buscar y copiar con teclado", () => {
     // Enter right after typing, while the search is still on its way: it opens the first result when it lands.
     fireEvent.keyDown(search(), { key: "Enter" });
 
-    const copy = await within(detailZone()).findByRole("button", { name: "Copiar contraseña" });
+    const copy = await screen.findByRole("button", { name: "Copiar contraseña de GitHub" });
     await waitFor(() => {
       expect(document.activeElement).toBe(copy);
     });
-    expect(within(detailZone()).getByRole("heading", { name: "GitHub" })).toBeDefined();
+    // The first result is the chosen row, and its window does not open by itself.
+    const row = within(screen.getByRole("table")).getByRole("button", { name: "GitHub" });
+    expect(row.getAttribute("aria-current")).toBe("true");
+    expect(row.closest("tr")?.contains(copy)).toBe(true);
+    expect(screen.queryByRole("dialog")).toBeNull();
+
+    // Enter on a button is its click: the core copies, and the list says so with the countdown.
+    fireEvent.click(copy);
+    expect(await screen.findByText("Contraseña copiada. Se borra del portapapeles en 20 s")).toBeDefined();
+    expect(lastArgs(backend, "entry_copy")).toEqual({ id: "entry-github", field: "Password" });
+    expect(bodyContains(PASSWORD)).toBe(false);
   });
 
   it("RF-59: flecha abajo va a la lista, las flechas recorren las filas, Enter abre y Escape vuelve", async () => {
@@ -891,27 +1224,349 @@ describe("P4 Bóveda — buscar y copiar con teclado", () => {
     });
   });
 
-  it("RF-59: abrir con el ratón no mueve el foco al detalle", async () => {
+  it("RF-108: abrir con el ratón deja el foco en «Copiar contraseña», igual que con Enter", async () => {
     await setup();
     await openEntry("Trabajo", "GitHub");
-    expect(document.activeElement).not.toBe(within(detailZone()).getByRole("button", { name: "Copiar contraseña" }));
+    await waitFor(() => {
+      expect(document.activeElement).toBe(within(detailZone()).getByRole("button", { name: "Copiar contraseña" }));
+    });
   });
 });
 
 describe("P5 Entrada — ventana mínima", () => {
-  it("RF-42: «Volver a la lista» deselecciona la entrada y devuelve el foco a su fila; editando no se ofrece", async () => {
+  it("RF-108: «Cerrar» vuelve a la lista con la fila elegida y el foco en ella; al editar, el formulario reemplaza la ventana y cancelar vuelve a ella", async () => {
     await setup();
     await openEntry("Trabajo", "GitHub");
 
     fireEvent.click(within(detailZone()).getByRole("button", { name: "Editar" }));
-    await screen.findByRole("form", { name: "Editar GitHub" });
-    expect(screen.queryByRole("button", { name: "Volver a la lista" })).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "Cancelar" }));
+    const editing = await screen.findByRole<HTMLDialogElement>("dialog", { name: "Editar entrada" });
+    // The form takes the place of the window, it is not stacked on it: cancelling goes back to the window.
+    expect(editing.open).toBe(true);
+    expect(screen.getAllByRole("dialog")).toEqual([editing]);
+    expect(document.querySelector('dialog[data-layout="entry"]')).toBeNull();
+    fireEvent.click(within(editing).getByRole("button", { name: "Cancelar" }));
+    expect(screen.queryByRole("dialog", { name: "Editar entrada" })).toBeNull();
+    expect(within(detailZone()).getByRole("heading", { name: "GitHub" })).toBeDefined();
+    expect(document.activeElement).toBe(within(detailZone()).getByRole("button", { name: "Editar" }));
 
-    fireEvent.click(await screen.findByRole("button", { name: "Volver a la lista" }));
-    expect(await screen.findByText("Elige una entrada para ver su detalle.")).toBeDefined();
+    closeWindow();
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(screen.queryByText("Elige una entrada para ver su detalle.")).toBeNull();
     const row = within(screen.getByRole("table")).getByRole("button", { name: "GitHub" });
-    expect(row.getAttribute("aria-current")).toBeNull();
+    expect(row.getAttribute("aria-current")).toBe("true");
     expect(document.activeElement).toBe(row);
+  });
+});
+
+describe("P5 Entrada — diálogos sobre la ventana de la entrada", () => {
+  it("RF-108: Esc en el diálogo de mover cierra solo ese diálogo; Esc en el formulario de editar vuelve a la ventana de la entrada", async () => {
+    await setup();
+    await openEntry("Trabajo", "GitHub");
+
+    // Escape reaches a modal dialog as its `cancel` event, which React carries up to the window it is mounted in.
+    chooseOrder("Mover a otro grupo…");
+    const move = await screen.findByRole("dialog", { name: "Mover «GitHub»" });
+    expect(detailZone().contains(move)).toBe(true);
+    fireEvent(move, new Event("cancel", { cancelable: true }));
+    expect(screen.getAllByRole("dialog")).toEqual([detailZone()]);
+
+    fireEvent.click(within(detailZone()).getByRole("button", { name: "Editar" }));
+    const editing = await screen.findByRole("dialog", { name: "Editar entrada" });
+    fireEvent(editing, new Event("cancel", { cancelable: true }));
+    expect(screen.getAllByRole("dialog")).toEqual([detailZone()]);
+    expect(within(detailZone()).getByRole("heading", { name: "GitHub" })).toBeDefined();
+  });
+
+  it("RF-108: «Cerrar» sigue siendo el mismo botón cuando llega la entrada, y entonces el foco pasa a «Copiar contraseña»", async () => {
+    const { backend } = await setup();
+    await openGroup("Trabajo");
+    const release = backend.hold("entry_get");
+    await openRow("GitHub");
+    const close = within(detailZone()).getByRole("button", { name: "Cerrar" });
+
+    await act(async () => {
+      release();
+      await Promise.resolve();
+    });
+    await within(detailZone()).findByRole("button", { name: "Editar" });
+
+    // Replaced by another element, the focus the browser gave it would be left on nothing behind a modal window.
+    expect(within(detailZone()).getByRole("button", { name: "Cerrar" })).toBe(close);
+    expect(document.activeElement).toBe(within(detailZone()).getByRole("button", { name: "Copiar contraseña" }));
+  });
+});
+
+describe("P5 Entrada — el diálogo sobre la bóveda", () => {
+  it("RF-100: «Nueva entrada» y «Editar» abren un diálogo sobre la bóveda: la lista queda detrás y, al editar, el formulario ocupa el lugar de la ventana de la entrada", async () => {
+    await setup();
+    await openEntry("Trabajo", "GitHub");
+
+    for (const [button, name] of [
+      ["Nueva entrada", "Nueva entrada"],
+      ["Editar", "Editar entrada"],
+    ] as const) {
+      // "Nueva entrada" is in the list, which a modal window leaves out of reach: the window closes first.
+      if (button === "Nueva entrada") closeWindow();
+      else await openRow("GitHub");
+      fireEvent.click(screen.getByRole("button", { name: button }));
+      const dialog = await screen.findByRole<HTMLDialogElement>("dialog", { name });
+      expect(dialog.open).toBe(true);
+      expect(within(dialog).getByText("En el grupo Trabajo")).toBeDefined();
+      expect(document.activeElement).toBe(within(dialog).getByLabelText("Título"));
+      // Behind it, as it was: the chosen row.
+      const row = within(screen.getByRole("table")).getByRole("button", { name: "GitHub" });
+      expect(row.getAttribute("aria-current")).toBe("true");
+      if (button === "Editar") {
+        // RF-108: the form takes the place of the window of the entry; nothing of it stays under the form.
+        expect(document.querySelector('dialog[data-layout="entry"]')).toBeNull();
+        expect(screen.getAllByRole("dialog")).toEqual([dialog]);
+      }
+
+      fireEvent.click(within(dialog).getByRole("button", { name: "Cancelar" }));
+      expect(screen.queryByRole("dialog", { name })).toBeNull();
+    }
+  });
+
+  it("RF-100: al guardar una entrada nueva el diálogo se cierra y la entrada queda elegida en la lista, con el foco en su «Copiar contraseña»; la ventana no se abre sola", async () => {
+    const { backend } = await setup();
+    await openEntry("Trabajo", "GitHub");
+    closeWindow();
+    fireEvent.click(screen.getByRole("button", { name: "Nueva entrada" }));
+    const dialog = await screen.findByRole("dialog", { name: "Nueva entrada" });
+    fireEvent.change(within(dialog).getByLabelText("Título"), { target: { value: "Gitea" } });
+    typePassword("clave-de-gitea");
+
+    fireEvent.click(within(dialog).getByRole("button", { name: "Guardar entrada" }));
+
+    await waitFor(() => {
+      const row = within(screen.getByRole("table")).getByRole("button", { name: "Gitea" });
+      expect(row.getAttribute("aria-current")).toBe("true");
+    });
+    // RF-106: the new entry is chosen in the list; its window does not open by itself.
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(within(screen.getByRole("table")).getByRole("button", { name: "GitHub" }).getAttribute("aria-current")).toBeNull();
+    expect(lastArgs(backend, "entry_create")).toMatchObject({ group_id: "group-work", title: "Gitea" });
+    expect(screen.getByText("Entrada creada. Guardándola en el archivo…")).toBeDefined();
+    await waitFor(() => {
+      expect(document.activeElement).toBe(screen.getByRole("button", { name: "Copiar contraseña de Gitea" }));
+    });
+    expect(bodyContains("clave-de-gitea")).toBe(false);
+  });
+
+  it("RF-100: al guardar una edición el diálogo se cierra, la entrada sigue elegida con sus datos nuevos y el foco vuelve a «Editar»", async () => {
+    await setup();
+    await openEntry("Trabajo", "GitHub");
+    fireEvent.click(screen.getByRole("button", { name: "Editar" }));
+    const dialog = await screen.findByRole("dialog", { name: "Editar entrada" });
+    fireEvent.change(within(dialog).getByLabelText("Título"), { target: { value: "GitHub del equipo" } });
+
+    fireEvent.click(within(dialog).getByRole("button", { name: "Guardar entrada" }));
+
+    // RF-108: saving goes back to the window of the entry, with the new data.
+    await waitFor(() => {
+      expect(within(detailZone()).getByRole("heading", { name: "GitHub del equipo" })).toBeDefined();
+    });
+    expect(screen.getAllByRole("dialog")).toEqual([detailZone()]);
+    expect(document.activeElement).toBe(within(detailZone()).getByRole("button", { name: "Editar" }));
+    await waitFor(() => {
+      const row = within(screen.getByRole("table")).getByRole("button", { name: "GitHub del equipo" });
+      expect(row.getAttribute("aria-current")).toBe("true");
+    });
+  });
+
+  it("RF-100: con el diálogo abierto, Ctrl+K y Ctrl+F no llevan el foco a la búsqueda de detrás", async () => {
+    await setup();
+    await openGroup("Personal");
+    fireEvent.click(screen.getByRole("button", { name: "Nueva entrada" }));
+    const dialog = await screen.findByRole("dialog", { name: "Nueva entrada" });
+    const title = within(dialog).getByLabelText("Título");
+
+    for (const key of ["k", "f"]) {
+      // The key is still taken from the browser (no "find in page"), but the focus stays in the dialog.
+      expect(fireEvent.keyDown(window, { key, ctrlKey: true })).toBe(false);
+      expect(document.activeElement).toBe(title);
+    }
+
+    fireEvent.click(within(dialog).getByRole("button", { name: "Cancelar" }));
+    fireEvent.keyDown(window, { key: "k", ctrlKey: true });
+    expect(document.activeElement).toBe(document.getElementById("vault-search"));
+  });
+
+  it("RF-32: al bloquear a mano con el diálogo de editar abierto tampoco queda nada del borrador en el DOM", async () => {
+    await setup();
+    await openEntry("Trabajo", "GitHub");
+    fireEvent.click(screen.getByRole("button", { name: "Editar" }));
+    const dialog = await screen.findByRole("dialog", { name: "Editar entrada" });
+    fireEvent.change(within(dialog).getByLabelText("Título"), { target: { value: "borrador-a-medias" } });
+    typePassword("escrita-sin-guardar");
+    expect(bodyContains("escrita-sin-guardar")).toBe(true);
+
+    fireEvent.click(screen.getByRole("button", { name: /^Bloquear/ }));
+
+    expect(await screen.findByRole("heading", { name: "Desbloquear cuentas.kdbx" })).toBeDefined();
+    expect(screen.queryByRole("dialog")).toBeNull();
+    for (const value of ["borrador-a-medias", "escrita-sin-guardar", PASSWORD]) expect(bodyContains(value)).toBe(false);
+  });
+});
+
+describe("P5 Entrada — la ventana, segunda ronda", () => {
+  /** 500 characters, the longest password the generator makes (RF-65). */
+  const LONG = "abcdefghjkmnpqrstuvwxyz23456789#%".repeat(16).slice(0, 500);
+  const BARE: FakeEntry = { id: "entry-bare", groupId: "group-work", title: "Sin clave", username: "ana", url: "", notes: "" };
+
+  /** The cell of the value of that row: where its double click and its help live. */
+  function valueOf(label: string): HTMLElement {
+    const cell = rowOf(label).querySelector<HTMLElement>(".card-main");
+    if (cell === null) throw new Error(`missing value of ${label}`);
+    return cell;
+  }
+
+  function listRow(title: string): HTMLElement {
+    const row = within(screen.getByRole("table")).getByRole("button", { name: title }).closest("tr");
+    if (row === null) throw new Error(`missing row ${title}`);
+    return row;
+  }
+
+  function passwordCellOf(title: string): HTMLElement {
+    const cell = listRow(title).querySelector<HTMLElement>("td.cell-password");
+    if (cell === null) throw new Error(`missing password cell of ${title}`);
+    return cell;
+  }
+
+  it("RF-106: en la ventana, doble clic en el usuario lo copia, en la contraseña la copia sin mostrarla y en el sitio lo abre; la ayuda nunca lleva un valor", async () => {
+    const { backend } = await setup();
+    await openEntry("Trabajo", "GitHub");
+
+    expect(valueOf("Usuario").title).toBe("Doble clic para copiar");
+    expect(valueOf("Contraseña").title).toBe("Doble clic para copiar");
+    expect(valueOf("Sitio").title).toBe("Doble clic para abrir el sitio en el navegador");
+
+    fireEvent.doubleClick(valueOf("Usuario"));
+    await waitFor(() => {
+      expect(lastArgs(backend, "entry_copy")).toEqual({ id: "entry-github", field: "UserName" });
+    });
+    fireEvent.doubleClick(valueOf("Contraseña"));
+    await waitFor(() => {
+      expect(lastArgs(backend, "entry_copy")).toEqual({ id: "entry-github", field: "Password" });
+    });
+    expect(await screen.findByText("Contraseña copiada. Se borra del portapapeles en 20 s")).toBeDefined();
+    // The core copied it: nothing asked to show it and the value never came to the window.
+    expect(backend.count("entry_reveal")).toBe(0);
+    expect(bodyContains(PASSWORD)).toBe(false);
+    expect(rowOf("Contraseña").querySelector(".secret")?.hasAttribute("data-masked")).toBe(true);
+
+    fireEvent.doubleClick(valueOf("Sitio"));
+    await waitFor(() => {
+      expect(backend.count("entry_open_url")).toBe(1);
+    });
+    // Every gesture has its button.
+    for (const name of ["Copiar usuario", "Copiar contraseña", "Abrir el sitio en el navegador"]) {
+      expect(within(detailZone()).getByRole("button", { name })).toBeDefined();
+    }
+  });
+
+  it("RF-108: «Editar» cambia la ventana por el formulario; guardar vuelve a la ventana con los datos al día y el foco en «Editar», y Esc vuelve a la fila", async () => {
+    await setup();
+    await openEntry("Trabajo", "GitHub");
+    fireEvent.click(screen.getByRole("button", { name: "Mostrar contraseña" }));
+    await screen.findByText(PASSWORD);
+
+    fireEvent.click(within(detailZone()).getByRole("button", { name: "Editar" }));
+    const form = await screen.findByRole("dialog", { name: "Editar entrada" });
+    // One dialog, not two: the window is gone, and what it was showing went with it.
+    expect(screen.getAllByRole("dialog")).toEqual([form]);
+    expect(bodyContains(PASSWORD)).toBe(false);
+
+    fireEvent.change(within(form).getByLabelText(/^Usuario/), { target: { value: "equipo@example.com" } });
+    fireEvent.click(within(form).getByRole("button", { name: "Guardar entrada" }));
+
+    await waitFor(() => {
+      expect(rowOf("Usuario").textContent).toBe("Usuarioequipo@example.com");
+    });
+    expect(screen.getAllByRole("dialog")).toEqual([detailZone()]);
+    expect(document.activeElement).toBe(within(detailZone()).getByRole("button", { name: "Editar" }));
+    // What was shown before editing is hidden again.
+    expect(rowOf("Contraseña").querySelector(".secret")?.hasAttribute("data-masked")).toBe(true);
+    expect(bodyContains(PASSWORD)).toBe(false);
+
+    await waitFor(() => {
+      expect(screen.queryByText("Cargando las entradas…")).toBeNull();
+    });
+    // Escape reaches the window as its `cancel` event.
+    fireEvent(detailZone(), new Event("cancel", { cancelable: true }));
+    expect(screen.queryByRole("dialog")).toBeNull();
+    const row = within(screen.getByRole("table")).getByRole("button", { name: "GitHub" });
+    expect(row.getAttribute("aria-current")).toBe("true");
+    expect(document.activeElement).toBe(row);
+  });
+
+  it("RF-105: una entrada sin contraseña deja su celda vacía en la lista, sin ayuda ni doble clic, y su fila elegida solo ofrece «Abrir la entrada»", async () => {
+    const { backend } = await setup({ entries: [GITHUB, BARE] });
+    await openGroup("Trabajo");
+
+    expect(passwordCellOf("GitHub").textContent).toBe("••••••••Oculta");
+    expect(passwordCellOf("GitHub").title).toBe("Doble clic para copiar la contraseña");
+    expect(passwordCellOf("Sin clave").textContent).toBe("");
+    expect(passwordCellOf("Sin clave").hasAttribute("title")).toBe(false);
+
+    fireEvent.click(passwordCellOf("Sin clave"));
+    fireEvent.doubleClick(passwordCellOf("Sin clave"));
+    const offered = [...listRow("Sin clave").querySelectorAll(".cell-actions button")];
+    expect(offered.map((button) => button.getAttribute("aria-label"))).toEqual(["Abrir Sin clave"]);
+    expect(backend.count("entry_copy")).toBe(0);
+    expect(screen.queryByRole("dialog")).toBeNull();
+
+    // The row of an entry with a password keeps its two buttons.
+    fireEvent.click(passwordCellOf("GitHub"));
+    const both = [...listRow("GitHub").querySelectorAll(".cell-actions button")];
+    expect(both.map((button) => button.getAttribute("aria-label"))).toEqual(["Copiar contraseña de GitHub", "Abrir GitHub"]);
+  });
+
+  it("RF-105: el camino rápido del teclado deja el foco en «Abrir la entrada» cuando la entrada no tiene contraseña", async () => {
+    await setup({ entries: [GITHUB, BARE] });
+    const search = screen.getByRole("searchbox", { name: "Buscar en la bóveda" });
+    fireEvent.change(search, { target: { value: "Sin clave" } });
+    fireEvent.keyDown(search, { key: "Enter" });
+
+    const open = await screen.findByRole("button", { name: "Abrir Sin clave" });
+    await waitFor(() => {
+      expect(document.activeElement).toBe(open);
+    });
+    expect(screen.queryByRole("button", { name: "Copiar contraseña de Sin clave" })).toBeNull();
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("RF-105: RF-108: la ventana de una entrada sin contraseña dice «Sin contraseña», sin botones ni gesto en esa fila, y el foco queda en «Cerrar»", async () => {
+    const { backend } = await setup({ entries: [GITHUB, BARE] });
+    await openEntry("Trabajo", "Sin clave");
+
+    expect(rowOf("Contraseña").textContent).toBe("ContraseñaSin contraseña");
+    expect(rowOf("Contraseña").querySelectorAll("button")).toHaveLength(0);
+    expect(valueOf("Contraseña").hasAttribute("title")).toBe(false);
+    await waitFor(() => {
+      expect(document.activeElement).toBe(within(detailZone()).getByRole("button", { name: "Cerrar" }));
+    });
+    fireEvent.doubleClick(valueOf("Contraseña"));
+    expect(backend.count("entry_copy")).toBe(0);
+  });
+
+  it("RF-43: una contraseña de 500 caracteres mostrada va completa, dentro de `.secret` y en ningún atributo", async () => {
+    await setup({ entries: [{ ...GITHUB, password: LONG }] });
+    await openEntry("Trabajo", "GitHub");
+
+    fireEvent.click(screen.getByRole("button", { name: "Mostrar contraseña" }));
+    const shownValue = await waitFor(() => {
+      const found = rowOf("Contraseña").querySelector<HTMLElement>(".secret:not([data-masked])");
+      if (found === null) throw new Error("not shown yet");
+      return found;
+    });
+    // Whole, as one text: no ellipsis character and nothing cut in the markup. That it breaks into lines is CSS.
+    expect(shownValue.textContent).toBe(LONG);
+    expect(shownValue.textContent).toHaveLength(500);
+    expect(shownValue.className).toBe("secret");
+    expect(shownValue.closest(".card-main")?.getAttribute("title")).toBe("Doble clic para copiar");
+    for (const element of document.querySelectorAll("*")) {
+      for (const attribute of element.attributes) expect(attribute.value).not.toContain(LONG.slice(0, 40));
+    }
   });
 });

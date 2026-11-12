@@ -6,14 +6,22 @@
 
 mod common;
 
-use almarioks_core::generator::{DIGITS, LOOKALIKES, LOWERCASE, SYMBOLS, UPPERCASE};
+use almarioks_core::{
+    CoreError, CoreResult,
+    generator::{
+        DIGITS, LOOKALIKES, LOWERCASE, PasswordRules, RandomSource, SYMBOLS, UPPERCASE,
+        generate_with,
+    },
+};
 use almarioks_lib::commands::{
-    INTERNAL_CODE,
+    AppError, INTERNAL_CODE,
     dialogs::{DialogMode, DialogUnavailable, FileDialogs, FilePick, SystemDialogs},
+    passwords::generate_from,
 };
 use common::{
     FakeDialogs, TempDir, app_with, error_code, invoke_args, invoke_plain, parts_with, test_parts,
 };
+use secrecy::ExposeSecret;
 use serde_json::{Value, json};
 use tauri::test::{mock_builder, mock_context, noop_assets};
 
@@ -301,7 +309,7 @@ fn rf_68_impossible_rules_generate_nothing() {
         rules(20, false, false, false, false, false),
         rules(7, true, true, true, true, false),
         rules(0, true, true, true, true, false),
-        rules(129, true, true, true, true, false),
+        rules(501, true, true, true, true, false),
         rules(u32::MAX, true, true, true, true, false),
     ] {
         let answer = invoke_args(&app, "generate_password", args.clone());
@@ -337,5 +345,143 @@ fn rf_80_generate_password_rejects_malformed_arguments_before_any_rule() {
     assert_eq!(
         error_code(&invoke_plain(&app, "generate_password")),
         "ArgumentoInvalido"
+    );
+}
+
+// ---------- Second round of the owner (2026-11-12): 8 to 500, and RF-109 ----------
+
+#[test]
+fn rf_65_rf_68_generate_password_answers_8_and_500_whole_and_nothing_for_7_and_501() {
+    let dir = TempDir::new("generate-500");
+    let app = app_with(test_parts(&dir));
+
+    // Two of each: in a debug build the meter takes up to seconds on 100 or more random characters.
+    for length in [8_u32, 500] {
+        for _ in 0..2 {
+            let answer = invoke_args(
+                &app,
+                "generate_password",
+                rules(length, true, true, true, true, false),
+            )
+            .expect("a password");
+            let password = answer["password"].as_str().expect("the password");
+            assert_eq!(
+                password.chars().count(),
+                usize::try_from(length).unwrap(),
+                "nothing between the core and the window may cut it"
+            );
+            for class in [LOWERCASE, UPPERCASE, DIGITS, SYMBOLS] {
+                assert!(password.chars().any(|c| class.contains(c)), "{length}");
+            }
+            let score = answer["score"].as_u64().expect("the score");
+            assert!(score <= 4);
+            if length == 500 {
+                assert_eq!(score, 4, "500 random characters of the four types");
+            }
+        }
+    }
+
+    for length in [7_u32, 501] {
+        let answer = invoke_args(
+            &app,
+            "generate_password",
+            rules(length, true, true, true, true, false),
+        );
+        assert_eq!(error_code(&answer), "ReglasImposibles", "{length}");
+        assert!(answer.unwrap_err().get("password").is_none());
+    }
+}
+
+/// SplitMix64 with a fixed seed: the bytes are the same on every run.
+struct Seeded(u64);
+
+impl RandomSource for Seeded {
+    fn fill(&mut self, buf: &mut [u8]) -> CoreResult<()> {
+        for chunk in buf.chunks_mut(8) {
+            self.0 = self.0.wrapping_add(0x9E37_79B9_7F4A_7C15);
+            let mut z = self.0;
+            z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
+            z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
+            z ^= z >> 31;
+            for (slot, byte) in chunk.iter_mut().zip(z.to_le_bytes()) {
+                *slot = byte;
+            }
+        }
+        Ok(())
+    }
+}
+
+/// A system generator that is down after `healthy_fills` calls. It counts the calls it gets.
+struct GoesDown {
+    inner: Seeded,
+    healthy_fills: usize,
+    calls: usize,
+}
+
+impl RandomSource for GoesDown {
+    fn fill(&mut self, buf: &mut [u8]) -> CoreResult<()> {
+        self.calls += 1;
+        if self.calls > self.healthy_fills {
+            return Err(CoreError::GeneradorNoDisponible);
+        }
+        self.inner.fill(buf)
+    }
+}
+
+fn core_rules(length: usize) -> PasswordRules {
+    PasswordRules {
+        length,
+        ..PasswordRules::default()
+    }
+}
+
+#[test]
+fn rf_65_the_answer_of_the_command_carries_the_500_characters_the_core_made() {
+    let r = core_rules(500);
+    let expected = generate_with(&r, &mut Seeded(500)).expect("the core generates");
+    let Ok(view) = generate_from(&r, &mut Seeded(500)) else {
+        panic!("the command generates from the same source");
+    };
+    let answer = serde_json::to_value(&view).unwrap();
+    assert_eq!(
+        answer["password"].as_str().map(|text| text.chars().count()),
+        Some(500)
+    );
+    assert_eq!(answer["password"], json!(expected.expose_secret()));
+    assert_eq!(answer["score"], json!(4));
+    assert_eq!(answer.as_object().unwrap().len(), 2);
+}
+
+#[test]
+fn rf_109_a_generator_that_is_down_answers_its_own_code_and_no_password() {
+    // Down at once, and down with half a password already drawn (one call of 500 bytes never fills 500
+    // characters: the bytes above the largest multiple of 90 are rejected).
+    for (healthy_fills, length) in [(0, 20), (0, 500), (1, 500)] {
+        let mut source = GoesDown {
+            inner: Seeded(109),
+            healthy_fills,
+            calls: 0,
+        };
+        let Err(error) = generate_from(&core_rules(length), &mut source) else {
+            panic!("a source that is down generated a password");
+        };
+        assert_eq!(
+            serde_json::to_value(&error).unwrap(),
+            json!({
+                "code": "GeneradorNoDisponible",
+                "message": "No se pudo generar la contraseña. Inténtalo otra vez.",
+            }),
+            "exactly the code and the message: no password, no part of one"
+        );
+        assert_eq!(
+            source.calls,
+            healthy_fills + 1,
+            "after the failure nothing else is asked: there is no second source"
+        );
+    }
+    // It is its own code, not the one of a failed save.
+    assert_ne!(
+        AppError::from(CoreError::GeneradorNoDisponible).code(),
+        AppError::from(CoreError::GuardadoFallido).code()
     );
 }
