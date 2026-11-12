@@ -20,7 +20,7 @@ real) → commit → marcar. Las pruebas citan el RF (`rf_NN_…`, `it("RF-NN: �
       Hecho cuando: `rf_42_*`, `rf_43_*`, `rf_44_*`, `rf_50_*`, `rf_93_*` en verde, con una fixture de notas protegidas.
 - [x] T6. Entradas: crear y editar como parche, validaciones, historial. (RF-26, RF-38 a RF-41, RF-45, RF-91)
       Hecho cuando: esas `rf_*` en verde, incluidos los ejemplos 8 y 9.
-- [ ] T7. Mover y borrar entradas y grupos; papelera y objetos borrados. (RF-46 a RF-48, RF-51 a RF-58)
+- [x] T7. Mover y borrar entradas y grupos; papelera y objetos borrados. (RF-46 a RF-48, RF-51 a RF-58)
       Hecho cuando: esas `rf_*` en verde, incluidos los ejemplos 3 y 4.
 - [ ] T8. Guardado: cifrar a bytes, temporal, relectura, reemplazo atómico, `.bak`, cambio externo, disco de prueba
       que falla o corta en cada paso, cola de guardados; ida y vuelta sin pérdida tras editar. (RF-21 a RF-25, RF-27, RF-89)

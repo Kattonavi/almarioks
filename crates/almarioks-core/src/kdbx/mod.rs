@@ -23,14 +23,18 @@ pub use open::{OpenedVault, open};
 
 // Operations on an opened vault (T5 to T7): methods of `OpenedVault` over the types of `crate::vault`.
 mod entries;
+mod groups;
 mod read;
 pub use create::{
     DEFAULT_VAULT_NAME, NEW_VAULT_HISTORY_MAX_ITEMS, NEW_VAULT_HISTORY_MAX_SIZE,
     create_named_vault_file,
 };
+pub use groups::RECYCLE_BIN_NAME;
 
 #[cfg(test)]
 mod tests_entries;
+#[cfg(test)]
+mod tests_groups;
 #[cfg(test)]
 mod tests_read;
 
