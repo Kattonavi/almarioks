@@ -201,7 +201,8 @@ impl SaveQueue {
 
     /// For a lock (RF-30, RF-33, D12): stops the queue, drops the verifier (and with it the key), answers
     /// [`SaveError::Closed`] to the save waiting its turn and returns the newest bytes not yet confirmed, for the
-    /// recovery file. Never waits for the disk; a write already running ends on its own and cannot verify any more.
+    /// recovery file. Never waits for the disk. A write already running ends on its own: if it had not verified yet it
+    /// fails; if it had, it may still replace the vault with those verified, encrypted bytes after the lock.
     pub fn close(&self) -> Option<Arc<Vec<u8>>> {
         let mut state = self.shared.lock();
         state.closed = true;
