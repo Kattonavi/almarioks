@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode, type RefObject, type SubmitEvent } from "react";
+import { Fragment, useEffect, useRef, useState, type ReactNode, type RefObject, type SubmitEvent } from "react";
 
 import { assertNever } from "../assertNever";
 import type { FieldName, VaultClient } from "../ipc/client";
@@ -409,8 +409,13 @@ export function EntryPanel({
   }
 
   /** RF-108: the way out of the window, in its head whatever the entry is doing (loading, failed or shown). */
+  /*
+   * The keys of the head ("heading", "actions", "close") are the same while the entry loads and once it is shown:
+   * the window opens with the focus on "Cerrar", and that button must be the same element when the entry arrives, or
+   * the focus would be left on nothing behind a modal window.
+   */
   const closeButton = onClose !== undefined && (
-    <button type="button" className="entry-close" aria-label="Cerrar" title="Cerrar" onClick={onClose}>
+    <button key="close" type="button" className="entry-close" aria-label="Cerrar" title="Cerrar" onClick={onClose}>
       <CloseIcon />
     </button>
   );
@@ -419,12 +424,16 @@ export function EntryPanel({
     return (
       <div className="entry">
         <header className="entry-head">
-          <div className="entry-heading">
+          <div key="heading" className="entry-heading">
             <h4 id={titleId} className="entry-title">
               {shown(listTitle, "(sin título)")}
             </h4>
           </div>
-          {onClose !== undefined && <div className="entry-head-actions">{closeButton}</div>}
+          {onClose !== undefined && (
+            <div key="actions" className="entry-head-actions">
+              {closeButton}
+            </div>
+          )}
         </header>
         {load.kind === "loading" ? (
           <p role="status">Cargando la entrada…</p>
@@ -514,12 +523,13 @@ export function EntryPanel({
       <header className="entry-head">
         {/* The same circle as its row in the list, larger. Drawn by CSS from `data-initial`: it adds no text. */}
         <span
+          key="badge"
           className="bullet entry-badge"
           data-line={line}
           data-initial={entryInitial(entry.title)}
           aria-hidden="true"
         />
-        <div className="entry-heading">
+        <div key="heading" className="entry-heading">
           <h4 id={titleId} ref={entryTitleRef} tabIndex={-1} className="entry-title">
             {shown(entry.title, "(sin título)")}
           </h4>
@@ -529,9 +539,9 @@ export function EntryPanel({
           </p>
         </div>
         {(!readOnly || onClose !== undefined) && (
-          <div className="entry-head-actions">
+          <div key="actions" className="entry-head-actions">
             {!readOnly && (
-              <>
+              <Fragment key="orders">
                 <button
                   ref={editRef}
                   type="button"
@@ -553,7 +563,7 @@ export function EntryPanel({
                   className="entry-menu"
                   buttonClassName="entry-more"
                 />
-              </>
+              </Fragment>
             )}
             {closeButton}
           </div>

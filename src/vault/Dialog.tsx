@@ -65,11 +65,15 @@ export function Dialog(props: DialogProps) {
       data-tone={props.layout === "entry" ? undefined : props.tone}
       data-layout={props.layout}
       onCancel={(event) => {
+        // React carries `cancel` and `close` up its own tree: a dialog mounted inside this one (the form or an order
+        // over the window of an entry) answers for itself, or one Escape would close both.
+        if (event.target !== event.currentTarget) return;
         // Escape: React decides, so the dialog is unmounted instead of left closed in the DOM.
         event.preventDefault();
         onClose();
       }}
-      onClose={() => {
+      onClose={(event) => {
+        if (event.target !== event.currentTarget) return;
         // The browser closed it on its own (Chromium lets a repeated Escape through even when the first one was
         // cancelled). It is still mounted, so it opens again with everything in it and the owner is asked, the same
         // as with Escape: what was written is never lost in silence.

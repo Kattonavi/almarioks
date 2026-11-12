@@ -1194,6 +1194,43 @@ describe("P5 Entrada — ventana mínima", () => {
   });
 });
 
+describe("P5 Entrada — diálogos sobre la ventana de la entrada", () => {
+  it("RF-108: Esc en el diálogo de mover o en el formulario de editar cierra solo ese diálogo: la ventana de la entrada sigue abierta", async () => {
+    await setup();
+    await openEntry("Trabajo", "GitHub");
+
+    // Escape reaches a modal dialog as its `cancel` event, which React carries up to the window it is mounted in.
+    chooseOrder("Mover a otro grupo…");
+    const move = await screen.findByRole("dialog", { name: "Mover «GitHub»" });
+    expect(detailZone().contains(move)).toBe(true);
+    fireEvent(move, new Event("cancel", { cancelable: true }));
+    expect(screen.getAllByRole("dialog")).toEqual([detailZone()]);
+
+    fireEvent.click(within(detailZone()).getByRole("button", { name: "Editar" }));
+    const editing = await screen.findByRole("dialog", { name: "Editar entrada" });
+    fireEvent(editing, new Event("cancel", { cancelable: true }));
+    expect(screen.getAllByRole("dialog")).toEqual([detailZone()]);
+    expect(within(detailZone()).getByRole("heading", { name: "GitHub" })).toBeDefined();
+  });
+
+  it("RF-108: la ventana se abre con el foco en «Cerrar», y ese botón sigue siendo el mismo cuando llega la entrada", async () => {
+    const { backend } = await setup();
+    await openGroup("Trabajo");
+    const release = backend.hold("entry_get");
+    await openRow("GitHub");
+    const close = within(detailZone()).getByRole("button", { name: "Cerrar" });
+
+    await act(async () => {
+      release();
+      await Promise.resolve();
+    });
+    await within(detailZone()).findByRole("button", { name: "Editar" });
+
+    // Replaced by another element, the focus the browser gave it would be left on nothing behind a modal window.
+    expect(within(detailZone()).getByRole("button", { name: "Cerrar" })).toBe(close);
+  });
+});
+
 describe("P5 Entrada — el diálogo sobre la bóveda", () => {
   it("RF-100: «Nueva entrada» y «Editar» abren un diálogo sobre la bóveda: la lista y la ventana de la entrada quedan detrás y el panel no muestra formularios", async () => {
     await setup();

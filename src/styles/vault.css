@@ -140,6 +140,11 @@
   color: var(--ink-muted);
 }
 
+/* "Modificada" is wider than its 80 px: it runs on over the column of the actions, which has no label. */
+.entries thead .cell-date {
+  overflow: visible;
+}
+
 /* A double click is an order here (RF-106), not a way to select a word. */
 .entries tbody tr {
   min-height: var(--entry-row-h);
