@@ -35,6 +35,7 @@
 //! (every other command still answers `Bloqueada` at once). They must only touch memory and return.
 
 mod clock;
+mod convert;
 mod gate;
 mod live;
 #[cfg(test)]
