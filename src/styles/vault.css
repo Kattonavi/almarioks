@@ -358,19 +358,26 @@
  * the entry, and "Cerrar". ----
  */
 dialog[data-layout="entry"] {
-  width: min(600px, calc(100vw - var(--space-8)));
+  width: min(600px, calc(100vw - var(--space-6) * 2));
+  max-height: calc(100vh - var(--space-6) * 2);
+  padding: 0;
+  border: 0;
   border-radius: var(--radius-dialog);
 }
 
-/* The blocks of the entry, 20 px apart: header, card, dates, and what the last order left to say. */
+/*
+ * The blocks of the entry, one under the other: the header with its own relief, the card 24 px from each side and,
+ * under it, the dates and what the last order left to say, 20 px from the foot of the window.
+ */
 .entry {
   display: flex;
   flex-direction: column;
-  gap: var(--space-5);
+  padding-bottom: var(--space-5);
 }
 
-.entry > p {
-  margin: 0;
+.entry > :is(p, .entry-status, .actions) {
+  max-width: none;
+  margin: var(--space-2) var(--space-6) 0;
 }
 
 .entry-head {
@@ -378,6 +385,7 @@ dialog[data-layout="entry"] {
   flex-wrap: wrap;
   align-items: center;
   gap: 14px;
+  padding: var(--space-5) var(--space-3) var(--space-4) var(--space-6);
 }
 
 .entry-badge {
@@ -394,7 +402,8 @@ dialog[data-layout="entry"] {
 .entry-title {
   margin: 0;
   overflow-wrap: anywhere;
-  font-size: var(--text-2xl);
+  font-size: 1.5rem; /* 24: the title of the window, as approved */
+  font-weight: var(--weight-display);
   line-height: 1.15;
 }
 
@@ -419,7 +428,7 @@ dialog[data-layout="entry"] {
 .entry-head-actions {
   display: flex;
   flex: none;
-  gap: var(--space-2);
+  gap: var(--space-1);
 }
 
 .entry-head-actions button:not([role="menuitem"], :hover) {
@@ -446,6 +455,17 @@ dialog[data-layout="entry"] {
   padding: 0;
 }
 
+/* "Cerrar" is the way out, not an order: no plate and no border. */
+.entry-head-actions > .entry-close {
+  padding: 0;
+  border-color: transparent;
+}
+
+.entry-head-actions > .entry-close > .icon {
+  width: 18px;
+  height: 18px;
+}
+
 /* The menu hangs from its button, 4 px under it and flush with its right edge; without room below, it opens upward. */
 .entry-more[aria-expanded="true"] {
   anchor-name: --entry-menu;
@@ -453,6 +473,7 @@ dialog[data-layout="entry"] {
 
 .entry-menu > .menu {
   top: anchor(bottom);
+  background: var(--ground);
   right: anchor(right);
   min-width: 224px;
   margin-block: var(--space-1);
@@ -465,8 +486,8 @@ dialog[data-layout="entry"] {
  * column at the end because every row ends at the same edge. ----
  */
 .entry-card {
-  margin: 0;
-  background: var(--surface);
+  margin: 0 var(--space-6);
+  background: var(--ground);
   border: 1px solid var(--rule);
   border-radius: var(--radius-card);
 }
@@ -475,9 +496,11 @@ dialog[data-layout="entry"] {
   display: grid;
   grid-template-columns: 104px minmax(0, 1fr);
   column-gap: var(--space-3);
-  align-items: center;
+  /* From the top: label, first line of the value and buttons stay level when a value takes many lines. */
+  align-items: start;
   min-height: 56px;
-  padding: var(--space-1) var(--space-2) var(--space-1) var(--space-4);
+  /* 6 + the 44 px of the buttons + 5 + the rule under the row: 56. */
+  padding: 6px var(--space-2) 5px var(--space-4);
   border-bottom: 1px solid var(--rule);
 }
 
@@ -486,6 +509,9 @@ dialog[data-layout="entry"] {
 }
 
 .card-row > dt {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
   overflow-wrap: anywhere;
   font-size: var(--text-sm);
   color: var(--ink-muted);
@@ -499,13 +525,31 @@ dialog[data-layout="entry"] {
   margin: 0;
 }
 
-/* A value that is not protected stays on one line; the whole text is in its `title`. */
+/*
+ * The cell of the value: at least the 44 px of the icon buttons beside it, so one line sits level with them. With a
+ * gesture (RF-106) its `title` is the help, and a double click must not leave a word selected.
+ */
+.card-main {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  min-width: 0;
+  min-height: 44px;
+}
+
+.card-main[title] {
+  -webkit-user-select: none;
+  user-select: none;
+  cursor: default;
+}
+
+/* A value that is not protected is read whole here: a long one breaks into lines instead of being cut. */
 .card-value {
   flex: 1;
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  /* One line plus this relief is the 44 px of the buttons: the first line of a long value stays level with them. */
+  padding-block: 11px;
+  overflow-wrap: anywhere;
 }
 
 .card-empty {
@@ -526,9 +570,11 @@ dialog[data-layout="entry"] {
   list-style: none;
 }
 
+/* At the top of the row: beside a value of many lines (a long password, shown) they stay with its first line. */
 .card-actions {
   display: flex;
   flex: none;
+  align-self: flex-start;
   margin-inline-start: auto;
 }
 
@@ -566,7 +612,7 @@ dialog[data-layout="entry"] {
 .card-row .secret:not([data-masked]) {
   flex: 1;
   min-width: 0;
-  padding-block: var(--space-2);
+  padding-block: 11px;
   letter-spacing: 0.06em;
 }
 
@@ -580,6 +626,16 @@ dialog[data-layout="entry"] {
   margin-block: calc(-1 * var(--space-3));
 }
 
+.card-row-notes .card-main {
+  align-items: flex-start;
+  min-height: 0;
+}
+
+.card-row-notes > dt {
+  display: block;
+  min-height: 0;
+}
+
 .card-notes {
   flex: 1;
   min-width: 0;
@@ -587,17 +643,36 @@ dialog[data-layout="entry"] {
   white-space: pre-line;
 }
 
-/* Only while something is shown, right under the card it speaks of. */
-.entry > .field-hint {
-  margin-top: calc(-1 * var(--space-3));
+/* RF-107: both dates with their hour. Each one stays whole; when they do not fit, the line breaks between them. */
+.entry > .entry-dates {
+  display: flex;
+  flex-wrap: wrap;
+  margin-top: var(--space-4);
+  font-size: var(--text-sm);
+  color: var(--ink-muted);
 }
 
-.entry-dates {
-  overflow: hidden;
-  font-size: var(--text-sm);
-  text-overflow: ellipsis;
+.entry-date {
   white-space: nowrap;
-  color: var(--ink-muted);
+}
+
+/*
+ * The dot between the two dates is drawn, with the same room on each side; its text (" · ") stays for whoever reads
+ * the line aloud or copies it.
+ */
+.entry-dates > .dot-sep {
+  display: flex;
+  align-items: center;
+  font-size: 0;
+}
+
+.entry-dates > .dot-sep::before {
+  width: 3px;
+  height: 3px;
+  margin-inline: 6px;
+  content: "";
+  background: currentColor;
+  border-radius: var(--radius-round);
 }
 
 .entry-status p {
@@ -606,10 +681,9 @@ dialog[data-layout="entry"] {
   color: var(--ink-muted);
 }
 
-/* While they have nothing to say they take no room: the gap before them is given back. */
-.entry-status:empty,
-.entry > .error:empty {
-  margin-top: calc(-1 * var(--space-5));
+/* While they have nothing to say they take no room; they stay rendered, so their next text is announced. */
+.entry > :is(.entry-status, .error):empty {
+  margin-top: 0;
 }
 
 /*
@@ -628,7 +702,7 @@ dialog[data-layout="entry"] > .toast-zone {
 }
 
 dialog[data-layout="entry"] > .toast-zone:not(:empty) {
-  margin-top: var(--space-5);
+  padding: 0 var(--space-6) var(--space-5);
 }
 
 .toast {

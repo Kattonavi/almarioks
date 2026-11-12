@@ -8,7 +8,7 @@ import { CloseIcon, CopyIcon, EditIcon, HideIcon, OpenLinkIcon, ShowIcon } from 
 import { MenuButton, type MenuItem } from "../ui/MenuButton";
 import { Dialog } from "./Dialog";
 import { EntryDialog } from "./EntryDialog";
-import { formatDate, formatDay, groupOptions, isInBin, shown, trailTo } from "./format";
+import { formatDate, groupOptions, isInBin, shown, trailTo } from "./format";
 import { assignLines, entryInitial, entryLine } from "./lines";
 import { NO_SAVE_SIGNAL, savingText, type SaveSignal } from "./saveSignal";
 
@@ -63,15 +63,12 @@ interface EntryPanelProps {
   readonly readOnly?: boolean;
   /** RF-21: saves that reached the disk; an edit is "guardada" only after the next one. */
   readonly saveSignal?: SaveSignal;
-  /**
-   * RF-59: opened from the keyboard. A new non-zero value moves the focus, once the entry is loaded, to "Copiar
-   * contraseña" (or to the title when it has none), so copying is one key away. 0: leave the focus where it is.
-   */
-  readonly focusRequest?: number;
-  /** The id of the title: the window the entry is shown in takes its name from it. */
-  readonly titleId?: string;
-  /** RF-108: the entry is shown in a window: its head closes with a "Cerrar" button, which goes back to the list. */
-  readonly onClose?: () => void;
+  /** The id of the title: the window of the entry takes its name from it. */
+  readonly titleId: string;
+  /** RF-108: Escape or "Cerrar" in the head of the window: back to the list. */
+  readonly onClose: () => void;
+  /** RF-74: what the window says at its foot while it is open: the zone of the copy notice. */
+  readonly foot?: ReactNode;
   /** The entry changed (edited, moved): the lists must be asked again. */
   readonly onChanged: () => void;
   /** The entry left this view (to the recycle bin or for good). */
@@ -174,32 +171,40 @@ interface CardRowProps {
   readonly actions?: ReactNode;
   /** The notes: the label at the top and the text with its own line breaks. */
   readonly notes?: boolean;
+  /**
+   * RF-106: what the `title` of the value's cell says of its double click. It names the gesture, never the value.
+   * Without it the row has no gesture.
+   */
+  readonly help?: string | undefined;
+  /** RF-106: the double click on the value, the same as in the list. Every gesture has its button too. */
+  readonly onGesture?: (() => void) | undefined;
   readonly children: ReactNode;
 }
 
-/** One row of the card: label | value | icon buttons. */
-function CardRow({ label, actions, notes = false, children }: CardRowProps) {
+const COPY_HELP = "Doble clic para copiar";
+const OPEN_HELP = "Doble clic para abrir el sitio en el navegador";
+
+/** One row of the card: label | value | icon buttons. The gesture lives on the cell of the value, not on the value. */
+function CardRow({ label, actions, notes = false, help, onGesture, children }: CardRowProps) {
   return (
     <div className={notes ? "card-row card-row-notes" : "card-row"}>
       <dt>{label}</dt>
       <dd>
-        {children}
+        <div className="card-main" title={help} onDoubleClick={help === undefined ? undefined : onGesture}>
+          {children}
+        </div>
         {actions !== undefined && <span className="card-actions">{actions}</span>}
       </dd>
     </div>
   );
 }
 
-/** A value that is not protected: one line, cut with an ellipsis; the whole text is in its `title`. */
+/** A value that is not protected, read whole: a long one breaks into lines (a `title` here is the help of a gesture). */
 function PlainValue({ value, empty }: { readonly value: string | null; readonly empty: string }) {
   if (value === "") return <span className="card-empty">{empty}</span>;
   // `null`: protected in the file, but with nothing to show or copy.
   if (value === null) return <span className="card-empty">{shown(value)}</span>;
-  return (
-    <span className="card-value" title={value}>
-      {value}
-    </span>
-  );
+  return <span className="card-value">{value}</span>;
 }
 
 /**
@@ -274,12 +279,12 @@ export function EntryPanel({
   root,
   readOnly = false,
   saveSignal = NO_SAVE_SIGNAL,
-  focusRequest = 0,
   titleId,
   onClose,
   onChanged,
   onDeleted,
   onCopied,
+  foot,
 }: EntryPanelProps) {
   const [load, setLoad] = useState<LoadState>({ kind: "loading" });
   const [attempt, setAttempt] = useState(0);
@@ -300,8 +305,9 @@ export function EntryPanel({
   const mounted = useRef(false);
   const editRef = useRef<HTMLButtonElement>(null);
   const copyPasswordRef = useRef<HTMLButtonElement>(null);
-  const entryTitleRef = useRef<HTMLHeadingElement>(null);
-  const focusHandled = useRef(0);
+  const closeRef = useRef<HTMLButtonElement>(null);
+  /** RF-108: the window hands the focus over once, when its entry arrives. */
+  const focusedOnOpen = useRef(false);
   const focusEdit = useRef(false);
 
   useEffect(() => {
@@ -325,11 +331,13 @@ export function EntryPanel({
     };
   }, [client, entryId, attempt]);
 
+  // RF-108: opened with a double click or with Enter, the window leaves the focus on "Copiar contraseña" once its
+  // entry is in it, so copying is one key away; an entry without a password leaves it on "Cerrar".
   useEffect(() => {
-    if (focusRequest === 0 || focusHandled.current === focusRequest || load.kind !== "ready") return;
-    focusHandled.current = focusRequest;
-    (copyPasswordRef.current ?? entryTitleRef.current)?.focus();
-  }, [focusRequest, load]);
+    if (focusedOnOpen.current || load.kind !== "ready") return;
+    focusedOnOpen.current = true;
+    (copyPasswordRef.current ?? closeRef.current)?.focus();
+  }, [load]);
 
   useEffect(() => {
     if (!editing && focusEdit.current) {
@@ -414,48 +422,59 @@ export function EntryPanel({
    * the window opens with the focus on "Cerrar", and that button must be the same element when the entry arrives, or
    * the focus would be left on nothing behind a modal window.
    */
-  const closeButton = onClose !== undefined && (
-    <button key="close" type="button" className="entry-close" aria-label="Cerrar" title="Cerrar" onClick={onClose}>
+  const closeButton = (
+    <button
+      key="close"
+      ref={closeRef}
+      type="button"
+      className="entry-close"
+      aria-label="Cerrar"
+      title="Cerrar"
+      onClick={onClose}
+    >
       <CloseIcon />
     </button>
   );
 
+  // The window is the same `Dialog`, in the same place of the tree, while the entry loads and once it is shown: it
+  // opens once.
   if (load.kind !== "ready") {
     return (
-      <div className="entry">
-        <header className="entry-head">
-          <div key="heading" className="entry-heading">
-            <h4 id={titleId} className="entry-title">
-              {shown(listTitle, "(sin título)")}
-            </h4>
-          </div>
-          {onClose !== undefined && (
+      <Dialog layout="entry" labelledBy={titleId} onClose={onClose}>
+        <div className="entry">
+          <header className="entry-head">
+            <div key="heading" className="entry-heading">
+              <h4 id={titleId} className="entry-title">
+                {shown(listTitle, "(sin título)")}
+              </h4>
+            </div>
             <div key="actions" className="entry-head-actions">
               {closeButton}
             </div>
+          </header>
+          {load.kind === "loading" ? (
+            <p role="status">Cargando la entrada…</p>
+          ) : (
+            <>
+              <p role="alert" className="error">
+                {errorMessage(load.error)}
+              </p>
+              <div className="actions">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setLoad({ kind: "loading" });
+                    setAttempt((value) => value + 1);
+                  }}
+                >
+                  Reintentar
+                </button>
+              </div>
+            </>
           )}
-        </header>
-        {load.kind === "loading" ? (
-          <p role="status">Cargando la entrada…</p>
-        ) : (
-          <>
-            <p role="alert" className="error">
-              {errorMessage(load.error)}
-            </p>
-            <div className="actions">
-              <button
-                type="button"
-                onClick={() => {
-                  setLoad({ kind: "loading" });
-                  setAttempt((value) => value + 1);
-                }}
-              >
-                Reintentar
-              </button>
-            </div>
-          </>
-        )}
-      </div>
+        </div>
+        {foot}
+      </Dialog>
     );
   }
 
@@ -518,7 +537,29 @@ export function EntryPanel({
     );
   }
 
-  return (
+  // RF-108: "Editar" changes the window for the form instead of stacking the form on it. This component stays
+  // mounted, so saving or cancelling comes back to the window with the entry as the form left it; nothing that was
+  // shown makes the trip (`hideAll` ran when "Editar" was pressed).
+  if (editing) {
+    return (
+      <EntryDialog
+        client={client}
+        mode={{ kind: "edit", entry, group: { id: entry.groupId, name: trail.at(-1) ?? "(sin nombre)", line } }}
+        onClose={() => {
+          focusEdit.current = true;
+          setEditing(false);
+        }}
+        onSaved={(saved, changed) => {
+          setLoad({ kind: "ready", entry: saved });
+          setStatus(changed ? "" : "No había cambios que guardar.");
+          setEditSince(changed ? saveSignal.saved : null);
+          if (changed) onChanged();
+        }}
+      />
+    );
+  }
+
+  const view = (
     <div className="entry">
       <header className="entry-head">
         {/* The same circle as its row in the list, larger. Drawn by CSS from `data-initial`: it adds no text. */}
@@ -530,7 +571,7 @@ export function EntryPanel({
           aria-hidden="true"
         />
         <div key="heading" className="entry-heading">
-          <h4 id={titleId} ref={entryTitleRef} tabIndex={-1} className="entry-title">
+          <h4 id={titleId} className="entry-title">
             {shown(entry.title, "(sin título)")}
           </h4>
           <p className="entry-group" title={trail.join(" › ")}>
@@ -538,52 +579,64 @@ export function EntryPanel({
             <span className="group-dot" data-line={line} aria-hidden="true" /> {trail.at(-1) ?? ""}
           </p>
         </div>
-        {(!readOnly || onClose !== undefined) && (
-          <div key="actions" className="entry-head-actions">
-            {!readOnly && (
-              <Fragment key="orders">
-                <button
-                  ref={editRef}
-                  type="button"
-                  onClick={() => {
-                    hideAll();
-                    say("");
-                    setActionError(null);
-                    setEditing(true);
-                  }}
-                >
-                  <EditIcon />
-                  Editar
-                </button>
-                <MenuButton
-                  label="Más acciones de la entrada"
-                  menuLabel="Acciones de la entrada"
-                  items={orders}
-                  onChoose={onOrder}
-                  className="entry-menu"
-                  buttonClassName="entry-more"
-                />
-              </Fragment>
-            )}
-            {closeButton}
-          </div>
-        )}
+        <div key="actions" className="entry-head-actions">
+          {!readOnly && (
+            <Fragment key="orders">
+              <button
+                ref={editRef}
+                type="button"
+                onClick={() => {
+                  hideAll();
+                  say("");
+                  setActionError(null);
+                  setEditing(true);
+                }}
+              >
+                <EditIcon />
+                Editar
+              </button>
+              <MenuButton
+                label="Más acciones de la entrada"
+                menuLabel="Acciones de la entrada"
+                items={orders}
+                onChoose={onOrder}
+                className="entry-menu"
+                buttonClassName="entry-more"
+              />
+            </Fragment>
+          )}
+          {closeButton}
+        </div>
       </header>
       <dl className="entry-card">
         {isSecret("UserName") ? (
-          <CardRow label="Usuario" actions={secretActions("UserName")}>
+          <CardRow
+            label="Usuario"
+            help={COPY_HELP}
+            onGesture={() => void copy("UserName")}
+            actions={secretActions("UserName")}
+          >
             <SecretValue value={revealed.get("UserName")} />
           </CardRow>
         ) : (
           <CardRow
             label="Usuario"
+            help={has(entry.username) ? COPY_HELP : undefined}
+            onGesture={() => void copy("UserName")}
             actions={has(entry.username) ? <CopyButton field="UserName" onCopy={copy} /> : undefined}
           >
             <PlainValue value={entry.username} empty="Sin usuario" />
           </CardRow>
         )}
-        {isSecret("Password") ? (
-          <CardRow label="Contraseña" actions={secretActions("Password")}>
+        {/* RF-105: the entry says whether it has a password; without one the row says so and offers nothing. */}
+        {entry.hasPassword ? (
+          <CardRow
+            label="Contraseña"
+            help={COPY_HELP}
+            // A copy is the core's: the double click shows nothing.
+            onGesture={() => void copy("Password")}
+            actions={secretActions("Password")}
+          >
             <SecretValue value={revealed.get("Password")} />
           </CardRow>
         ) : (
@@ -594,6 +647,8 @@ export function EntryPanel({
         {isSecret("URL") ? (
           <CardRow
             label="Sitio"
+            help={OPEN_HELP}
+            onGesture={() => void openUrl()}
             actions={
               <>
                 {openButton}
@@ -606,6 +661,8 @@ export function EntryPanel({
         ) : (
           <CardRow
             label="Sitio"
+            help={entry.url === "" ? undefined : OPEN_HELP}
+            onGesture={() => void openUrl()}
             actions={
               entry.url === "" ? undefined : (
                 <>
@@ -675,16 +732,15 @@ export function EntryPanel({
 
       {revealed.size > 0 && <p className="path field-hint">Lo que muestres se oculta solo a los 20 segundos.</p>}
 
+      {/* RF-107: the day and the hour of this computer, to the minute. The list keeps the short day. */}
       <p className="entry-dates">
-        Creada el{" "}
-        <time dateTime={entry.created} title={formatDate(entry.created)}>
-          {formatDay(entry.created)}
-        </time>
+        <span className="entry-date">
+          Creada el <time dateTime={entry.created}>{formatDate(entry.created)}</time>
+        </span>
         <span className="dot-sep"> · </span>
-        Modificada el{" "}
-        <time dateTime={entry.modified} title={formatDate(entry.modified)}>
-          {formatDay(entry.modified)}
-        </time>
+        <span className="entry-date">
+          Modificada el <time dateTime={entry.modified}>{formatDate(entry.modified)}</time>
+        </span>
       </p>
 
       {readOnly && <p className="path">Solo lectura: esta entrada no se puede editar, mover ni borrar.</p>}
@@ -698,25 +754,15 @@ export function EntryPanel({
         {actionError === null ? "" : errorMessage(actionError)}
       </p>
 
-      {/* RF-100: editing is a dialog over the vault; this detail stays behind it as it was. */}
-      {editing && (
-        <EntryDialog
-          client={client}
-          mode={{ kind: "edit", entry, group: { id: entry.groupId, name: trail.at(-1) ?? "(sin nombre)", line } }}
-          onClose={() => {
-            focusEdit.current = true;
-            setEditing(false);
-          }}
-          onSaved={(saved, changed) => {
-            setLoad({ kind: "ready", entry: saved });
-            setStatus(changed ? "" : "No había cambios que guardar.");
-            setEditSince(changed ? saveSignal.saved : null);
-            if (changed) onChanged();
-          }}
-        />
-      )}
       {renderDialog()}
     </div>
+  );
+
+  return (
+    <Dialog layout="entry" labelledBy={titleId} onClose={onClose}>
+      {view}
+      {foot}
+    </Dialog>
   );
 
   function renderDialog() {
