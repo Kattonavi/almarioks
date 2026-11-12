@@ -23,14 +23,47 @@ pub fn context<R: Runtime>() -> tauri::Context<R> {
     tauri::generate_context!()
 }
 
+/// Label of the only window of the app (`tauri.conf.json`).
+pub const MAIN_WINDOW: &str = "main";
+
 /// The plugins registered on the builder, in the order they are registered.
 ///
-/// `tauri-plugin-dialog` is here only so Rust can open file dialogs (`commands::dialogs`): the capability grants
-/// the window none of its commands. `tauri-plugin-opener` is not registered at all: `commands::url` calls its
-/// `open_url` function directly.
+/// - `tauri-plugin-single-instance` goes FIRST (RF-81): plugins start in this order, and a second instance must
+///   hand over to the running one and exit before anything else of it starts. It has no commands and no
+///   JavaScript side, so it needs no permission.
+/// - `tauri-plugin-dialog` is here only so Rust can open file dialogs (`commands::dialogs`): the capability
+///   grants the window none of its commands.
+/// - `tauri-plugin-opener` is not registered at all: `commands::url` calls its `open_url` function directly.
 #[must_use]
 pub fn plugins<R: Runtime>() -> Vec<Box<dyn Plugin<R>>> {
-    vec![Box::new(tauri_plugin_dialog::init())]
+    let dialog: Box<dyn Plugin<R>> = Box::new(tauri_plugin_dialog::init());
+    #[cfg(desktop)]
+    let plugins = vec![single_instance(), dialog];
+    #[cfg(not(desktop))]
+    let plugins = vec![dialog];
+    plugins
+}
+
+/// The single-instance plugin: when the app is started again, the running instance shows its window. The
+/// arguments and the folder of the second instance are ignored on purpose: nothing is opened from them.
+#[cfg(desktop)]
+fn single_instance<R: Runtime>() -> Box<dyn Plugin<R>> {
+    Box::new(tauri_plugin_single_instance::init(|app, _args, _folder| {
+        show_main_window(app)
+    }))
+}
+
+/// Brings the existing window to the front (RF-81): what the running instance does when the person starts the
+/// app again. Showing it does not unlock anything: a locked vault stays locked.
+pub fn show_main_window<R: Runtime>(app: &AppHandle<R>) {
+    let Some(window) = app.get_webview_window(MAIN_WINDOW) else {
+        return;
+    };
+    // Best effort, step by step: a window that is not minimized, or that the system will not let us focus,
+    // must not stop the other steps, and there is nobody to report to.
+    drop(window.unminimize());
+    drop(window.show());
+    drop(window.set_focus());
 }
 
 /// The parts of the real app: the settings file in the configuration folder Tauri gives (never a fixed path),
