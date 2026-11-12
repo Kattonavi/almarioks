@@ -34,9 +34,15 @@ real) → commit → marcar. Las pruebas citan el RF (`rf_NN_…`, `it("RF-NN: �
       RF-25 tras editar: cubierto por `kdbx::tests_roundtrip_edit` (`rf_25_roundtrip_after_edit_*`: las 4 fixtures de
       KeePass 2 y la de KeePassXC, título de una entrada cambiado, `to_bytes`, reabrir, base completa igual salvo
       título, fecha de modificación y la versión nueva del historial). Sin cubrir: KDBX 4.0 (todas las fixtures son 4.1).
-- [ ] T9. Sesión: `Closed` / `Locked` / `Open`, desbloqueo único, bloqueo que no espera al disco, recuperación desde
+- [x] T9. Sesión: `Closed` / `Locked` / `Open`, desbloqueo único, bloqueo que no espera al disco, recuperación desde
       bytes ya cifrados, aviso al desbloquear. (RF-28, RF-30, RF-33 a RF-36, RF-88)
       Hecho cuando: esas `rf_*` en verde con el disco colgado y con el disco que falla; en ambos el estado queda `Locked` en < 1 s.
+      Hecho (2026-11-11): `almarioks-core::session` (`Session`, `Status`, `SaveState`, `Recovery`, `Applied`, `Clock`,
+      `SessionEvents`) con 22 pruebas `session::tests::rf_*`. Límite medido y documentado en el módulo: una orden en
+      vuelo retiene la bóveda y la llave, como mucho, lo que dura UNA derivación (`to_bytes` ≈ un desbloqueo). Decisiones
+      pendientes: `Ocupada` también para "el bloqueo aún escribe la recuperación" y "un guardado de la sesión anterior
+      sigue en manos del disco"; `ArgumentoInvalido` al desbloquear con una bóveda ya abierta; `ArchivoLlaveDanado` para
+      un archivo llave que existe y no se puede leer; hora del nombre de recuperación en UTC.
 - [x] T10. Búsqueda. (RF-59 a RF-63, RF-92)
       Hecho cuando: esas `rf_*` en verde, incluido el ejemplo 2 y una propiedad de plegado con semilla fija; 5 000 entradas en < 100 ms (medido y anotado).
 - [x] T11. Generador y fortaleza. (RF-7, RF-65 a RF-70)

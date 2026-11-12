@@ -74,6 +74,8 @@ struct State {
     /// After an external change the queue stops writing until the session reloads or saves elsewhere (RF-24).
     stopped: Option<SaveError>,
     closed: bool,
+    /// The thread took a save and has not recorded its result yet.
+    writing: bool,
 }
 
 struct Shared {
@@ -133,6 +135,7 @@ impl SaveQueue {
                 verifier: Some(verifier),
                 stopped: None,
                 closed: false,
+                writing: false,
             }),
             wake: Condvar::new(),
         });
@@ -220,6 +223,27 @@ impl SaveQueue {
         unconfirmed
     }
 
+    /// Whether a save is being written or waits its turn. While it is true the thread may still touch the vault
+    /// file, its `.tmp` and its `.bak`, also after [`SaveQueue::close`]: nobody else may write that path (T9).
+    #[must_use]
+    pub fn is_writing(&self) -> bool {
+        let state = self.shared.lock();
+        state.writing || state.pending.is_some()
+    }
+
+    /// [`SaveQueue::shutdown`] that also tells the fingerprint of what the thread left on disk, for the queue that
+    /// takes over the same file (reload, "save as").
+    ///
+    /// # Errors
+    /// [`CoreError::GuardadoFallido`] if the thread panicked.
+    pub fn shutdown_confirmed(mut self) -> CoreResult<Fingerprint> {
+        self.close();
+        if let Some(worker) = self.worker.take() {
+            worker.join().map_err(|_| CoreError::GuardadoFallido)?;
+        }
+        Ok(self.shared.lock().confirmed)
+    }
+
     /// Closes the queue and waits for its thread. Only when the disk is known not to hang (the app is exiting after a
     /// lock); a lock uses [`SaveQueue::close`].
     ///
@@ -251,6 +275,7 @@ fn run(shared: &Shared, disk: &dyn Disk, path: &std::path::Path) {
                     return;
                 }
                 if let Some(job) = state.pending.take() {
+                    state.writing = true;
                     break (job, state.confirmed);
                 }
                 state = shared
@@ -266,6 +291,7 @@ fn run(shared: &Shared, disk: &dyn Disk, path: &std::path::Path) {
         .unwrap_or(Err(SaveError::Failed(FailureCause::Io)));
         {
             let mut state = shared.lock();
+            state.writing = false;
             match outcome {
                 Ok(saved) => {
                     state.confirmed = saved.fingerprint;

@@ -11,6 +11,7 @@ pub mod error;
 pub mod generator;
 pub mod kdbx;
 pub mod search;
+pub mod session;
 pub mod settings;
 pub mod storage;
 pub mod strength;
