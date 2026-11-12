@@ -29,6 +29,10 @@
 //! that what it wrote decrypts. Both are one key derivation, they run side by side, and neither is ever tied to
 //! the disk: so the secrets outlive the request to lock by at most ONE derivation (about 1 s in a vault made
 //! here, RF-2), and only when a change or a save was in flight. Step 5 waits for that before it writes.
+//!
+//! That bound is the session's own work. The closures given to [`Session::read`] and [`Session::mutate`] run
+//! with the vault in their hands: one that blocks keeps the vault and the key in memory for as long as it blocks
+//! (every other command still answers `Bloqueada` at once). They must only touch memory and return.
 
 mod clock;
 mod gate;
@@ -40,6 +44,7 @@ use std::{
     fmt,
     io::ErrorKind,
     mem,
+    panic::{self, AssertUnwindSafe},
     path::{Path, PathBuf},
     sync::{Arc, Mutex, MutexGuard, mpsc},
     thread,
@@ -344,7 +349,8 @@ impl Session {
         })
     }
 
-    /// Reads from the open vault.
+    /// Reads from the open vault. `look` must only touch memory and return: while it runs, a lock cannot drop
+    /// the vault nor the key (module documentation, "The limit of step 4").
     ///
     /// # Errors
     /// [`CoreError::Bloqueada`] if the vault is not open (RF-35), and also if a lock was asked for while `look`
@@ -364,7 +370,8 @@ impl Session {
     /// and hands it to the save queue (RF-21, RF-89). It answers without waiting for the disk; how the save went
     /// is told by [`SessionEvents::save_state`], and a failed save leaves the change in memory (RF-23).
     ///
-    /// `change` gets the time of the injected clock, for the dates of what it creates or edits.
+    /// `change` gets the time of the injected clock, for the dates of what it creates or edits. Like the closure of
+    /// [`Session::read`], it must only touch memory and return.
     ///
     /// # Errors
     /// In this order: [`CoreError::Bloqueada`] (RF-35), [`CoreError::SoloLectura`] before touching anything
@@ -563,9 +570,19 @@ impl Session {
             }
             open
         };
-        // Step 2.
-        self.events.locked();
-        let (live, shared, path) = open?;
+        // Step 2. Whatever the listener does, the lock goes on: a panic there must not leave the vault and the key
+        // in memory, nor the unsaved changes without their recovery file (rule 7).
+        let told = panic::catch_unwind(AssertUnwindSafe(|| self.events.locked()));
+        let outcome = open.and_then(|(live, shared, path)| self.release(live, shared, &path));
+        if let Err(listener_panic) = told {
+            // The lock is complete; the bug of the listener is still its caller's to see.
+            panic::resume_unwind(listener_panic);
+        }
+        outcome
+    }
+
+    /// Steps 3 to 6 of a lock.
+    fn release(&self, live: Arc<Live>, shared: Arc<Shared>, path: &Path) -> Option<Recovery> {
         // Step 3.
         let (pending, queue, dirty) = shared.dismantle();
         // Step 4. If a command is running it has its own hold on the secrets, for one derivation at most.
@@ -573,7 +590,7 @@ impl Session {
         drop(live);
         drop(shared);
         // Step 5.
-        let (written, late) = self.recover(pending, &path, released);
+        let (written, late) = self.recover(pending, path, released);
         // A change that was never encrypted is in no file.
         let outcome = written.or(dirty.then_some(Recovery::Lost));
         // Step 6.

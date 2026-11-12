@@ -9,6 +9,7 @@ use std::{
     fs,
     io::ErrorKind,
     mem,
+    panic::{self, AssertUnwindSafe},
     path::{Path, PathBuf},
     sync::{
         Arc, Mutex, Weak,
@@ -450,7 +451,7 @@ fn rf_88_a_lock_or_a_close_during_the_unlock_discards_it() {
 }
 
 #[test]
-fn rf_1_create_leaves_the_session_open_on_the_new_vault() {
+fn rf_01_create_leaves_the_session_open_on_the_new_vault() {
     let folder = std::env::temp_dir().join(format!(
         "almarioks-session-test-{}-{}",
         std::process::id(),
@@ -964,6 +965,31 @@ fn rf_30_the_steps_of_a_lock_run_in_order() {
         })
     );
     *hold(&rig.events.on_locked) = None;
+}
+
+#[test]
+fn rf_30_a_listener_that_panics_does_not_leave_the_lock_half_done() {
+    let rig = rig();
+    rig.open();
+    rig.add_unsaved("GitHub");
+    let (live, secrets) = rig.probes();
+    *hold(&rig.events.on_locked) = Some(Box::new(|| panic!("the listener has a bug")));
+
+    let asked = panic::catch_unwind(AssertUnwindSafe(|| rig.session.lock()));
+
+    assert!(asked.is_err(), "the bug of the listener is not hidden");
+    *hold(&rig.events.on_locked) = None;
+    // Rule 7: locked, nothing in memory, and the unsaved changes in their recovery file all the same.
+    assert_eq!(rig.session.status(), locked());
+    rig.assert_every_command_is_blocked();
+    assert!(live.upgrade().is_none() && secrets.upgrade().is_none());
+    assert_eq!(titles_in(&rig.file(&recovery_path())), ["GitHub"]);
+    assert_eq!(
+        rig.open().recovery,
+        Some(Recovery::Saved {
+            path: recovery_path()
+        })
+    );
 }
 
 #[test]
