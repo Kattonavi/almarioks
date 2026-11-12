@@ -4,9 +4,11 @@ import { assertNever } from "../assertNever";
 import type { FieldName, VaultClient } from "../ipc/client";
 import { errorMessage, type AppError } from "../ipc/errors";
 import type { EntryDetail, GroupNode } from "../ipc/schemas";
+import { CopyIcon, EditIcon, HideIcon, MoveIcon, OpenLinkIcon, ShowIcon, TrashIcon } from "../ui/icons";
 import { Dialog } from "./Dialog";
 import { EntryForm } from "./EntryForm";
-import { findGroup, formatDate, groupOptions, isInBin, shown } from "./format";
+import { formatDate, groupOptions, isInBin, shown, trailTo } from "./format";
+import { assignLines } from "./lines";
 
 /** RF-44: a revealed value hides itself after this long. */
 export const REVEAL_MS = 20_000;
@@ -44,6 +46,11 @@ interface EntryPanelProps {
   readonly onChanged: () => void;
   /** The entry left this view (to the recycle bin or for good). */
   readonly onDeleted: (notice: string) => void;
+  /**
+   * The clipboard took a value of this entry: the moment the core clears it, or `null` when the copy has no
+   * countdown. For the list, which stamps the row; nothing of the value travels.
+   */
+  readonly onCopied?: (deadline: number | null) => void;
 }
 
 /** KeePass keys of the standard fields, as the core lists them in `protected_fields`. */
@@ -88,6 +95,7 @@ export function EntryPanel({
   readOnly = false,
   onChanged,
   onDeleted,
+  onCopied,
 }: EntryPanelProps) {
   const [load, setLoad] = useState<LoadState>({ kind: "loading" });
   const [attempt, setAttempt] = useState(0);
@@ -184,12 +192,15 @@ export function EntryPanel({
     if (result.value.clearsInSeconds === null) {
       // A field that is not protected: no countdown, and the person knows it stays on the clipboard.
       setCopied(null);
+      onCopied?.(null);
       setStatus(`${labelOf(field)}: copiado. No es un dato protegido, así que el portapapeles no se limpia solo.`);
       return;
     }
     const at = Date.now();
     setNow(at);
     setCopied({ deadline: at + result.value.clearsInSeconds * 1000 });
+    // Told here, not from an effect: this panel goes away with its entry, and the stamp on the row must stay.
+    onCopied?.(at + result.value.clearsInSeconds * 1000);
   }
 
   async function openUrl() {
@@ -220,7 +231,7 @@ export function EntryPanel({
   if (load.kind !== "ready") {
     return (
       <>
-        <h4>{shown(listTitle, "(sin título)")}</h4>
+        <h4 className="entry-title">{shown(listTitle, "(sin título)")}</h4>
         {load.kind === "loading" ? (
           <p role="status">Cargando la entrada…</p>
         ) : (
@@ -269,67 +280,57 @@ export function EntryPanel({
   const secretFields = protectedOf(entry);
   const plainCustom = entry.customFields.filter((field) => !field.protected);
   const secondsLeft = copied === null ? null : Math.max(0, Math.ceil((copied.deadline - now) / 1000));
-  const group = findGroup(root, entry.groupId);
+  /** The groups from the root down to the entry's own: drawn as the stops of its line. */
+  const trail = trailTo(root, entry.groupId) ?? [];
 
   return (
     <>
-      <h4>{shown(entry.title, "(sin título)")}</h4>
+      <dl className="entry-route" data-line={assignLines(root).get(entry.groupId) ?? "neutral"}>
+        <dt className="sr-only">Grupo</dt>
+        <dd>
+          <ol className="route">
+            {trail.map((group) => (
+              <li key={group.id}>{shown(group.name, "(sin nombre)")}</li>
+            ))}
+          </ol>
+        </dd>
+      </dl>
+      <h4 className="entry-title">{shown(entry.title, "(sin título)")}</h4>
+      <dl className="entry-meta">
+        <div>
+          <dt>Creada</dt>
+          <dd>
+            <time dateTime={entry.created}>{formatDate(entry.created)}</time>
+          </dd>
+        </div>
+        <div>
+          <dt>Modificada</dt>
+          <dd>
+            <time dateTime={entry.modified}>{formatDate(entry.modified)}</time>
+          </dd>
+        </div>
+      </dl>
+
       <dl className="entry-fields">
-        <dt>Grupo</dt>
-        <dd>{group === undefined ? "" : shown(group.name, "(sin nombre)")}</dd>
-        <dt>Usuario</dt>
-        <dd>
-          <span>{shown(entry.username, "(vacío)")}</span>
-          {entry.username !== null && entry.username !== "" && (
-            <>
-              {" "}
-              <button type="button" onClick={() => void copy("UserName")}>
-                Copiar usuario
-              </button>
-            </>
-          )}
-        </dd>
-        <dt>URL</dt>
-        <dd>
-          <span className="path">{shown(entry.url, "(vacía)")}</span>
-          {entry.url !== "" && (
-            <>
-              {" "}
-              <button type="button" onClick={() => void openUrl()}>
-                Abrir URL en el navegador
-              </button>
-            </>
-          )}
-        </dd>
-        <dt>Notas</dt>
-        <dd>
-          <span className="notes">{shown(entry.notes, "(sin notas)")}</span>
-        </dd>
-        <dt>Etiquetas</dt>
-        <dd>
-          {entry.tags.length === 0 ? (
-            <span>(sin etiquetas)</span>
-          ) : (
-            <ul className="tags">
-              {entry.tags.map((tag) => (
-                <li key={tag}>{tag}</li>
-              ))}
-            </ul>
-          )}
-        </dd>
-        <dt>Creada</dt>
-        <dd>
-          <time dateTime={entry.created}>{formatDate(entry.created)}</time>
-        </dd>
-        <dt>Modificada</dt>
-        <dd>
-          <time dateTime={entry.modified}>{formatDate(entry.modified)}</time>
-        </dd>
+        <div>
+          <dt>Usuario</dt>
+          <dd>
+            <span>{shown(entry.username, "(vacío)")}</span>
+            {entry.username !== null && entry.username !== "" && (
+              <span className="field-actions">
+                <button type="button" onClick={() => void copy("UserName")}>
+                  <CopyIcon />
+                  Copiar usuario
+                </button>
+              </span>
+            )}
+          </dd>
+        </div>
       </dl>
 
       {secretFields.length > 0 && (
         <>
-          <h5>Campos protegidos</h5>
+          <h5 className="sr-only">Campos protegidos</h5>
           <dl className="entry-fields">
             {secretFields.map((field) => {
               const value = revealed[field];
@@ -337,27 +338,83 @@ export function EntryPanel({
                 <div key={field}>
                   <dt>{labelOf(field)}</dt>
                   <dd>
-                    <span className="secret">{value ?? "(oculto)"}</span>{" "}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (value === undefined) void reveal(field);
-                        else hide(field);
-                      }}
-                    >
-                      {value === undefined ? `Mostrar ${nameOf(field)}` : `Ocultar ${nameOf(field)}`}
-                    </button>{" "}
-                    <button type="button" onClick={() => void copy(field)}>
-                      Copiar {nameOf(field)}
-                    </button>
+                    {value === undefined ? (
+                      // A bar of fixed width: the hidden value never gives away its length.
+                      <span className="secret" data-masked="">
+                        <span className="sr-only">(oculto)</span>
+                      </span>
+                    ) : (
+                      <span className="secret">{value}</span>
+                    )}
+                    <span className="field-actions">
+                      <button
+                        type="button"
+                        className="btn-icon"
+                        title={value === undefined ? `Mostrar ${nameOf(field)}` : `Ocultar ${nameOf(field)}`}
+                        onClick={() => {
+                          if (value === undefined) void reveal(field);
+                          else hide(field);
+                        }}
+                      >
+                        {value === undefined ? <ShowIcon /> : <HideIcon />}
+                        <span className="sr-only">
+                          {value === undefined ? `Mostrar ${nameOf(field)}` : `Ocultar ${nameOf(field)}`}
+                        </span>
+                      </button>
+                      <button
+                        type="button"
+                        className={field === "Password" ? "btn-primary" : undefined}
+                        onClick={() => void copy(field)}
+                      >
+                        <CopyIcon />
+                        Copiar {nameOf(field)}
+                      </button>
+                    </span>
                   </dd>
                 </div>
               );
             })}
           </dl>
-          <p className="path">Lo que muestres se oculta solo a los 20 segundos.</p>
+          <p className="path field-hint">Lo que muestres se oculta solo a los 20 segundos.</p>
         </>
       )}
+
+      <dl className="entry-fields">
+        <div>
+          <dt>URL</dt>
+          <dd>
+            <span className="path">{shown(entry.url, "(vacía)")}</span>
+            {entry.url !== "" && (
+              <span className="field-actions">
+                <button type="button" onClick={() => void openUrl()}>
+                  <OpenLinkIcon />
+                  Abrir URL en el navegador
+                </button>
+              </span>
+            )}
+          </dd>
+        </div>
+        <div>
+          <dt>Etiquetas</dt>
+          <dd>
+            {entry.tags.length === 0 ? (
+              <span>(sin etiquetas)</span>
+            ) : (
+              <ul className="tags">
+                {entry.tags.map((tag) => (
+                  <li key={tag}>{tag}</li>
+                ))}
+              </ul>
+            )}
+          </dd>
+        </div>
+        <div>
+          <dt>Notas</dt>
+          <dd>
+            <span className="notes">{shown(entry.notes, "(sin notas)")}</span>
+          </dd>
+        </div>
+      </dl>
 
       {plainCustom.length > 0 && (
         <>
@@ -389,7 +446,7 @@ export function EntryPanel({
       {readOnly ? (
         <p className="path">Solo lectura: esta entrada no se puede editar, mover ni borrar.</p>
       ) : (
-      <div className="actions">
+      <div className="actions entry-actions">
         <button
           ref={editRef}
           type="button"
@@ -400,6 +457,7 @@ export function EntryPanel({
             setMode("edit");
           }}
         >
+          <EditIcon />
           Editar
         </button>
         <button
@@ -409,21 +467,24 @@ export function EntryPanel({
             setDialog({ kind: "move" });
           }}
         >
+          <MoveIcon />
           Mover a otro grupo…
         </button>
         <button
           type="button"
+          className="btn-danger"
           onClick={() => {
             if (inBin) setDialog({ kind: "delete" });
             else void remove(entry, false);
           }}
         >
+          <TrashIcon />
           {inBin ? "Borrar definitivamente…" : "Borrar entrada"}
         </button>
       </div>
       )}
 
-      <div aria-live="polite" aria-atomic="true">
+      <div aria-live="polite" aria-atomic="true" className="entry-status">
         {secondsLeft !== null && (
           <p>
             {secondsLeft > 0

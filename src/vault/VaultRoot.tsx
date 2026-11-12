@@ -5,6 +5,7 @@ import type { Unlisten, VaultClient } from "../ipc/client";
 import { errorMessage } from "../ipc/errors";
 import type { VaultStatus } from "../ipc/schemas";
 import { SettingsPanel } from "../settings/SettingsPanel";
+import { SettingsIcon } from "../ui/icons";
 import { CreateScreen } from "./CreateScreen";
 import { Dialog } from "./Dialog";
 import { OpenVault, type Guard } from "./OpenVault";
@@ -151,18 +152,24 @@ export function VaultRoot({ client }: { readonly client: VaultClient }) {
 
   // A render function, not a nested component: a nested component would be a new type on every render and
   // remount the screen (and its form) each time.
+  const settingsButton = (
+    <button
+      type="button"
+      className="btn-tool"
+      title="Ajustes y Acerca de"
+      onClick={() => {
+        setSettingsOpen(true);
+      }}
+    >
+      <SettingsIcon />
+      <span className="label">Ajustes y Acerca de</span>
+    </button>
+  );
+
   return (
     <>
-      <div className="actions">
-        <button
-          type="button"
-          onClick={() => {
-            setSettingsOpen(true);
-          }}
-        >
-          Ajustes y Acerca de
-        </button>
-      </div>
+      {/* With the vault open the button sits at the end of the vault bar, so the tab order follows what is seen. */}
+      {state.kind !== "open" && <div className="actions app-tools">{settingsButton}</div>}
       {renderScreen(state)}
       {settingsOpen && (
         <Dialog
@@ -278,6 +285,7 @@ export function VaultRoot({ client }: { readonly client: VaultClient }) {
             }}
             begin={begin}
             onLock={() => void lock()}
+            tools={settingsButton}
           />
         );
       }
