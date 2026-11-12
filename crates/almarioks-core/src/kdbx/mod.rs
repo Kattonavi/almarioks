@@ -31,6 +31,12 @@ pub use create::{
 };
 pub use groups::RECYCLE_BIN_NAME;
 
+// KDBX 3.x to KDBX 4 (T4, RF-15).
+pub use create::{convert_to_kdbx4, convert_vault_file};
+
+// Search (T10): a method of `OpenedVault` over the types of `crate::search`.
+mod find;
+
 #[cfg(test)]
 mod tests_entries;
 #[cfg(test)]
@@ -40,3 +46,12 @@ mod tests_read;
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod tests_search;
+
+#[cfg(test)]
+mod tests_convert;
+
+#[cfg(test)]
+mod tests_roundtrip_edit;

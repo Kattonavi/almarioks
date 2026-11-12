@@ -7,6 +7,7 @@ mod model;
 pub use model::*;
 mod input;
 pub(crate) use input::CheckedFields;
+pub use input::{validate_new_entry, validate_patch};
 
 /// Where the session is (ADR-0002). `Open` and `Locked` get their data in T9.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]

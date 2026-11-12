@@ -191,13 +191,15 @@ describe("P5 Entrada — ver, mostrar y copiar", () => {
     expect(screen.getByText(/limpió el portapapeles/)).toBeDefined();
   });
 
-  it("RF-74: copiar el usuario también va por entry_copy y usa los segundos que da el núcleo", async () => {
+  it("RF-74: copiar el usuario también va por entry_copy; como no es protegido, no hay cuenta regresiva", async () => {
     const { backend } = await setup({ clipboardSeconds: 45 });
     await openEntry("Trabajo", "GitHub");
 
     fireEvent.click(screen.getByRole("button", { name: "Copiar usuario" }));
 
-    expect(await screen.findByText("Copiado: se borra en 45 s")).toBeDefined();
+    // plan.md, precision 16: `clears_in_seconds` is `null` for a field that is not protected.
+    expect(await screen.findByText(/^Usuario: copiado\. No es un dato protegido/)).toBeDefined();
+    expect(screen.queryByText(/se borra en/)).toBeNull();
     expect(lastArgs(backend, "entry_copy")).toEqual({ id: "entry-github", field: "UserName" });
     expect(backend.clipboard()).toBe("ana@example.com");
   });

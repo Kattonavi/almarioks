@@ -271,11 +271,10 @@ fn rf_57_root_and_recycle_bin_are_protected() {
         w.vault.delete_group(bin, at(2)).unwrap_err(),
         CoreError::GrupoProtegido
     );
-    // The root holds the bin: by the letter of RF-57 it cannot be renamed while a bin exists (decision pending).
-    assert_eq!(
-        w.vault.rename_group(root, "Otra", at(2)).unwrap_err(),
-        CoreError::GrupoProtegido
-    );
+    // RF-57 (precision): the root holds the bin and may still be renamed.
+    w.vault.rename_group(root, "Otra", at(2)).unwrap();
+    assert_eq!(w.vault.group_tree().name, "Otra");
+    assert_eq!(w.vault.recycle_bin_id(), Some(bin));
     // Groups that do not hold the bin are free.
     w.vault.rename_group(w.trabajo, "Oficina", at(2)).unwrap();
 }

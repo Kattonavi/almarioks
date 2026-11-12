@@ -13,6 +13,10 @@ export interface FakeVaultFile {
   readonly name: string;
   readonly password?: string;
   readonly keyFilePath?: string;
+  /** RF-14: a KDBX 3.x file opens read-only. */
+  readonly readOnly?: boolean;
+  /** RF-17: a KDF weaker than Argon2id with 64 MiB. */
+  readonly weakKdf?: boolean;
 }
 
 type WireRecovery = { kind: "saved"; path: string } | { kind: "lost" } | null;
@@ -82,6 +86,8 @@ export interface FakeOptions {
   readonly strength?: (password: string) => number;
   /** RF-73: seconds until the clipboard is cleared (20 by default). */
   readonly clipboardSeconds?: number;
+  /** RF-29: minutes of inactivity before locking (5 by default). */
+  readonly autoLockMinutes?: number;
 }
 
 export interface FakeCall {
@@ -149,9 +155,9 @@ export const LIMITS = {
 } as const;
 
 /** Tauri rejects `invoke` with the serialized `{ code, message }` object, not an `Error`; the fake does the same. */
-function failWith(code: string): never {
+function failWith(code: string, extra: { readonly field?: string; readonly limit?: number } = {}): never {
   // eslint-disable-next-line @typescript-eslint/only-throw-error -- mirrors the shape Tauri rejects with.
-  throw { code, message: CORE_MESSAGE };
+  throw { code, message: CORE_MESSAGE, ...extra };
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -373,7 +379,8 @@ export function createFakeBackend(options: FakeOptions = {}): FakeBackend {
   const root = storeGroup(options.groups ?? DEFAULT_ROOT);
   let entries = (options.entries ?? []).map(storeEntry);
   const strength = options.strength ?? defaultStrength;
-  const clipboardSeconds = options.clipboardSeconds ?? 20;
+  /** RF-82: kept outside the vault, readable while it is closed or locked. */
+  let settings = { auto_lock_minutes: options.autoLockMinutes ?? 5, clipboard_seconds: options.clipboardSeconds ?? 20 };
   const calls: FakeCall[] = [];
   const listeners = new Map<string, Set<(payload: unknown) => void>>();
   const onceResponses = new Map<string, { kind: "resolve" | "reject"; value: unknown }>();
@@ -428,8 +435,29 @@ export function createFakeBackend(options: FakeOptions = {}): FakeBackend {
     recent = [{ path, exists: true }, ...recent.filter((item) => item.path !== path)].slice(0, 5);
   }
 
-  function openStatus(path: string, name: string, recovery: WireRecovery): WireStatus {
-    return { state: "open", path, name, read_only: false, weak_kdf: false, save_pending: false, recovery };
+  function openStatus(path: string, name: string, recovery: WireRecovery, file?: FakeVaultFile): WireStatus {
+    return {
+      state: "open",
+      path,
+      name,
+      read_only: file?.readOnly ?? false,
+      weak_kdf: file?.weakKdf ?? false,
+      save_pending: false,
+      recovery,
+    };
+  }
+
+  type OpenWire = Extract<WireStatus, { state: "open" }>;
+
+  function openNow(): OpenWire {
+    if (status.state !== "open") failWith("Bloqueada");
+    return status;
+  }
+
+  /** RF-23, RF-24: retry, save as and reload leave nothing pending; the test drives the events with `emit`. */
+  function settle(next: Partial<OpenWire> = {}): WireStatus {
+    status = { ...openNow(), save_pending: false, ...next };
+    return status;
   }
 
   async function vaultOpen(args: Record<string, unknown>): Promise<WireStatus> {
@@ -451,7 +479,7 @@ export function createFakeBackend(options: FakeOptions = {}): FakeBackend {
       status = before;
       failWith("LlaveIncorrecta");
     }
-    const opened = openStatus(path, vault.name, recovery);
+    const opened = openStatus(path, vault.name, recovery, vault);
     // Locked while deriving: the core stays locked, but the late answer still reaches the window (a race to survive).
     if (stateNow() !== "deriving") return opened;
     status = opened;
@@ -576,17 +604,21 @@ export function createFakeBackend(options: FakeOptions = {}): FakeBackend {
   function groupName(value: unknown): string {
     const name = trimSpace(requiredString(value));
     if (name === "") failWith("NombreVacio");
-    if (charCount(name) > LIMITS.groupName) failWith("CampoMuyLargo");
-    if (hasForbidden(name)) failWith("CaracterNoPermitido");
+    if (charCount(name) > LIMITS.groupName) failWith("CampoMuyLargo", { field: "name", limit: LIMITS.groupName });
+    if (hasForbidden(name)) failWith("CaracterNoPermitido", { field: "name" });
     return name;
   }
 
-  /** RF-57: the root cannot be moved or deleted; the bin and any group holding it are untouchable. */
+  /**
+   * RF-57: the root cannot be moved or deleted (renaming it is allowed); the recycle bin cannot be moved, renamed or
+   * deleted; a group that holds the bin cannot be deleted (it can be renamed or moved).
+   */
   function requireMovable(trail: readonly StoredGroup[], action: "move" | "rename" | "delete") {
     const group = trail.at(-1);
     if (group === undefined) failWith("NoEncontrado");
+    if (group.kind === "recycle_bin") failWith("GrupoProtegido");
     if (group.kind === "root" && action !== "rename") failWith("GrupoProtegido");
-    if (containsBin(group)) failWith("GrupoProtegido");
+    if (action === "delete" && containsBin(group)) failWith("GrupoProtegido");
   }
 
   interface EntryInput {
@@ -614,18 +646,30 @@ export function createFakeBackend(options: FakeOptions = {}): FakeBackend {
   /** RF-39, RF-40, RF-91 and "Carácter no permitido", in the spec's order. */
   function validateEntryInput(input: EntryInput) {
     if (input.title !== undefined && trimSpace(input.title) === "") failWith("TituloVacio");
-    const tooLong =
-      (input.title !== undefined && charCount(trimSpace(input.title)) > LIMITS.title) ||
-      (input.username !== undefined && charCount(input.username) > LIMITS.username) ||
-      (input.url !== undefined && charCount(input.url) > LIMITS.url) ||
-      (input.password !== undefined && charCount(input.password) > LIMITS.password) ||
-      (input.notes !== undefined && charCount(input.notes) > LIMITS.notes) ||
-      (input.tags !== undefined &&
-        (input.tags.length > LIMITS.tags || input.tags.some((tag) => charCount(tag) > LIMITS.tag)));
-    if (tooLong) failWith("CampoMuyLargo");
-    if (input.tags?.some((tag) => /[;,]/u.test(tag) || trimSpace(tag) === "") === true) failWith("EtiquetaInvalida");
-    const texts = [input.title, input.username, input.password, input.url, input.notes, ...(input.tags ?? [])];
-    if (texts.some((text) => text !== undefined && hasForbidden(text))) failWith("CaracterNoPermitido");
+    // plan.md, precision 15: the error names the field (argument name) and its limit.
+    const texts = [
+      ["title", input.title === undefined ? undefined : trimSpace(input.title), LIMITS.title],
+      ["username", input.username, LIMITS.username],
+      ["password", input.password, LIMITS.password],
+      ["url", input.url, LIMITS.url],
+      ["notes", input.notes, LIMITS.notes],
+    ] as const;
+    for (const [field, value, limit] of texts) {
+      if (value !== undefined && charCount(value) > limit) failWith("CampoMuyLargo", { field, limit });
+    }
+    if (input.tags !== undefined && input.tags.length > LIMITS.tags) {
+      failWith("CampoMuyLargo", { field: "tags", limit: LIMITS.tags });
+    }
+    if (input.tags?.some((tag) => charCount(tag) > LIMITS.tag) === true) {
+      failWith("CampoMuyLargo", { field: "tags", limit: LIMITS.tag });
+    }
+    if (input.tags?.some((tag) => /[;,]/u.test(tag) || trimSpace(tag) === "") === true) {
+      failWith("EtiquetaInvalida", { field: "tags" });
+    }
+    for (const [field, value] of texts) {
+      if (value !== undefined && hasForbidden(value)) failWith("CaracterNoPermitido", { field });
+    }
+    if (input.tags?.some(hasForbidden) === true) failWith("CaracterNoPermitido", { field: "tags" });
   }
 
   function entryCreate(args: Record<string, unknown>) {
@@ -781,6 +825,27 @@ export function createFakeBackend(options: FakeOptions = {}): FakeBackend {
         clipboard = null;
         emit("vault-locked");
         return null;
+      case "vault_retry_save":
+      case "vault_reload":
+        return settle();
+      case "vault_save_as": {
+        onlyKeys(args, ["path"]);
+        const path = requiredString(args.path);
+        openNow();
+        files.add(path);
+        remember(path);
+        return settle({ path });
+      }
+      case "vault_convert": {
+        onlyKeys(args, ["new_path"]);
+        const path = requiredString(args.new_path);
+        openNow();
+        if (files.has(path) || vaults.some((vault) => vault.path === path)) failWith("ArchivoExiste");
+        // RF-15: a new KDBX 4 file; the original one stays as it was.
+        files.add(path);
+        remember(path);
+        return settle({ path, read_only: false, weak_kdf: false });
+      }
       case "recent_list":
         return recent;
       case "recent_remove":
@@ -904,8 +969,26 @@ export function createFakeBackend(options: FakeOptions = {}): FakeBackend {
         requireOpen();
         onlyKeys(args, ["id", "field"]);
         const entry = requireEntry(args.id);
-        clipboard = protectedOrStandard(entry, requiredString(args.field));
-        return { clears_in_seconds: clipboardSeconds };
+        const field = requiredString(args.field);
+        clipboard = protectedOrStandard(entry, field);
+        // plan.md, precision 16: a field that is not protected is not cleared on its own.
+        return { clears_in_seconds: protectedFieldsOf(entry).includes(field) ? settings.clipboard_seconds : null };
+      }
+      case "settings_get":
+        return { ...settings };
+      case "settings_set": {
+        onlyKeys(args, ["auto_lock_minutes", "clipboard_seconds"]);
+        const minutes = args.auto_lock_minutes;
+        const seconds = args.clipboard_seconds;
+        // RF-29: 1, 5, 15 or 30 (there is no "never"); RF-73: 10 to 120 s.
+        if (typeof minutes !== "number" || ![1, 5, 15, 30].includes(minutes)) {
+          failWith("ArgumentoInvalido", { field: "auto_lock_minutes" });
+        }
+        if (typeof seconds !== "number" || !Number.isInteger(seconds) || seconds < 10 || seconds > 120) {
+          failWith("ArgumentoInvalido", { field: "clipboard_seconds" });
+        }
+        settings = { auto_lock_minutes: minutes, clipboard_seconds: seconds };
+        return { ...settings };
       }
       case "entry_open_url":
         requireOpen();

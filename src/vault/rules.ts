@@ -41,7 +41,31 @@ export type EntryFieldKey = keyof EntryFields;
 
 export type FieldProblem =
   | { readonly field: EntryFieldKey; readonly code: "TituloVacio" | "EtiquetaInvalida" | "CaracterNoPermitido" }
-  | { readonly field: EntryFieldKey; readonly code: "CampoMuyLargo" };
+  /** `limit`: the one the core reported (plan.md, precision 15); without it, the window's copy of RF-40. */
+  | { readonly field: EntryFieldKey; readonly code: "CampoMuyLargo"; readonly limit?: number };
+
+/**
+ * The entry field the core named in an error. It accepts the argument name (`title`, `username`…) and the KeePass key
+ * (`Title`, `UserName`…); anything else is `null` and the window falls back to its own deduction.
+ */
+export function entryFieldOf(name: string | undefined): EntryFieldKey | null {
+  switch (name?.toLowerCase()) {
+    case "title":
+      return "title";
+    case "username":
+      return "username";
+    case "password":
+      return "password";
+    case "url":
+      return "url";
+    case "notes":
+      return "notes";
+    case "tags":
+      return "tags";
+    default:
+      return null;
+  }
+}
 
 const ORDER: readonly EntryFieldKey[] = ["title", "username", "password", "url", "notes", "tags"];
 
@@ -76,17 +100,26 @@ export function checkEntry(input: Partial<EntryFields>): FieldProblem | null {
   return null;
 }
 
-const TOO_LONG: Readonly<Record<EntryFieldKey, string>> = {
-  title: `El título admite hasta ${String(LIMITS.title)} caracteres. Acórtalo.`,
-  username: `El usuario admite hasta ${String(LIMITS.username)} caracteres. Acórtalo.`,
-  password: `La contraseña admite hasta ${String(LIMITS.password)} caracteres. Usa una más corta.`,
-  url: `La URL admite hasta ${String(LIMITS.url)} caracteres. Acórtala.`,
-  notes: "Las notas admiten hasta 100 000 caracteres. Acórtalas.",
-  tags: `Caben hasta ${String(LIMITS.tags)} etiquetas de ${String(LIMITS.tag)} caracteres cada una. Quita o acorta alguna.`,
+/** "100 000": the thousands separated by a space, as the spec writes them. */
+function count(limit: number): string {
+  return String(limit).replace(/\B(?=(\d{3})+(?!\d))/gu, " ");
+}
+
+const TOO_LONG: Readonly<Record<EntryFieldKey, (limit: number) => string>> = {
+  title: (limit) => `El título admite hasta ${count(limit)} caracteres. Acórtalo.`,
+  username: (limit) => `El usuario admite hasta ${count(limit)} caracteres. Acórtalo.`,
+  password: (limit) => `La contraseña admite hasta ${count(limit)} caracteres. Usa una más corta.`,
+  url: (limit) => `La URL admite hasta ${count(limit)} caracteres. Acórtala.`,
+  notes: (limit) => `Las notas admiten hasta ${count(limit)} caracteres. Acórtalas.`,
+  // Two limits (how many and how long): the core's single number cannot say which, so the text names both.
+  tags: () =>
+    `Caben hasta ${String(LIMITS.tags)} etiquetas de ${String(LIMITS.tag)} caracteres cada una. Quita o acorta alguna.`,
 };
 
 export function problemText(problem: FieldProblem): string {
-  return problem.code === "CampoMuyLargo" ? TOO_LONG[problem.field] : errorMessage({ code: problem.code });
+  if (problem.code !== "CampoMuyLargo") return errorMessage({ code: problem.code });
+  const limit = problem.limit ?? (problem.field === "tags" ? LIMITS.tags : LIMITS[problem.field]);
+  return TOO_LONG[problem.field](limit);
 }
 
 /** RF-91: one tag per line; blank lines are not tags and each tag is sent without its surrounding spaces. */

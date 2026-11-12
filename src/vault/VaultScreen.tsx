@@ -42,6 +42,8 @@ type DetailState =
 
 interface VaultScreenProps {
   readonly client: VaultClient;
+  /** RF-14: nothing that changes the vault is offered; the notice above the screen says why. */
+  readonly readOnly?: boolean;
 }
 
 /**
@@ -50,7 +52,7 @@ interface VaultScreenProps {
  * never as HTML or as a link (RF-78). All its data is local state, so a lock, which unmounts this screen, drops it at
  * once (RF-32).
  */
-export function VaultScreen({ client }: VaultScreenProps) {
+export function VaultScreen({ client, readOnly = false }: VaultScreenProps) {
   const [tree, setTree] = useState<TreeState>({ kind: "loading" });
   const [treeAttempt, setTreeAttempt] = useState(0);
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
@@ -278,6 +280,7 @@ export function VaultScreen({ client }: VaultScreenProps) {
             entryId={detail.entry.id}
             listTitle={detail.entry.title}
             root={tree.root}
+            readOnly={readOnly}
             onChanged={refresh}
             onDeleted={(message) => {
               setDetail({ kind: "none" });
@@ -319,7 +322,9 @@ export function VaultScreen({ client }: VaultScreenProps) {
         return (
           <>
             <GroupList nodes={[tree.root]} selectedId={groupId} onSelect={selectGroup} />
-            {group !== undefined && (
+            {readOnly ? (
+              <p className="path">Solo lectura: los grupos no se pueden crear, renombrar, mover ni borrar.</p>
+            ) : group !== undefined && (
               <GroupActions client={client} root={tree.root} group={group} onChange={onGroupChange} />
             )}
           </>
@@ -340,17 +345,19 @@ export function VaultScreen({ client }: VaultScreenProps) {
     return (
       <>
         <h3 id="entries-title">Entradas de {shown(group.name, "(sin nombre)")}</h3>
-        <div className="actions">
-          <button
-            type="button"
-            onClick={() => {
-              setNotice("");
-              setDetail({ kind: "new", groupId: group.id });
-            }}
-          >
-            Nueva entrada
-          </button>
-        </div>
+        {!readOnly && (
+          <div className="actions">
+            <button
+              type="button"
+              onClick={() => {
+                setNotice("");
+                setDetail({ kind: "new", groupId: group.id });
+              }}
+            >
+              Nueva entrada
+            </button>
+          </div>
+        )}
         {loaded === null ? (
           <p role="status">Cargando las entradas…</p>
         ) : !loaded.ok ? (

@@ -38,6 +38,8 @@ interface EntryPanelProps {
   /** The title from the list, shown while the detail arrives. */
   readonly listTitle: string | null;
   readonly root: GroupNode;
+  /** RF-14: view, reveal and copy only. */
+  readonly readOnly?: boolean;
   /** The entry changed (edited, moved): the lists must be asked again. */
   readonly onChanged: () => void;
   /** The entry left this view (to the recycle bin or for good). */
@@ -78,7 +80,15 @@ function protectedOf(entry: EntryDetail): FieldName[] {
  * P5, view (RF-43, RF-44, RF-46 to RF-49, RF-71, RF-74). Mounted with `key={entryId}`: another entry, a lock or a
  * close unmounts it, and every revealed value goes with it. Revealed values live only in this component's state.
  */
-export function EntryPanel({ client, entryId, listTitle, root, onChanged, onDeleted }: EntryPanelProps) {
+export function EntryPanel({
+  client,
+  entryId,
+  listTitle,
+  root,
+  readOnly = false,
+  onChanged,
+  onDeleted,
+}: EntryPanelProps) {
   const [load, setLoad] = useState<LoadState>({ kind: "loading" });
   const [attempt, setAttempt] = useState(0);
   const [mode, setMode] = useState<"view" | "edit">("view");
@@ -164,10 +174,17 @@ export function EntryPanel({ client, entryId, listTitle, root, onChanged, onDele
 
   async function copy(field: FieldName) {
     setActionError(null);
+    setStatus("");
     const result = await client.entryCopy(entryId, field);
     if (!mounted.current) return;
     if (!result.ok) {
       setActionError(result.error);
+      return;
+    }
+    if (result.value.clearsInSeconds === null) {
+      // A field that is not protected: no countdown, and the person knows it stays on the clipboard.
+      setCopied(null);
+      setStatus(`${labelOf(field)}: copiado. No es un dato protegido, así que el portapapeles no se limpia solo.`);
       return;
     }
     const at = Date.now();
@@ -369,6 +386,9 @@ export function EntryPanel({ client, entryId, listTitle, root, onChanged, onDele
         </>
       )}
 
+      {readOnly ? (
+        <p className="path">Solo lectura: esta entrada no se puede editar, mover ni borrar.</p>
+      ) : (
       <div className="actions">
         <button
           ref={editRef}
@@ -401,6 +421,7 @@ export function EntryPanel({ client, entryId, listTitle, root, onChanged, onDele
           {inBin ? "Borrar definitivamente…" : "Borrar entrada"}
         </button>
       </div>
+      )}
 
       <div aria-live="polite" aria-atomic="true">
         {secondsLeft !== null && (

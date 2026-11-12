@@ -211,8 +211,9 @@ export type EntryVersion = z.output<typeof entryHistorySchema>[number];
 
 export const revealSchema = z.object({ value: z.string() });
 
+/** plan.md, precision 16: `null` when the field copied is not protected (no automatic clearing). */
 export const copySchema = z
-  .object({ clears_in_seconds: z.int().min(1) })
+  .object({ clears_in_seconds: z.int().min(1).nullable() })
   .transform((wire) => ({ clearsInSeconds: wire.clears_in_seconds }));
 
 // ---------- Generator and settings ----------
@@ -236,5 +237,6 @@ export type Settings = z.output<typeof settingsSchema>;
 
 // ---------- Events ----------
 
-export const saveStateSchema = z.enum(["saved", "failed", "external-change"]);
+/** plan.md, precision 13. */
+export const saveStateSchema = z.enum(["saving", "saved", "failed", "external-change"]);
 export type SaveState = z.output<typeof saveStateSchema>;

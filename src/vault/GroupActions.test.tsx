@@ -165,11 +165,22 @@ describe("P7 Grupo", () => {
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(backend.count("group_delete")).toBe(0);
 
+    // RF-57 as corrected: a group that holds the bin can be renamed (only deleting it is protected)…
     fireEvent.click(within(toolbar("Viejo")).getByRole("button", { name: "Renombrar grupo…" }));
-    const dialog = await screen.findByRole("dialog");
+    let dialog = await screen.findByRole("dialog");
     fireEvent.change(within(dialog).getByLabelText("Nombre del grupo"), { target: { value: "Otro" } });
     fireEvent.click(within(dialog).getByRole("button", { name: "Guardar nombre" }));
-    expect(await within(dialog).findByText(ERROR_MESSAGES.GrupoProtegido)).toBeDefined();
+    expect(await groupButton("Otro")).toBeDefined();
+    expect(screen.queryByRole("dialog")).toBeNull();
+
+    // …and so can the root, even though the bin is below it.
+    await selectGroup("Cuentas");
+    fireEvent.click(within(toolbar("Cuentas")).getByRole("button", { name: "Renombrar grupo…" }));
+    dialog = await screen.findByRole("dialog");
+    fireEvent.change(within(dialog).getByLabelText("Nombre del grupo"), { target: { value: "Mis cuentas" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Guardar nombre" }));
+    expect(await groupButton("Mis cuentas")).toBeDefined();
+    expect(backend.groupTrail("group-bin")).toEqual(["Mis cuentas", "Otro", "Papelera"]);
   });
 
   it("RF-56: ejemplo 4 — el aviso dice «5 entradas y 1 subgrupo» y al confirmar todo queda en la papelera", async () => {

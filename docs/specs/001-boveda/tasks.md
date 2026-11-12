@@ -14,7 +14,7 @@ real) → commit → marcar. Las pruebas citan el RF (`rf_NN_…`, `it("RF-NN: �
       Hecho cuando: esas `rf_*` en verde contra las fixtures de KeePass 2 y KeePassXC, incluido el ejemplo 7 y las tres cabeceras que tumban a la librería (`docs/lab/boveda-0.1`).
 - [x] T3. Crear: Argon2id calibrado, `.keyx` v2 propio con relectura, rechazos. (RF-1 a RF-6)
       Hecho cuando: `rf_01_*` a `rf_06_*` en verde; la cabecera de la bóveda creada dice Argon2id, ≥ 64 MiB, 2 a 50 iteraciones.
-- [ ] T4. KDBX 3.x en solo lectura y conversión; aviso de KDF débil. (RF-14, RF-15, RF-17)
+- [x] T4. KDBX 3.x en solo lectura y conversión; aviso de KDF débil. (RF-14, RF-15, RF-17)
       Hecho cuando: `rf_14_*`, `rf_15_*`, `rf_17_*` en verde; el original 3.x queda con el mismo SHA-256 tras convertir.
 - [x] T5. Modelo de lectura: árbol de grupos, lista y detalle con la regla de campo protegido, mostrar un campo. (RF-42 a RF-44, RF-50, RF-93)
       Hecho cuando: `rf_42_*`, `rf_43_*`, `rf_44_*`, `rf_50_*`, `rf_93_*` en verde, con una fixture de notas protegidas.
@@ -31,16 +31,19 @@ real) → commit → marcar. Las pruebas citan el RF (`rf_NN_…`, `it("RF-NN: �
       (T9). Decisiones pendientes: archivo borrado por otra app = `CambioExterno`; fallo al promover el `.bak` = guardado
       hecho con `backup_updated = false`; hora del nombre de recuperación en UTC o local; `PermissionDenied` viaja como
       causa de `GuardadoFallido`, no como código nuevo.
+      RF-25 tras editar: cubierto por `kdbx::tests_roundtrip_edit` (`rf_25_roundtrip_after_edit_*`: las 4 fixtures de
+      KeePass 2 y la de KeePassXC, título de una entrada cambiado, `to_bytes`, reabrir, base completa igual salvo
+      título, fecha de modificación y la versión nueva del historial). Sin cubrir: KDBX 4.0 (todas las fixtures son 4.1).
 - [x] T9. Sesión: `Closed` / `Locked` / `Open`, desbloqueo único, bloqueo que no espera al disco, recuperación desde
       bytes ya cifrados, aviso al desbloquear. (RF-28, RF-30, RF-33 a RF-36, RF-88)
       Hecho cuando: esas `rf_*` en verde con el disco colgado y con el disco que falla; en ambos el estado queda `Locked` en < 1 s.
       Hecho (2026-11-11): `almarioks-core::session` (`Session`, `Status`, `SaveState`, `Recovery`, `Applied`, `Clock`,
-      `SessionEvents`) con 21 pruebas `session::tests::rf_*`. Límite medido y documentado en el módulo: una orden en
+      `SessionEvents`) con 22 pruebas `session::tests::rf_*`. Límite medido y documentado en el módulo: una orden en
       vuelo retiene la bóveda y la llave, como mucho, lo que dura UNA derivación (`to_bytes` ≈ un desbloqueo). Decisiones
       pendientes: `Ocupada` también para "el bloqueo aún escribe la recuperación" y "un guardado de la sesión anterior
       sigue en manos del disco"; `ArgumentoInvalido` al desbloquear con una bóveda ya abierta; `ArchivoLlaveDanado` para
       un archivo llave que existe y no se puede leer; hora del nombre de recuperación en UTC.
-- [ ] T10. Búsqueda. (RF-59 a RF-63, RF-92)
+- [x] T10. Búsqueda. (RF-59 a RF-63, RF-92)
       Hecho cuando: esas `rf_*` en verde, incluido el ejemplo 2 y una propiedad de plegado con semilla fija; 5 000 entradas en < 100 ms (medido y anotado).
 - [x] T11. Generador y fortaleza. (RF-7, RF-65 a RF-70)
       Hecho cuando: esas `rf_*` en verde, incluido el ejemplo 5 y la estadística con semilla fija.
@@ -72,7 +75,7 @@ real) → commit → marcar. Las pruebas citan el RF (`rf_NN_…`, `it("RF-NN: �
       Hecho cuando: pruebas de P5 y P6 en verde.
 - [x] T21. Grupos (P7) y papelera. (RF-51 a RF-58)
       Hecho cuando: pruebas de P7 en verde.
-- [ ] T22. Ajustes (P8), avisos de guardado (`GuardadoFallido`, `CambioExterno`), solo lectura y conversión. (RF-14, RF-15, RF-17, RF-23, RF-24, RF-29, RF-73, RF-82)
+- [x] T22. Ajustes (P8), avisos de guardado (`GuardadoFallido`, `CambioExterno`), solo lectura y conversión. (RF-14, RF-15, RF-17, RF-23, RF-24, RF-29, RF-73, RF-82)
       Hecho cuando: pruebas de P8 y de los avisos en verde.
 
 ## Recortables (solo si el corte de 8 h no se disparó)

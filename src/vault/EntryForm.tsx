@@ -5,7 +5,7 @@ import { errorMessage, type AppError } from "../ipc/errors";
 import type { EntryDetail } from "../ipc/schemas";
 import { shown, strengthLabel } from "./format";
 import { Generator } from "./Generator";
-import { checkEntry, parseTags, problemText, type EntryFieldKey, type FieldProblem } from "./rules";
+import { checkEntry, entryFieldOf, parseTags, problemText, type EntryFieldKey, type FieldProblem } from "./rules";
 
 /** RF-70: wait this long after the last keystroke before asking the core for the strength. */
 export const ENTRY_STRENGTH_DELAY_MS = 150;
@@ -71,17 +71,28 @@ function initialValues(mode: EntryFormMode): Values {
   };
 }
 
-/** Which core error belongs to which field when the core rejects what the window let through. */
+/**
+ * Which core error belongs to which field when the core rejects what the window let through. The core names the field
+ * and the limit (plan.md, precision 15); the window's own deduction is the fallback when it does not.
+ */
 function fieldOf(error: AppError, input: Partial<EntryFields>): FieldProblem | null {
+  const local = (): FieldProblem | null => {
+    const found = checkEntry(input);
+    return found !== null && found.code === error.code ? found : null;
+  };
   switch (error.code) {
     case "TituloVacio":
       return { field: "title", code: "TituloVacio" };
     case "EtiquetaInvalida":
-      return { field: "tags", code: "EtiquetaInvalida" };
-    case "CampoMuyLargo":
+      return { field: entryFieldOf(error.field) ?? "tags", code: "EtiquetaInvalida" };
+    case "CampoMuyLargo": {
+      const field = entryFieldOf(error.field);
+      if (field === null) return local();
+      return { field, code: "CampoMuyLargo", ...(error.limit === undefined ? {} : { limit: error.limit }) };
+    }
     case "CaracterNoPermitido": {
-      const local = checkEntry(input);
-      return local !== null && local.code === error.code ? local : null;
+      const field = entryFieldOf(error.field);
+      return field === null ? local() : { field, code: "CaracterNoPermitido" };
     }
     default:
       return null;
