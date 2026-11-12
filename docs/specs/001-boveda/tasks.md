@@ -52,10 +52,10 @@ real) → commit → marcar. Las pruebas citan el RF (`rf_NN_…`, `it("RF-NN: �
 - [x] T17. Estructura: capa tipada de comandos con validación en el borde, máquina de estados cerrada / bloqueada /
       abierta, bienvenida (P1) y desbloqueo (P3). (RF-10, RF-11, RF-18, RF-19, RF-20, RF-28, RF-32, RF-34, RF-83)
       Hecho cuando: `pnpm typecheck`, `pnpm lint` y `pnpm test` en verde con `it("RF-…")` por estado de P1 y P3.
-- [ ] T18. Crear bóveda (P2). (RF-1, RF-3, RF-7, RF-8, RF-9)
+- [x] T18. Crear bóveda (P2). (RF-1, RF-3, RF-7, RF-8, RF-9)
       Hecho cuando: pruebas de P2 en verde (vacío, derivando, errores, éxito).
-- [ ] T19. Bóveda (P4): árbol, lista, búsqueda, estados vacíos. (RF-42, RF-50, RF-59, RF-64, RF-78, RF-92)
-      Hecho cuando: pruebas de P4 en verde, incluida la fixture XSS.
+- [x] T19. Bóveda (P4): árbol, lista, búsqueda, estados vacíos. (RF-42, RF-50, RF-59, RF-64, RF-78, RF-92)
+      Hecho cuando: pruebas de P4 en verde, incluida la fixture XSS. (Los estados de guardado de P4 pasan a T22.)
 - [ ] T20. Entrada (P5) y generador (P6): ver, mostrar, copiar, crear, editar, mover, borrar. (RF-38, RF-43 a RF-49, RF-65 a RF-70, RF-74)
       Hecho cuando: pruebas de P5 y P6 en verde.
 - [ ] T21. Grupos (P7) y papelera. (RF-51 a RF-58)

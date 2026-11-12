@@ -76,6 +76,15 @@ muestra "(protegido)".
    nuevo; los comandos que derivan la llave son `async` (T13, T14).
 10. Las respuestas que no cuadran con el esquema dan `RespuestaInvalida` en la ventana; un código que la ventana no
     conoce da `Inesperado`. El texto del núcleo nunca se muestra: el mensaje sale del mapa de la ventana (RF-83).
+11. `entry_count` cuenta solo las entradas directas del grupo. `group_path` incluye la raíz. `modified` y `created`
+    son ISO 8601 en UTC.
+12. Orden de validación de `vault_create`: `ArgumentoInvalido` › `LlaveVacia` › `ArchivoExiste` (bóveda) ›
+    `ArchivoExiste` (archivo llave) › escribir.
+13. El evento `vault-save-state` vale `saving` | `saved` | `failed` | `external-change`.
+14. **Para la revisión de seguridad de la fase:** `password_strength` recibe la contraseña maestra en cada pausa de
+    escritura (RF-7), además del `vault_create` final. El ADR-0002 dice "un solo `invoke`". El valor ya está en el
+    campo de la ventana y el núcleo lo envuelve y lo borra; la alternativa descartada era un estimador en JavaScript.
+    Que `security-engineer` diga si se acepta o se mide solo al salir del campo.
 
 ## Concurrencia y bloqueo (RF-30, RF-33, RF-88 a RF-90)
 - Un solo dueño del estado: todas las operaciones de la bóveda, la copia al portapapeles y el bloqueo pasan por el

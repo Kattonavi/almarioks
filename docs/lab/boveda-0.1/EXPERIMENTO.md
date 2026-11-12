@@ -380,6 +380,35 @@ https://learn.microsoft.com/uwp/api/windows.applicationmodel.datatransfer.clipbo
 
 ---
 
+## P6. Tauri 2: comandos, instancia única, diálogos (RF-18, RF-80, RF-81) — solo leído, sin ejercicio
+
+**Fuente (leída el 2026-11-11):** https://v2.tauri.app/develop/calling-rust/, https://v2.tauri.app/plugin/single-instance/,
+https://v2.tauri.app/plugin/dialog/ y el índice de crates.io para las versiones 2.x. Hecho por el hilo principal.
+Lo de aquí se confirma con las pruebas de la tarea T13 sobre la app de pruebas de Tauri; no hay salida de ejercicio.
+
+- **Comandos pesados:** un comando `async` corre en una tarea aparte (`async_runtime::spawn`); uno sin `async` corre
+  **en el hilo principal** salvo que se declare `#[tauri::command(async)]`. Derivar la llave (~1 s) va en un comando
+  `async` que delega el trabajo de CPU a `tauri::async_runtime::spawn_blocking`.
+- **Argumentos:** Tauri espera las claves en `camelCase`; con `#[tauri::command(rename_all = "snake_case")]` las
+  acepta en `snake_case`. Con el parámetro único `args` (plan.md) el nombre es igual en los dos estilos y el struct
+  lleva `deny_unknown_fields`.
+- **Errores:** todo lo que devuelve un comando, errores incluidos, implementa `serde::Serialize`. Un comando `async`
+  que toma `State<'_, T>` debe devolver `Result`.
+- **Instancia única:** `tauri-plugin-single-instance` 2.5.5 (Apache-2.0 o MIT, Rust 1.90). Debe ser el **primer**
+  complemento registrado; su función recibe la app, los argumentos y la carpeta de la segunda instancia, y ahí se
+  enfoca la ventana `main`. No tiene API de JavaScript: no pide permisos en la capacidad.
+- **Diálogos de archivo desde Rust:** `tauri-plugin-dialog` 2.8.4 (Apache-2.0 o MIT). `app.dialog().file()` con
+  `add_filter`, y `blocking_pick_file()` / `blocking_save_file()` o las variantes con función de retorno; devuelven
+  `None` si la persona cierra el diálogo. La tabla de permisos (`dialog:allow-open`…) es para llamadas desde
+  JavaScript: **sin verificar** que Rust no las necesite; la prueba de T16 lo confirma. Las variantes `blocking_*`
+  no se llaman desde el hilo principal: van en un comando `async`.
+- **Abrir una URL:** `tauri-plugin-opener` 2.7.3 (Apache-2.0 o MIT), llamado desde Rust después de validar el esquema
+  en el núcleo (RF-49). **Sin verificar** su API exacta: leerla en docs.rs al empezar T16.
+- **OJO con las versiones:** `cargo search` y `cargo info` devuelven la 3.0 alfa de los tres complementos; se fijan a
+  mano las 2.x de arriba.
+
+---
+
 ## Pendiente de este laboratorio
-P2 (sesión de Windows) y P6 (Tauri:
-comandos asíncronos, instancia única, diálogos, recarga de la webview). Se retoman antes de las tareas T13 a T16.
+P2 (sesión de Windows: `WTSRegisterSessionNotification`, para el recortable RF-37) y cómo recargar la webview al
+bloquear (RF-32): se resuelven dentro de T14 con su propia fase de lectura.
