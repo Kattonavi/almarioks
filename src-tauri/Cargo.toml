@@ -31,8 +31,8 @@ tauri-plugin-updater = "~2.14.1"
 # tests/updater_signature.rs: the real updater plugin on the mock runtime, against a local HTTP server.
 tauri = { version = "~2.12.5", features = ["test"] }
 # Test-only signing keys, made the way the Tauri CLI 2.12 makes them (minisign 0.9 + base64 of the box).
-minisign = "=0.9.1"
-base64 = "=0.22.1"
+minisign = "=0.10.0"
+base64 = "=0.23.1"
 
 [lints]
 workspace = true
