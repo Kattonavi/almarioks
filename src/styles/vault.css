@@ -232,68 +232,99 @@
   display: none;
 }
 
-/* ---- Detail: the route of the group as stops, the title, and the fields in rows. ---- */
+/*
+ * ---- Detail. Header: the circle of the entry, its title with the group under it, and at the end "Editar" and the
+ * menu with the rest of what can be asked of the entry. ----
+ */
 .detail-pane > [aria-live] .notice {
   margin-bottom: var(--space-5);
 }
 
-.entry-route {
-  margin: 0 0 var(--space-5);
-}
-
-.entry-route dd {
-  margin: 0;
-}
-
-.route {
+.entry-head {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  row-gap: var(--space-2);
-  margin: 0;
-  padding: 0;
-  font-size: var(--text-sm);
-  font-weight: var(--weight-strong);
-  color: var(--ink-muted);
-  list-style: none;
+  gap: 14px;
+  margin-bottom: var(--space-5);
 }
 
-.route li {
-  display: flex;
-  align-items: center;
+.entry-badge {
+  width: 48px;
+  height: 48px;
+  font-size: var(--text-xl);
 }
 
-/* A stop: a dot in the line colour, outlined in ink so it reads on any ground. */
-.route li::before {
-  flex: none;
-  width: 14px;
-  height: 14px;
-  margin-inline-end: var(--space-2);
-  content: "";
-  background: var(--line);
-  border: 2px solid var(--ink);
-  border-radius: var(--radius-round);
-}
-
-.route li:not(:last-child)::after {
-  flex: none;
-  width: 56px;
-  height: 4px;
-  margin-inline: var(--space-2);
-  content: "";
-  background: var(--line);
-}
-
-.route li:last-child {
-  color: var(--ink);
+.entry-heading {
+  flex: 1 1 200px;
+  min-width: 0;
 }
 
 .entry-title {
-  margin: 0 0 var(--space-2);
+  margin: 0;
   overflow-wrap: anywhere;
   font-size: var(--text-2xl);
-  line-height: 1.05;
-  letter-spacing: -0.01em;
+  line-height: 1.15;
+}
+
+.entry-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--ink-muted);
+}
+
+.group-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  background: var(--line);
+  border-radius: var(--radius-round);
+}
+
+/* Secondary actions: a plate in the surface colour with the control border. */
+.entry-head-actions {
+  display: flex;
+  flex: none;
+  gap: var(--space-2);
+}
+
+.entry-head-actions button:not([role="menuitem"], :hover) {
+  background: var(--surface);
+}
+
+.entry-head-actions > button {
+  padding-inline: 14px;
+  font-size: var(--text-md);
+}
+
+.entry-head-actions .icon {
+  width: 16px;
+  height: 16px;
+}
+
+.entry-menu {
+  display: flex;
+}
+
+.entry-more {
+  width: var(--control-h);
+  padding: 0;
+}
+
+/* The menu hangs from its button, 4 px under it and flush with its right edge; without room below, it opens upward. */
+.entry-more[aria-expanded="true"] {
+  anchor-name: --entry-menu;
+}
+
+.entry-menu > .menu {
+  top: anchor(bottom);
+  right: anchor(right);
+  min-width: 224px;
+  margin-block: var(--space-1);
+  position-anchor: --entry-menu;
+  position-try-fallbacks: flip-block;
 }
 
 .entry-meta {
@@ -401,25 +432,6 @@
 .detail-pane h5 {
   margin: var(--space-6) 0 var(--space-2);
   color: var(--ink-muted);
-}
-
-.entry-actions {
-  margin-top: var(--space-6);
-}
-
-/*
- * Sending an entry to the bin can be undone, so in its resting state it reads like the other actions: red only under
- * the pointer and with focus. Inside the bin, "Borrar definitivamente…" keeps the red border of `.btn-danger`.
- */
-.entry-actions > .btn-to-bin:hover:not(:disabled) {
-  color: var(--on-danger);
-  background: var(--danger);
-  border-color: var(--danger);
-}
-
-.entry-actions > .btn-to-bin:focus-visible:not(:hover) {
-  color: var(--danger);
-  border-color: var(--danger);
 }
 
 .entry-status p {
@@ -595,12 +607,6 @@
  * Only a narrow detail shrinks the entry title: the 800 × 600 window (about 16rem) and the smallest one (480 × 360,
  * about 24.5rem, where "Copiar" must show without scrolling). The default window (1120 × 720, about 27rem) keeps 44 px.
  */
-@container detail (max-width: 25rem) {
-  .entry-title {
-    font-size: var(--text-xl);
-  }
-}
-
 @container detail (max-width: 30rem) {
   .entry-form > h4 {
     font-size: 1.5rem;
@@ -672,10 +678,6 @@
 
   .detail-pane .field-hint {
     padding-inline-start: calc(5.5rem + var(--space-2));
-  }
-
-  .route li:not(:last-child)::after {
-    width: 24px;
   }
 }
 

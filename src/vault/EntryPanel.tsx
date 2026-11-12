@@ -4,11 +4,12 @@ import { assertNever } from "../assertNever";
 import type { FieldName, VaultClient } from "../ipc/client";
 import { errorMessage, type AppError } from "../ipc/errors";
 import type { EntryDetail, GroupNode } from "../ipc/schemas";
-import { CopyIcon, EditIcon, HideIcon, MoveIcon, OpenLinkIcon, ShowIcon, TrashIcon } from "../ui/icons";
+import { CopyIcon, EditIcon, HideIcon, OpenLinkIcon, ShowIcon } from "../ui/icons";
+import { MenuButton, type MenuItem } from "../ui/MenuButton";
 import { Dialog } from "./Dialog";
 import { EntryForm } from "./EntryForm";
 import { formatDate, groupOptions, isInBin, shown, trailTo } from "./format";
-import { assignLines } from "./lines";
+import { assignLines, entryInitial, entryLine } from "./lines";
 import { NO_SAVE_SIGNAL, savingText, type SaveSignal } from "./saveSignal";
 
 /** RF-21: an edit the core applied, before and after its save reaches the disk. */
@@ -38,6 +39,9 @@ type LoadState =
   | { readonly kind: "ready"; readonly entry: EntryDetail };
 
 type DialogState = { readonly kind: "move" } | { readonly kind: "delete" } | null;
+
+/** What the menu of an entry offers. */
+type EntryOrder = "move" | "bin" | "delete";
 
 interface EntryPanelProps {
   readonly client: EntryClient;
@@ -318,8 +322,36 @@ export function EntryPanel({
   const secretFields = protectedOf(entry);
   const plainCustom = entry.customFields.filter((field) => !field.protected);
   const secondsLeft = copied === null ? null : Math.max(0, Math.ceil((copied.deadline - now) / 1000));
-  /** The groups from the root down to the entry's own: drawn as the stops of its line. */
-  const trail = trailTo(root, entry.groupId) ?? [];
+  /** The groups from the root down to the entry's own: the header names the last one, its `title` the whole way. */
+  const trail = (trailTo(root, entry.groupId) ?? []).map((group) => shown(group.name, "(sin nombre)"));
+  const line = entryLine(assignLines(root).get(entry.groupId));
+  /**
+   * The menu of the entry. Outside the recycle bin, sending it there is the last order, and it acts at once (RF-47:
+   * it can be undone from the bin). Inside the bin, moving it out is how it is restored, and deleting asks first.
+   */
+  const orders: readonly MenuItem<EntryOrder>[] = [
+    { order: "move", label: "Mover a otro grupo…" },
+    inBin
+      ? { order: "delete", label: "Borrar definitivamente…", danger: true }
+      : { order: "bin", label: "Enviar a la papelera…", danger: true },
+  ];
+
+  function onOrder(order: EntryOrder) {
+    setActionError(null);
+    switch (order) {
+      case "move":
+        setDialog({ kind: "move" });
+        return;
+      case "bin":
+        void remove(entry, false);
+        return;
+      case "delete":
+        setDialog({ kind: "delete" });
+        return;
+      default:
+        assertNever(order);
+    }
+  }
 
   return (
     <>
@@ -328,19 +360,49 @@ export function EntryPanel({
           Volver a la lista
         </button>
       )}
-      <dl className="entry-route" data-line={assignLines(root).get(entry.groupId) ?? "neutral"}>
-        <dt className="sr-only">Grupo</dt>
-        <dd>
-          <ol className="route">
-            {trail.map((group) => (
-              <li key={group.id}>{shown(group.name, "(sin nombre)")}</li>
-            ))}
-          </ol>
-        </dd>
-      </dl>
-      <h4 ref={entryTitleRef} tabIndex={-1} className="entry-title">
-        {shown(entry.title, "(sin título)")}
-      </h4>
+      <header className="entry-head">
+        {/* The same circle as its row in the list, larger. Drawn by CSS from `data-initial`: it adds no text. */}
+        <span
+          className="bullet entry-badge"
+          data-line={line}
+          data-initial={entryInitial(entry.title)}
+          aria-hidden="true"
+        />
+        <div className="entry-heading">
+          <h4 ref={entryTitleRef} tabIndex={-1} className="entry-title">
+            {shown(entry.title, "(sin título)")}
+          </h4>
+          <p className="entry-group" title={trail.join(" › ")}>
+            <span className="sr-only">Grupo:</span>
+            <span className="group-dot" data-line={line} aria-hidden="true" /> {trail.at(-1) ?? ""}
+          </p>
+        </div>
+        {!readOnly && (
+          <div className="entry-head-actions">
+            <button
+              ref={editRef}
+              type="button"
+              onClick={() => {
+                hideAll();
+                say("");
+                setActionError(null);
+                setMode("edit");
+              }}
+            >
+              <EditIcon />
+              Editar
+            </button>
+            <MenuButton
+              label="Más acciones de la entrada"
+              menuLabel="Acciones de la entrada"
+              items={orders}
+              onChoose={onOrder}
+              className="entry-menu"
+              buttonClassName="entry-more"
+            />
+          </div>
+        )}
+      </header>
       <dl className="entry-meta">
         <div>
           <dt>Creada</dt>
@@ -498,46 +560,7 @@ export function EntryPanel({
         </>
       )}
 
-      {readOnly ? (
-        <p className="path">Solo lectura: esta entrada no se puede editar, mover ni borrar.</p>
-      ) : (
-      <div className="actions entry-actions">
-        <button
-          ref={editRef}
-          type="button"
-          onClick={() => {
-            hideAll();
-            say("");
-            setActionError(null);
-            setMode("edit");
-          }}
-        >
-          <EditIcon />
-          Editar
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            setActionError(null);
-            setDialog({ kind: "move" });
-          }}
-        >
-          <MoveIcon />
-          Mover a otro grupo…
-        </button>
-        <button
-          type="button"
-          className={inBin ? "btn-danger" : "btn-to-bin"}
-          onClick={() => {
-            if (inBin) setDialog({ kind: "delete" });
-            else void remove(entry, false);
-          }}
-        >
-          <TrashIcon />
-          {inBin ? "Borrar definitivamente…" : "Enviar a la papelera"}
-        </button>
-      </div>
-      )}
+      {readOnly && <p className="path">Solo lectura: esta entrada no se puede editar, mover ni borrar.</p>}
 
       <div aria-live="polite" aria-atomic="true" className="entry-status">
         {secondsLeft !== null && (

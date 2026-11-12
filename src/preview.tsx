@@ -7,7 +7,7 @@
  *       without a vault     bienvenida · bienvenida-vacia · crear · crear-llave · crear-error · creando · creada ·
  *                           desbloquear · derivando · error-llave · bloqueada · ajustes
  *       open vault          todas · foco-todas · menu-grupo · menu-papelera · busqueda ·
- *                           copiado · detalle · ninguna · formulario · generador · editar · dialogo-mover ·
+ *                           copiado · detalle · menu-entrada · ninguna · formulario · generador · editar · dialogo-mover ·
  *                           dialogo-borrar · dialogo-papelera · dialogo-renombrar · dialogo-recarga ·
  *                           aviso-guardado · cambio-externo · solo-lectura · ajustes-abierta
  *   ?densidad=compacta      the compact density, which no setting offers yet
@@ -282,8 +282,13 @@ async function stageOpen(backend: FakeBackend) {
     default:
   }
   await click(".entries button", "GitHub");
-  await find("button", "Copiar contraseña");
-  if (state === "dialogo-mover") await click("button", "Mover a otro grupo…");
+  // Icon buttons have no text: they are found by their name.
+  await find('button[aria-label="Copiar contraseña"]', /^/);
+  if (state === "menu-entrada" || state === "dialogo-mover") {
+    await click('button[aria-label="Más acciones de la entrada"]', /^/);
+    await find('[role="menuitem"]', /./);
+  }
+  if (state === "dialogo-mover") await click('[role="menuitem"]', "Mover a otro grupo…");
   if (state === "editar") await click("button", "Editar");
 }
 

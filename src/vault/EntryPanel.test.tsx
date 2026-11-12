@@ -82,6 +82,14 @@ async function openEntry(group: string, title: string) {
   await within(detailZone()).findByRole("button", { name: "Editar" });
 }
 
+const moreButton = () => within(detailZone()).getByRole("button", { name: "Más acciones de la entrada" });
+
+/** Opens the menu of the entry and chooses one of its orders, the way a person does with the pointer. */
+function chooseOrder(label: string) {
+  fireEvent.click(moreButton());
+  fireEvent.click(screen.getByRole("menuitem", { name: label }));
+}
+
 async function startNewEntry(group = "Personal") {
   await openGroup(group);
   fireEvent.click(screen.getByRole("button", { name: "Nueva entrada" }));
@@ -511,10 +519,10 @@ describe("P5 Entrada — mover y borrar", () => {
   it("RF-46: mover abre un diálogo con el destino y devuelve el foco al cancelar", async () => {
     const { backend } = await setup();
     await openEntry("Trabajo", "GitHub");
-    const opener = screen.getByRole("button", { name: "Mover a otro grupo…" });
+    // The order is in the menu of the entry: what opened the dialog, and gets the focus back, is the menu button.
+    const opener = moreButton();
 
-    opener.focus();
-    fireEvent.click(opener);
+    chooseOrder("Mover a otro grupo…");
     const dialog = await screen.findByRole("dialog", { name: "Mover «GitHub»" });
     const options = within(dialog).getAllByRole("option").map((option) => option.textContent);
     expect(options).not.toContain("Cuentas › Trabajo");
@@ -523,7 +531,7 @@ describe("P5 Entrada — mover y borrar", () => {
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(document.activeElement).toBe(opener);
 
-    fireEvent.click(opener);
+    chooseOrder("Mover a otro grupo…");
     const again = await screen.findByRole("dialog", { name: "Mover «GitHub»" });
     fireEvent.change(within(again).getByLabelText("Grupo de destino"), { target: { value: "group-personal" } });
     fireEvent.click(within(again).getByRole("button", { name: "Mover" }));
@@ -540,7 +548,7 @@ describe("P5 Entrada — mover y borrar", () => {
     const { backend } = await setup();
     await openEntry("Trabajo", "GitHub");
 
-    fireEvent.click(screen.getByRole("button", { name: "Enviar a la papelera" }));
+    chooseOrder("Enviar a la papelera…");
 
     expect(await screen.findByText(/«GitHub» se movió a la papelera/)).toBeDefined();
     expect(screen.queryByRole("dialog")).toBeNull();
@@ -558,7 +566,7 @@ describe("P5 Entrada — mover y borrar", () => {
     });
     await openEntry("Personal", "Única");
 
-    fireEvent.click(screen.getByRole("button", { name: "Enviar a la papelera" }));
+    chooseOrder("Enviar a la papelera…");
 
     expect(await screen.findByRole("button", { name: "Papelera de reciclaje (papelera) · 1 entrada" })).toBeDefined();
     expect(backend.groupTrail(backend.entry("e")?.groupId ?? "")).toEqual(["Cuentas", "Papelera de reciclaje"]);
@@ -568,13 +576,13 @@ describe("P5 Entrada — mover y borrar", () => {
     const { backend } = await setup();
     await openEntry("Papelera de reciclaje", "Canción borrada");
 
-    fireEvent.click(screen.getByRole("button", { name: "Borrar definitivamente…" }));
+    chooseOrder("Borrar definitivamente…");
     const dialog = await screen.findByRole("dialog", { name: "Borrar «Canción borrada» de forma definitiva" });
     expect(within(dialog).getByText(/no se puede deshacer/)).toBeDefined();
     fireEvent.click(within(dialog).getByRole("button", { name: "Cancelar" }));
     expect(backend.entry("entry-old")).toBeDefined();
 
-    fireEvent.click(screen.getByRole("button", { name: "Borrar definitivamente…" }));
+    chooseOrder("Borrar definitivamente…");
     fireEvent.click(
       within(await screen.findByRole("dialog")).getByRole("button", { name: "Borrar definitivamente" }),
     );
@@ -586,6 +594,148 @@ describe("P5 Entrada — mover y borrar", () => {
       expect(document.activeElement).toBe(screen.getByRole("heading", { name: "Detalle" }));
     });
     expect(await screen.findByText("La papelera está vacía.")).toBeDefined();
+  });
+});
+
+describe("P5 Entrada — cabecera y menú de la entrada", () => {
+  const items = () => screen.getAllByRole("menuitem").map((item) => item.textContent);
+
+  it("RF-43: la cabecera lleva el círculo con la inicial del título sobre el color de su grupo, y el grupo debajo", async () => {
+    await setup();
+    await openEntry("Trabajo", "GitHub");
+
+    const head = detailZone().querySelector(".entry-head");
+    const circle = head?.querySelector(".bullet");
+    expect(circle?.getAttribute("data-initial")).toBe("G");
+    // Trabajo is the second group of the rail: line 2. The dot of the group line has the same colour.
+    expect(circle?.getAttribute("data-line")).toBe("2");
+    expect(circle?.getAttribute("aria-hidden")).toBe("true");
+    const group = head?.querySelector(".entry-group");
+    expect(group?.textContent).toBe("Grupo: Trabajo");
+    expect(group?.querySelector(".group-dot")?.getAttribute("data-line")).toBe("2");
+    // Only the group of the entry is read; the whole way from the root is in the `title`.
+    expect(group?.getAttribute("title")).toBe("Cuentas › Trabajo");
+  });
+
+  it("RF-43: un subgrupo se nombra solo y lleva el color de su grupo de primer nivel", async () => {
+    await setup();
+    await openEntry("Clientes", "Banana");
+
+    const group = detailZone().querySelector(".entry-group");
+    expect(group?.textContent).toBe("Grupo: Clientes");
+    expect(group?.getAttribute("title")).toBe("Cuentas › Trabajo › Clientes");
+    expect(detailZone().querySelector(".entry-head .bullet")?.getAttribute("data-line")).toBe("2");
+  });
+
+  it("RF-46: RF-47: «Editar» queda a la vista y mover y enviar a la papelera van en el menú, lo destructivo al final", async () => {
+    await setup();
+    await openEntry("Trabajo", "GitHub");
+
+    const detail = detailZone();
+    expect(within(detail).getByRole("button", { name: "Editar" })).toBeDefined();
+    // Nothing destructive is in sight until the menu opens, and the old row of buttons at the foot is gone.
+    expect(within(detail).queryByRole("button", { name: /papelera/i })).toBeNull();
+    expect(within(detail).queryByRole("button", { name: /^Mover/ })).toBeNull();
+    expect(screen.queryByRole("menu")).toBeNull();
+    const more = moreButton();
+    expect(more.getAttribute("aria-haspopup")).toBe("menu");
+    expect(more.getAttribute("aria-expanded")).toBe("false");
+    expect(more.getAttribute("title")).toBe("Más acciones de la entrada");
+
+    fireEvent.click(more);
+
+    expect(more.getAttribute("aria-expanded")).toBe("true");
+    expect(screen.getByRole("menu", { name: "Acciones de la entrada" })).toBeDefined();
+    // "Duplicar" is not offered: the core has no such command.
+    expect(items()).toEqual(["Mover a otro grupo…", "Enviar a la papelera…"]);
+    expect(screen.getByRole("menuitem", { name: "Enviar a la papelera…" }).className).toBe("menu-danger");
+    expect(screen.getByRole("menuitem", { name: "Mover a otro grupo…" }).className).toBe("");
+  });
+
+  it("RF-48: en la papelera el menú ofrece mover (así se restaura) y borrar definitivamente", async () => {
+    await setup();
+    await openEntry("Papelera de reciclaje", "Canción borrada");
+
+    fireEvent.click(moreButton());
+
+    expect(items()).toEqual(["Mover a otro grupo…", "Borrar definitivamente…"]);
+    expect(screen.getByRole("menuitem", { name: "Borrar definitivamente…" }).className).toBe("menu-danger");
+  });
+
+  it("RF-46: el menú de la entrada se recorre con las flechas, Inicio y Fin, y abre con flecha abajo", async () => {
+    await setup();
+    await openEntry("Trabajo", "GitHub");
+    const more = moreButton();
+
+    more.focus();
+    fireEvent.keyDown(more, { key: "ArrowDown" });
+    const [move, bin] = screen.getAllByRole("menuitem");
+    if (move === undefined || bin === undefined) throw new Error("expected two orders");
+    // Opening puts the focus on the first order.
+    expect(document.activeElement).toBe(move);
+
+    fireEvent.keyDown(move, { key: "ArrowDown" });
+    expect(document.activeElement).toBe(bin);
+    fireEvent.keyDown(bin, { key: "ArrowDown" });
+    expect(document.activeElement).toBe(move);
+    fireEvent.keyDown(move, { key: "ArrowUp" });
+    expect(document.activeElement).toBe(bin);
+    fireEvent.keyDown(bin, { key: "Home" });
+    expect(document.activeElement).toBe(move);
+    fireEvent.keyDown(move, { key: "End" });
+    expect(document.activeElement).toBe(bin);
+  });
+
+  it("RF-46: Escape cierra el menú de la entrada sin ordenar nada y devuelve el foco a su botón; un clic fuera también lo cierra", async () => {
+    const { backend } = await setup();
+    await openEntry("Trabajo", "GitHub");
+    const more = moreButton();
+
+    fireEvent.click(more);
+    fireEvent.keyDown(screen.getAllByRole("menuitem")[0] ?? more, { key: "Escape" });
+
+    expect(screen.queryByRole("menu")).toBeNull();
+    expect(document.activeElement).toBe(more);
+    expect(more.getAttribute("aria-expanded")).toBe("false");
+
+    fireEvent.click(more);
+    expect(screen.getByRole("menu")).toBeDefined();
+    fireEvent.pointerDown(document.body);
+    expect(screen.queryByRole("menu")).toBeNull();
+
+    // The button also closes the menu it opened.
+    fireEvent.click(more);
+    fireEvent.click(more);
+    expect(screen.queryByRole("menu")).toBeNull();
+    expect(backend.count("entry_move")).toBe(0);
+    expect(backend.count("entry_delete")).toBe(0);
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("RF-47: elegir «Enviar a la papelera…» en el menú lo cierra y actúa de una vez, sin diálogo", async () => {
+    const { backend } = await setup();
+    await openEntry("Trabajo", "GitHub");
+
+    chooseOrder("Enviar a la papelera…");
+
+    expect(screen.queryByRole("menu")).toBeNull();
+    expect(screen.queryByRole("dialog")).toBeNull();
+    await waitFor(() => {
+      expect(backend.entry("entry-github")?.groupId).toBe("group-bin");
+    });
+  });
+
+  it("RF-14: en solo lectura no hay «Editar» ni menú de la entrada, y lo dice", async () => {
+    await setup({ status: { ...OPEN, read_only: true } });
+    await openGroup("Trabajo");
+    fireEvent.click(within(screen.getByRole("table")).getByRole("button", { name: "GitHub" }));
+
+    const detail = detailZone();
+    expect(await within(detail).findByText(/Solo lectura: esta entrada no se puede editar, mover ni borrar/)).toBeDefined();
+    expect(within(detail).queryByRole("button", { name: "Editar" })).toBeNull();
+    expect(within(detail).queryByRole("button", { name: "Más acciones de la entrada" })).toBeNull();
+    // Looking and copying stay.
+    expect(within(detail).getByRole("button", { name: "Copiar contraseña" })).toBeDefined();
   });
 });
 
