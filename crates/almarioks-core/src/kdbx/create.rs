@@ -28,6 +28,7 @@ use super::{
 use crate::{
     error::{CoreError, CoreResult},
     storage,
+    vault::check_group_name,
 };
 
 /// Argon2 memory of every new vault (RF-2: 64 MiB or more; KeePass' default).
@@ -160,14 +161,30 @@ pub fn measure_unlock(kdf: NewVaultKdf) -> CoreResult<Duration> {
     Ok(start.elapsed())
 }
 
-/// The bytes of a new, empty KDBX 4 vault with this key and KDF (RF-1, RF-2). Salt and seeds are fresh.
+/// Name of a vault made by [`create_vault_file`], which predates the name parameter (decision pending).
+pub const DEFAULT_VAULT_NAME: &str = "Bóveda";
+/// History limits written into every new vault: KeePass 2's defaults (10 versions, 6 MiB), so a vault made here
+/// does not grow its history without bound (RF-26; decision pending).
+pub const NEW_VAULT_HISTORY_MAX_ITEMS: isize = 10;
+/// See [`NEW_VAULT_HISTORY_MAX_ITEMS`].
+pub const NEW_VAULT_HISTORY_MAX_SIZE: isize = 6 * 1024 * 1024;
+
+/// The bytes of a new, empty KDBX 4 vault with this key, name and KDF (RF-1, RF-2). Salt and seeds are fresh.
+/// The name is the root group's name (and the metadata's database name, as KeePass writes it).
 ///
 /// # Errors
-/// [`CoreError::GuardadoFallido`] if the library cannot write it.
-pub fn create_vault(key: &VaultKey, kdf: NewVaultKdf) -> CoreResult<Vec<u8>> {
+/// - [`CoreError::NombreVacio`], [`CoreError::CampoMuyLargo`], [`CoreError::CaracterNoPermitido`]: the name, by
+///   the group-name rules (RF-52).
+/// - [`CoreError::GuardadoFallido`] if the library cannot write it.
+pub fn create_vault(key: &VaultKey, name: &str, kdf: NewVaultKdf) -> CoreResult<Vec<u8>> {
+    let name = check_group_name(name)?;
+    let mut db = Database::with_config(database_config(kdf)?);
+    db.root_mut().name.clone_from(&name);
+    db.meta.database_name = Some(name);
+    db.meta.history_max_items = Some(NEW_VAULT_HISTORY_MAX_ITEMS);
+    db.meta.history_max_size = Some(NEW_VAULT_HISTORY_MAX_SIZE);
     let mut bytes = Vec::new();
-    Database::with_config(database_config(kdf)?)
-        .save(&mut bytes, key.to_database_key()?)
+    db.save(&mut bytes, key.to_database_key()?)
         .map_err(|_| CoreError::GuardadoFallido)?;
     Ok(bytes)
 }
@@ -199,6 +216,21 @@ pub fn create_vault_file(
     key_file: NewKeyFile,
     kdf: NewVaultKdf,
 ) -> CoreResult<OpenedVault> {
+    create_named_vault_file(path, DEFAULT_VAULT_NAME, password, key_file, kdf)
+}
+
+/// [`create_vault_file`] with the vault's name (the root group's name, plan `vault_create{name}`).
+///
+/// # Errors
+/// Those of [`create_vault_file`], then the name's ([`CoreError::NombreVacio`], [`CoreError::CampoMuyLargo`],
+/// [`CoreError::CaracterNoPermitido`]) after the files are checked and before anything is written.
+pub fn create_named_vault_file(
+    path: &Path,
+    name: &str,
+    password: Option<MasterPassword>,
+    key_file: NewKeyFile,
+    kdf: NewVaultKdf,
+) -> CoreResult<OpenedVault> {
     let password = password.filter(|p| !p.is_empty());
     if password.is_none() && matches!(key_file, NewKeyFile::None) {
         return Err(CoreError::LlaveVacia);
@@ -207,6 +239,7 @@ pub fn create_vault_file(
     if let NewKeyFile::Generate(key_path) = &key_file {
         storage::ensure_absent(key_path)?;
     }
+    let name = check_group_name(name)?;
 
     // Declared before the open handles, so they are closed before the cleanup runs.
     let mut created = storage::CreatedFiles::default();
@@ -227,7 +260,7 @@ pub fn create_vault_file(
         }
     };
     let key = VaultKey::new(password, key_file)?;
-    storage::write_and_sync(&mut vault_file, &create_vault(&key, kdf)?)?;
+    storage::write_and_sync(&mut vault_file, &create_vault(&key, &name, kdf)?)?;
     drop(vault_file);
     let opened = open::open(&storage::read(path)?, &key).map_err(|_| CoreError::GuardadoFallido)?;
     created.keep();

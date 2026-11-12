@@ -35,6 +35,11 @@ zxcvbn = { version = "=3.1.1", default-features = false }
 serde_json = "=1.0.154"
 # sha2 is also the content fingerprint of `almarioks-core::storage` (RF-24): a SHA-256 of bytes already encrypted,
 # to notice that another app rewrote the file. It is not vault crypto and protects nothing (constitution rule 4).
+# Domain types of the core (T5). uuid and chrono are already in the tree of `keepass` 0.17.0 at these versions;
+# unicode-normalization is new (NFKD to fold text, spec "Definiciones"): (MIT OR Apache-2.0) AND Unicode-3.0.
+uuid = { version = "=1.29.2", default-features = false, features = ["std"] }
+chrono = { version = "=0.4.45", default-features = false, features = ["std"] }
+unicode-normalization = { version = "=0.1.26", default-features = false, features = ["std"] }
 
 [workspace.lints.rust]
 unsafe_code = "forbid"         # only an `ffi` module may lower it, block by block

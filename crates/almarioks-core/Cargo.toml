@@ -21,6 +21,10 @@ quick-xml.workspace = true
 zxcvbn.workspace = true
 serde_json.workspace = true
 # Besides `kdbx`, `storage` uses sha2 for the content fingerprint of RF-24 (see the root Cargo.toml).
+# Own domain types (ids, timestamps) and text folding.
+uuid.workspace = true
+chrono.workspace = true
+unicode-normalization.workspace = true
 
 [lints]
 workspace = true
