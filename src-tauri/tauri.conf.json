@@ -16,8 +16,8 @@
         "title": "AlmarioKS",
         "width": 1120,
         "height": 720,
-        "minWidth": 480,
-        "minHeight": 360,
+        "minWidth": 1000,
+        "minHeight": 640,
         "center": true,
         "incognito": true,
         "generalAutofillEnabled": false

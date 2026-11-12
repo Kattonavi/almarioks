@@ -1,9 +1,10 @@
 /*
- * "Señalética": tokens by role, then the base every screen inherits. The dark theme redefines the same roles and is
- * the only place where dark values live.
+ * "Señalética": tokens by role, then the base every screen inherits. The app is always dark (RF-103): the dark theme
+ * redefines the same roles and is the only place where dark values live. The light values stay in `tokens.css`; a
+ * theme switch in Settings is in the backlog.
  */
 @import "./styles/tokens.css";
-@import "./styles/theme-dark.css" (prefers-color-scheme: dark);
+@import "./styles/theme-dark.css";
 @import "./styles/base.css";
 @import "./styles/shell.css";
 @import "./styles/gate.css";
