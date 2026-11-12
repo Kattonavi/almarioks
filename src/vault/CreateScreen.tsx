@@ -34,7 +34,8 @@ type FormError =
   | { readonly kind: "exists" }
   | { readonly kind: "key-exists" }
   | { readonly kind: "mismatch" }
-  | { readonly kind: "no-key-file" };
+  | { readonly kind: "no-key-file" }
+  | { readonly kind: "key-beside-needs-password" };
 
 /** Where a message is shown: next to the field it is about; what belongs to no field goes above the actions. */
 type Slot = "name" | "location" | "confirm" | "key" | "form";
@@ -88,6 +89,9 @@ export const EXISTS_KEY =
 export const PATH_HELP =
   "AlmarioKS no reemplaza archivos: si eliges uno que ya existe, aunque Windows pregunte si quieres reemplazarlo, te pedirá otro nombre.";
 export const NO_NAME = "Ponle un nombre a la bóveda.";
+/** A key file created beside the vault protects nothing by itself: whoever copies the folder takes both. */
+export const KEY_BESIDE_NEEDS_PASSWORD =
+  "El archivo llave nuevo queda junto a la bóveda: quien copie la carpeta se llevaría los dos. Escribe también una contraseña maestra, o elige «Usar uno mío» con un archivo llave guardado en otro lugar.";
 export const NO_PATH = "Elige dónde guardar la bóveda.";
 export const MISMATCH = "Las dos contraseñas no son iguales.";
 
@@ -106,6 +110,7 @@ function slotOf(error: FormError, chosen: boolean): Slot {
       return "confirm";
     case "key-exists":
     case "no-key-file":
+    case "key-beside-needs-password":
       return "key";
     default:
       return assertNever(error);
@@ -130,6 +135,8 @@ function formErrorText(error: FormError, chosen: boolean): string {
       return EXISTS_KEY;
     case "no-key-file":
       return "Elige tu archivo llave o marca «Sin archivo llave».";
+    case "key-beside-needs-password":
+      return KEY_BESIDE_NEEDS_PASSWORD;
     default:
       return assertNever(error);
   }
@@ -345,6 +352,12 @@ export function CreateScreen({ client, onBack, onDone }: CreateScreenProps) {
       fail({ kind: "app", error: { code: "LlaveVacia" } });
       return;
     }
+    // Security review of the interaction pass (P-2): the new key file is written beside the vault, so alone it is
+    // no protection. A vault with only a key file is still possible with one of the person's own, kept elsewhere.
+    if (password === "" && keyMode === "generate") {
+      fail({ kind: "key-beside-needs-password" });
+      return;
+    }
     setPhase({ kind: "creating" });
     void create(password);
   }
@@ -541,6 +554,7 @@ export function CreateScreen({ client, onBack, onDone }: CreateScreenProps) {
                 <input
                   ref={passwordRef}
                   id="create-password"
+                  data-secret=""
                   type={secretType}
                   autoComplete="new-password"
                   autoCapitalize="off"
@@ -585,6 +599,7 @@ export function CreateScreen({ client, onBack, onDone }: CreateScreenProps) {
               <input
                 ref={confirmRef}
                 id="create-confirm"
+                data-secret=""
                 type={secretType}
                 autoComplete="new-password"
                 autoCapitalize="off"

@@ -68,3 +68,7 @@ Lo que no cabe en la fase va aquí, un renglón por ítem: `- [origen] qué · s
 - [pase de interacción] Se perdió frente al formulario anterior: "(N de 4)" junto a la fortaleza en el diálogo y el marcado por carácter de dígitos y símbolos de una contraseña a la vista · Bajo
 - [pase de interacción] "Enviar a la papelera…" de una entrada lleva puntos suspensivos (como el prototipo) pero actúa sin diálogo (RF-47): quitar los puntos o confirmar · Bajo
 - [pase de interacción] Mover el aviso "Entrada guardada" al aviso del pie del detalle (hoy sigue en su sitio anterior) · Bajo
+- [seguridad pase, P-3] `vault_create_location` acepta en `chosen_path` rutas relativas, UNC y de dispositivo: limitarlo a rutas que salieron del diálogo o de la propuesta (se arregla con el punto 2 de S-2) · Bajo
+- [seguridad pase, P-4] Una ruta `archivo-existente:flujo.kdbx` pasa la comprobación de existencia y crea un flujo alterno sobre ese archivo (solo con un script en la ventana; anterior al pase): rechazar `:` fuera de la unidad · Bajo
+- [seguridad pase, P-5] Si `Documentos\AlmarioKS` existe como archivo, crear falla sin un mensaje que lo explique · Bajo
+- [seguridad pase, P-6 a P-8] Unión de carpetas seguida al crear, dos ventanas de milisegundos entre consultar la ubicación y crear, y rutas completas en pantalla y `title` · Info

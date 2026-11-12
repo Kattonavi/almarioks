@@ -452,8 +452,10 @@ las pantallas la fija ese prototipo; aquí solo va lo que cambia de comportamien
 - RF-98: SI en la ubicación propuesta ya existe un archivo con ese nombre, ENTONCES EL SISTEMA no creará la bóveda ni
   tocará ese archivo (RF-4) y pedirá cambiar el nombre o la ubicación.
 - RF-99: DONDE el dueño elija "Crear uno nuevo" como archivo llave, EL SISTEMA lo creará junto a la bóveda, con su
-  mismo nombre y extensión `.keyx`, sin reemplazar un archivo existente. [por confirmar: que sea la opción marcada al
-  abrir, como en el prototipo; hasta hoy era "Sin archivo llave"]
+  mismo nombre y extensión `.keyx`, sin reemplazar un archivo existente; y como ese archivo solo, junto a la bóveda,
+  no protege (quien copie la carpeta se lleva los dos), exigirá además una contraseña maestra. Una bóveda con solo
+  archivo llave sigue siendo posible con "Usar uno mío". [por confirmar: que "Crear uno nuevo" sea la opción marcada
+  al abrir, como en el prototipo; hasta hoy era "Sin archivo llave"]
 - RF-100: CUANDO el dueño crea o edita una entrada, EL SISTEMA mostrará el formulario en un diálogo modal sobre la
   bóveda, con el foco en Título; al cancelar o pulsar Esc preguntará solo si hay cambios; al guardar cerrará el
   diálogo y dejará esa entrada seleccionada.

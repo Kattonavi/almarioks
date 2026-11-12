@@ -192,6 +192,8 @@ export function PasswordField({ ref, id, client, hint, invalid, errorId, onWritt
         <input
           ref={inputRef}
           id={id}
+          // Protected while it is typed too: `browserSurface.ts` cancels the browser's copy, cut and drag from here.
+          data-secret=""
           type={visible ? "text" : "password"}
           autoComplete="new-password"
           autoCapitalize="off"

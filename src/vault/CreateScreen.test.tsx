@@ -5,7 +5,15 @@ import { createClient } from "../ipc/client";
 import { ERROR_MESSAGES } from "../ipc/errors";
 import { createFakeBackend, FAKE_DEFAULT_FOLDER, type FakeBackend, type FakeOptions } from "../ipc/fake";
 import { VaultRoot } from "./VaultRoot";
-import { EXISTS_CHOSEN, EXISTS_KEY, EXISTS_VAULT, NO_NAME, NO_PATH, PATH_HELP } from "./CreateScreen";
+import {
+  EXISTS_CHOSEN,
+  EXISTS_KEY,
+  EXISTS_VAULT,
+  KEY_BESIDE_NEEDS_PASSWORD,
+  NO_NAME,
+  NO_PATH,
+  PATH_HELP,
+} from "./CreateScreen";
 
 afterEach(cleanup);
 
@@ -220,6 +228,24 @@ describe("P2 Crear bóveda", () => {
 
     expect(await screen.findByText(ERROR_MESSAGES.LlaveVacia)).toBeDefined();
     expect(backend.count("vault_create")).toBe(0);
+  });
+
+  it("RF-99: RF-3: con el archivo llave nuevo junto a la bóveda y sin contraseña maestra no crea y pide una", async () => {
+    const backend = await openCreate({});
+    await nameIt();
+    // "Crear uno nuevo" is the marked option: the key file alone, beside the vault, would protect nothing.
+
+    fireEvent.click(createButton());
+
+    expect(await screen.findByText(KEY_BESIDE_NEEDS_PASSWORD)).toBeDefined();
+    expect(backend.count("vault_create")).toBe(0);
+  });
+
+  it("RF-72: los dos campos de la contraseña maestra van marcados como valor protegido", async () => {
+    await openCreate({});
+    for (const id of ["create-password", "create-confirm"]) {
+      expect(document.getElementById(id)?.hasAttribute("data-secret")).toBe(true);
+    }
   });
 
   it("RF-1: error — sin ruta elegida (diálogo cancelado) pide elegirla y no crea", async () => {

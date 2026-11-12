@@ -780,4 +780,11 @@ describe("Diálogo de entrada — Esc repetido", () => {
     fireEvent.click(screen.getByRole("button", { name: "Descartar" }));
     expect(onClose).toHaveBeenCalledTimes(1);
   });
+
+  it("RF-72: el campo de contraseña del diálogo va marcado como valor protegido, a la vista u oculto", () => {
+    open();
+    expect(passwordField().hasAttribute("data-secret")).toBe(true);
+    typePassword("escrita-a-mano");
+    expect(passwordField().hasAttribute("data-secret")).toBe(true);
+  });
 });
