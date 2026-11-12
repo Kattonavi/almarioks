@@ -10,12 +10,15 @@ Primera versión que guarda contraseñas.
 
 ### Added
 - Crear una bóveda KDBX 4 con su nombre, contraseña maestra, archivo llave o ambos, y abrir las hechas con KeePass 2 o
-  KeePassXC. La ubicación se propone sola (Documentos › AlmarioKS) y se puede cambiar.
+  KeePassXC. La ubicación se propone sola (Documentos › AlmarioKS) y se puede cambiar. El archivo llave nuevo queda
+  junto a la bóveda; al desbloquear viene ya elegido el que está junto a ella o el último que se usó.
   Las bóvedas KDBX 3.x se abren en solo lectura y se pueden convertir a un archivo nuevo.
 - Entradas y grupos: crear, ver, editar, mover y borrar, con papelera e historial de versiones compatible con KeePass.
-  Las entradas se crean y editan en un diálogo sobre la bóveda; "Todas las entradas" las reúne.
+  La bóveda es una tabla; la entrada se abre en una ventana con doble clic en su título, y se crea y edita en un
+  diálogo. Doble clic en el usuario o la contraseña copia; en el sitio, lo abre en el navegador. "Todas las entradas"
+  las reúne. La ventana de la entrada muestra cuándo se creó y se modificó, con la hora.
 - Búsqueda que no distingue mayúsculas ni tildes.
-- Generador de contraseñas dentro del campo (un clic en "Generar") con medidor de fortaleza.
+- Generador de contraseñas dentro del campo (un clic en "Generar"), de 8 a 500 caracteres, con medidor de fortaleza.
 - Copiar sin mostrar: lo copiado no entra al historial del portapapeles de Windows y se borra solo a los 20 segundos.
 - Bloqueo manual y por inactividad (5 minutos por defecto). Al bloquear se vacía el portapapeles y la ventana.
 - Cada cambio se guarda solo, con una copia de respaldo `.bak` junto a la bóveda. Si otra app cambió el archivo, no se
