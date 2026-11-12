@@ -32,6 +32,9 @@ export const ERROR_CODES = [
   // Proposed contract change: docs/UX.md P3 needs "archivo llave no encontrado" and P1 a vault that is gone.
   "ArchivoNoEncontrado",
   "ArchivoLlaveNoEncontrado",
+  // Sent by the app shell (src-tauri), not by the vault core.
+  "PortapapelesNoDisponible",
+  "ErrorInterno",
   // Window only.
   "RespuestaInvalida",
   "Inesperado",
@@ -135,6 +138,9 @@ export const ERROR_MESSAGES: Readonly<Record<ErrorCode, string>> = {
     "Con estas opciones no se puede generar una contraseña. Elige al menos un tipo de carácter y una longitud entre 8 y 128.",
   ArchivoNoEncontrado: "El archivo de la bóveda ya no está en esa ubicación. Búscalo o elige otro.",
   ArchivoLlaveNoEncontrado: "No se encontró el archivo llave. Vuelve a elegirlo.",
+  PortapapelesNoDisponible:
+    "No se pudo usar el portapapeles: otra app lo tiene ocupado. No se copió nada; espera un momento y vuelve a copiar.",
+  ErrorInterno: `La app tuvo un problema interno y no completó la acción. ${RETRY}`,
   RespuestaInvalida: `La app recibió una respuesta que no esperaba y no la usó. ${RETRY}`,
   Inesperado: `Algo falló sin una causa conocida. ${RETRY}`,
 };
