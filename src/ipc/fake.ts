@@ -136,8 +136,9 @@ function summaryOf(entry: FakeEntry) {
   return {
     id: entry.id,
     title: entry.title,
-    username: entry.username ?? "",
-    url: entry.url ?? "",
+    // `undefined` = not filled in; `null` = protected, and it travels as `null`.
+    username: entry.username === undefined ? "" : entry.username,
+    url: entry.url === undefined ? "" : entry.url,
     tags: [...(entry.tags ?? [])],
     modified: entry.modified ?? DEFAULT_MODIFIED,
   };

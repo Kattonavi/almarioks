@@ -8,6 +8,7 @@ import { RecoveryNotice } from "./RecoveryNotice";
 import { initialState, reducer, type AppState } from "./state";
 import { UnlockScreen, type UnlockKey } from "./UnlockScreen";
 import { useActivityPing } from "./useActivityPing";
+import { VaultScreen } from "./VaultScreen";
 import { WelcomeScreen } from "./WelcomeScreen";
 
 /** How often the window asks again while the core reports a derivation it did not start. */
@@ -185,10 +186,12 @@ export function VaultRoot({ client }: { readonly client: VaultClient }) {
             <p className="path">{current.vault.path}</p>
             {current.readOnly && <p>Esta bóveda está abierta en solo lectura.</p>}
             {current.recovery !== null && <RecoveryNotice recovery={current.recovery} />}
-            <p>Los grupos y las entradas llegan en la próxima versión de desarrollo.</p>
-            <button type="button" onClick={() => void lock()}>
-              Bloquear
-            </button>
+            <div className="actions">
+              <button type="button" onClick={() => void lock()}>
+                Bloquear
+              </button>
+            </div>
+            <VaultScreen key={current.vault.path} client={client} />
           </section>
         );
       default:
