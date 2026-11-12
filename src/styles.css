@@ -1,107 +1,18 @@
 /*
- * Provisional, functional styles (D11): no visual direction yet. Everything reads from these tokens so the approved
- * direction only has to change tokens and composition. System colors keep contrast in light, dark and high contrast.
+ * "Señalética": tokens by role, then the base every screen inherits. The dark theme redefines the same roles and is
+ * the only place where dark values live.
  */
-:root {
-  color-scheme: light dark;
+@import "./styles/tokens.css";
+@import "./styles/theme-dark.css" (prefers-color-scheme: dark);
+@import "./styles/base.css";
 
-  --font-body: system-ui, "Segoe UI", sans-serif;
-  --line-height: 1.5;
-  --color-text: CanvasText;
-  --color-surface: Canvas;
-  --color-muted: GrayText;
-  --color-focus: Highlight;
-  --color-error: currentColor;
-  --space-1: 0.25rem;
-  --space-2: 0.5rem;
-  --space-3: 0.75rem;
-  --space-4: 1rem;
-  --space-6: 1.5rem;
-  --space-8: 2rem;
-  --content-width: 40rem;
-  --focus-width: 3px;
-
-  font-family: var(--font-body);
-  line-height: var(--line-height);
-  color: var(--color-text);
-  background: var(--color-surface);
-}
-
-body {
-  margin: 0;
-}
-
+/* Layout of the screens that have not been composed yet: one readable column. */
 main {
   max-width: var(--content-width);
   margin: 0 auto;
   padding: var(--space-8) var(--space-6);
 }
 
-:focus-visible {
-  outline: var(--focus-width) solid var(--color-focus);
-  outline-offset: 2px;
-}
-
-.release-notes {
-  white-space: pre-line;
-}
-
-.actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-3);
-}
-
-button,
-input {
-  font: inherit;
-}
-
-button {
-  padding: var(--space-1) var(--space-4);
-}
-
-input {
-  padding: var(--space-1) var(--space-2);
-}
-
-fieldset {
-  display: grid;
-  gap: var(--space-4);
-  margin: 0;
-  padding: var(--space-4);
-}
-
-.field {
-  display: grid;
-  gap: var(--space-1);
-}
-
-.field p {
-  margin: 0;
-}
-
-/* Paths and file names are long and have no spaces: let them wrap instead of widening the page. */
-.path {
-  overflow-wrap: anywhere;
-  color: var(--color-muted);
-}
-
-.error {
-  color: var(--color-error);
-  font-weight: 600;
-}
-
-.error:empty {
-  margin: 0;
-}
-
-.notice {
-  border-inline-start: var(--focus-width) solid currentColor;
-  padding-inline-start: var(--space-3);
-}
-
-/* P4: three zones that stack when the window is narrow. */
 .vault {
   display: grid;
   gap: var(--space-4);
@@ -118,9 +29,9 @@ fieldset {
 }
 
 .groups {
-  list-style: none;
   margin: 0;
   padding: 0;
+  list-style: none;
 }
 
 .groups .groups {
@@ -134,7 +45,7 @@ fieldset {
 
 .groups button[aria-current="true"],
 table button[aria-current="true"] {
-  font-weight: 600;
+  font-weight: var(--weight-display);
 }
 
 .table-scroll {
@@ -153,17 +64,12 @@ td {
   overflow-wrap: anywhere;
 }
 
-button[aria-disabled="true"] {
-  color: var(--color-muted);
-}
-
 .recent {
   display: grid;
   gap: var(--space-3);
   padding-inline-start: var(--space-6);
 }
 
-/* P5 and P6: the detail of an entry and the generator. */
 .entry-fields {
   display: grid;
   grid-template-columns: max-content minmax(0, 1fr);
@@ -176,46 +82,10 @@ button[aria-disabled="true"] {
 }
 
 .entry-fields dt {
-  font-weight: 600;
+  font-weight: var(--weight-strong);
 }
 
 .entry-fields dd {
   margin: 0;
   overflow-wrap: anywhere;
-}
-
-.notes {
-  white-space: pre-wrap;
-}
-
-.secret {
-  font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
-  overflow-wrap: anywhere;
-}
-
-.tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-select,
-textarea {
-  font: inherit;
-  padding: var(--space-1) var(--space-2);
-}
-
-/* P7 and confirmations: native modal dialogs. */
-dialog {
-  max-width: min(var(--content-width), 90vw);
-  padding: var(--space-6);
-  color: var(--color-text);
-  background: var(--color-surface);
-}
-
-dialog::backdrop {
-  background: rgb(0 0 0 / 40%);
 }

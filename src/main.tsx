@@ -3,6 +3,8 @@ import { createRoot } from "react-dom/client";
 
 import { App } from "./App";
 import { createTauriClient } from "./ipc/tauri";
+import "@fontsource-variable/overpass/index.css";
+import "@fontsource-variable/overpass-mono/index.css";
 import "./styles.css";
 import { VaultRoot } from "./vault/VaultRoot";
 
