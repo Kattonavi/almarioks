@@ -164,10 +164,30 @@
   grid-area: rest;
 }
 
-/* The separator belongs to the pair: it only shows when both sides have something. */
-.cell-user:not(:empty) ~ .cell-url:not(:empty)::before {
-  white-space: pre;
-  content: " · ";
+/*
+ * The separator belongs to the pair: it only shows when both sides have something. It is drawn, not typed: the
+ * middle dot of the font does not sit in the middle of its space.
+ */
+.cell-user:not(:empty) ~ .cell-url:not(:empty)::before,
+.dot-sep::before {
+  display: inline-block;
+  width: 3px;
+  height: 3px;
+  margin: 0 6px;
+  vertical-align: middle;
+  content: "";
+  background: currentcolor;
+  border-radius: var(--radius-round);
+}
+
+/* The typed dot stays in the text (it is what is read and copied); only the drawn one is seen. */
+.dot-sep {
+  font-size: 0;
+}
+
+/* Without a font size there is no middle to hang from: the dot is lifted to the middle of the small text around it. */
+.dot-sep::before {
+  vertical-align: 3px;
 }
 
 /*

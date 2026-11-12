@@ -126,6 +126,11 @@
   margin: 0;
 }
 
+/* With the vault open the strip takes no height: the version and the development note are in Settings. */
+.app:has(.open-vault) .app-status {
+  display: none;
+}
+
 .app-status-note {
   display: inline-flex;
   align-items: center;

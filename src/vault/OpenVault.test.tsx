@@ -1,12 +1,19 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { createClient } from "../ipc/client";
 import { ERROR_MESSAGES } from "../ipc/errors";
 import { createFakeBackend, SAMPLE_ENTRIES, SAMPLE_GROUPS, type FakeOptions } from "../ipc/fake";
+import { savedAgo } from "./OpenVault";
 import { VaultRoot } from "./VaultRoot";
 
-afterEach(cleanup);
+/** What the foot of the rail says about the disk. */
+const saveState = () => document.querySelector(".save-state")?.textContent ?? "";
+
+afterEach(() => {
+  cleanup();
+  vi.useRealTimers();
+});
 
 const PATH = "D:/bovedas/cuentas.kdbx";
 const NEW_PATH = "D:/bovedas/cuentas-4.kdbx";
@@ -54,13 +61,49 @@ async function unlockAgain() {
 }
 
 describe("P4 Bóveda — guardado", () => {
+  it("RF-89: en reposo al abrir dice «Guardado», y tras un guardado, hace cuánto: «hace un momento», «hace N min», «hace N h»", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const backend = await setup();
+    expect(saveState()).toBe("Guardado");
+    expect(document.querySelector(".save-state")?.getAttribute("data-state")).toBe("idle");
+
+    emitSave(backend, "saved");
+    expect(saveState()).toBe("Guardado hace un momento");
+    // The time is for the eye: what assistive technology hears is "Guardado", once.
+    const ago = document.querySelector(".save-state [aria-hidden]");
+    expect(ago?.textContent).toBe(" hace un momento");
+    expect(ago?.getAttribute("aria-hidden")).toBe("true");
+
+    await act(() => vi.advanceTimersByTimeAsync(130_000));
+    expect(saveState()).toBe("Guardado hace 2 min");
+
+    // Another save starts the count again.
+    emitSave(backend, "saving");
+    expect(saveState()).toBe("Guardando…");
+    emitSave(backend, "saved");
+    expect(saveState()).toBe("Guardado hace un momento");
+    vi.useRealTimers();
+
+    expect(savedAgo(0, 59_999)).toBe("hace un momento");
+    expect(savedAgo(0, 60_000)).toBe("hace 1 min");
+    expect(savedAgo(0, 59 * 60_000)).toBe("hace 59 min");
+    expect(savedAgo(0, 3 * 3_600_000 + 5)).toBe("hace 3 h");
+    // A clock that went back never shows a negative time.
+    expect(savedAgo(10_000, 0)).toBe("hace un momento");
+  });
+
+  it("RF-89: RF-14: una bóveda de solo lectura no dice «Guardado»: nunca guarda", async () => {
+    await setup({ status: { ...OPEN, read_only: true } });
+    expect(saveState()).toBe("");
+  });
+
   it("RF-89: carga — `saving` muestra «Guardando…» y `saved` lo cambia por «Guardado.» sin modales", async () => {
     const backend = await setup();
 
     emitSave(backend, "saving");
     expect(screen.getByText("Guardando…")).toBeDefined();
     emitSave(backend, "saved");
-    expect(screen.getByText("Guardado.")).toBeDefined();
+    expect(saveState()).toBe("Guardado hace un momento");
     expect(screen.queryByText("Guardando…")).toBeNull();
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(screen.queryByRole("alert", { name: failureTitle })).toBeNull();
@@ -75,7 +118,9 @@ describe("P4 Bóveda — guardado", () => {
     expect(alert?.textContent).toMatch(/ciérrala y\s+reintenta/);
 
     fireEvent.click(screen.getByRole("button", { name: "Reintentar el guardado" }));
-    expect(await screen.findByText("Guardado.")).toBeDefined();
+    await waitFor(() => {
+      expect(saveState()).toBe("Guardado hace un momento");
+    });
     expect(backend.count("vault_retry_save")).toBe(1);
     expect(screen.queryByRole("heading", { name: failureTitle })).toBeNull();
     // The button that had focus went away with the notice: focus is on the vault title, not lost.
@@ -109,7 +154,9 @@ describe("P4 Bóveda — guardado", () => {
     expect(screen.getByRole("heading", { name: failureTitle })).toBeDefined();
 
     fireEvent.click(screen.getByRole("button", { name: "Guardar en otro lugar…" }));
-    expect(await screen.findByText("Guardado.")).toBeDefined();
+    await waitFor(() => {
+      expect(saveState()).toBe("Guardado hace un momento");
+    });
     expect(backend.calls.filter((call) => call.command === "vault_save_as")).toEqual([
       { command: "vault_save_as", args: { path: NEW_PATH } },
     ]);

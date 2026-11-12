@@ -669,8 +669,9 @@ export function EntryPanel({
         Creada el{" "}
         <time dateTime={entry.created} title={formatDate(entry.created)}>
           {formatDay(entry.created)}
-        </time>{" "}
-        · Modificada el{" "}
+        </time>
+        <span className="dot-sep"> · </span>
+        Modificada el{" "}
         <time dateTime={entry.modified} title={formatDate(entry.modified)}>
           {formatDay(entry.modified)}
         </time>
