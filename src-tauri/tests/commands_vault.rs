@@ -277,6 +277,10 @@ fn rf_76_no_command_and_no_event_hands_a_protected_value_to_the_window() {
     assert_eq!(find_group(&tree, "Trabajo").unwrap()["entry_count"], 2);
     let list = sweep.ok("entry_list", Some(json!({ "group_id": vault.work })));
     assert_eq!(list.as_array().unwrap().len(), 2);
+    // RF-105: both have a password; the list learns that and nothing more (the sweep looked for the canary).
+    for entry in list.as_array().unwrap() {
+        assert_eq!(entry["has_password"], true);
+    }
     let bank = sweep.ok("entry_get", Some(json!({ "id": vault.bank })));
     assert_eq!(bank["title"], "Banco");
     assert_eq!(bank["username"], "ana");
@@ -304,6 +308,7 @@ fn rf_76_no_command_and_no_event_hands_a_protected_value_to_the_window() {
     let hits = sweep.ok("search", Some(json!({ "query": "banco" })));
     assert_eq!(hits.as_array().unwrap().len(), 1);
     assert_eq!(hits[0]["group_path"], json!(["Canario", "Trabajo"]));
+    assert_eq!(hits[0]["has_password"], true);
     // RF-61: a protected field is never searched.
     assert_eq!(
         sweep.ok("search", Some(json!({ "query": CANARY }))),
@@ -494,6 +499,114 @@ fn rf_76_no_command_and_no_event_hands_a_protected_value_to_the_window() {
             );
         }
     }
+}
+
+// ---------- RF-105: the list says whether there is a password, never the password ----------
+
+/// The summaries `entry_list` answers for a group.
+fn listed(rig: &Rig, group: &str) -> Vec<Value> {
+    let list = rig
+        .args("entry_list", json!({ "group_id": group }))
+        .unwrap();
+    assert!(
+        !list.to_string().contains(CANARY),
+        "`entry_list` answered a protected value (RF-105)"
+    );
+    list.as_array().unwrap().clone()
+}
+
+fn titled<'a>(summaries: &'a [Value], title: &str) -> &'a Value {
+    summaries
+        .iter()
+        .find(|summary| summary["title"] == title)
+        .unwrap_or_else(|| panic!("no entry titled {title}"))
+}
+
+#[test]
+#[allow(clippy::too_many_lines)]
+fn rf_105_entry_list_and_search_say_whether_there_is_a_password_and_never_the_password() {
+    let rig = Rig::new("rf105-has-password");
+    let vault = rig.open_canary_vault();
+
+    // The canary vault: both entries of "Trabajo" have a password that holds the canary.
+    let work = listed(&rig, &vault.work);
+    assert_eq!(work.len(), 2);
+    for summary in &work {
+        assert_eq!(summary["has_password"], true);
+        // Exactly these keys: nothing else about the password travels (no length, no strength, no mask).
+        assert_eq!(
+            summary.as_object().unwrap().keys().collect::<Vec<_>>(),
+            [
+                "has_password",
+                "id",
+                "modified",
+                "tags",
+                "title",
+                "url",
+                "username"
+            ]
+        );
+    }
+
+    // Entries made here: without a password, and with two passwords of different lengths.
+    let empty = rig
+        .args("entry_create", new_entry(&vault.root, "rf105 sin", ""))
+        .unwrap();
+    assert_eq!(empty["has_password"], false);
+    assert_eq!(empty["protected_fields"], json!([]));
+    let short = format!("{CANARY}-a");
+    let long = format!("{CANARY}-{}", "b".repeat(200));
+    for (title, password) in [("rf105 corta", &short), ("rf105 larga", &long)] {
+        let made = rig
+            .args("entry_create", new_entry(&vault.root, title, password))
+            .unwrap();
+        assert_eq!(made["has_password"], true);
+        assert!(!made.to_string().contains(CANARY));
+    }
+
+    let root = listed(&rig, &vault.root);
+    assert_eq!(titled(&root, "rf105 sin")["has_password"], false);
+    assert_eq!(titled(&root, "rf105 corta")["has_password"], true);
+    assert_eq!(titled(&root, "rf105 larga")["has_password"], true);
+    // The two that differ only in their passwords are told apart by nothing but id, title and time.
+    let comparable = |title: &str| {
+        let mut summary = titled(&root, title).clone();
+        for key in ["id", "title", "modified"] {
+            summary.as_object_mut().unwrap().remove(key);
+        }
+        summary
+    };
+    assert_eq!(comparable("rf105 corta"), comparable("rf105 larga"));
+
+    // The same summary travels in every search result.
+    let hits = rig.args("search", json!({ "query": "rf105" })).unwrap();
+    assert!(!hits.to_string().contains(CANARY));
+    let hits = hits.as_array().unwrap().clone();
+    assert_eq!(hits.len(), 3);
+    assert_eq!(titled(&hits, "rf105 sin")["has_password"], false);
+    assert_eq!(titled(&hits, "rf105 corta")["has_password"], true);
+    assert_eq!(titled(&hits, "rf105 larga")["has_password"], true);
+    let bank = rig.args("search", json!({ "query": "banco" })).unwrap();
+    assert_eq!(bank[0]["has_password"], true);
+
+    // Giving the empty entry a password turns it to yes; the answer still does not carry it.
+    let id = titled(&root, "rf105 sin")["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let edited = rig
+        .args(
+            "entry_update",
+            json!({ "id": id, "password": format!("{CANARY}-nueva") }),
+        )
+        .unwrap();
+    assert_eq!(edited["has_password"], true);
+    assert!(!edited.to_string().contains(CANARY));
+    let root = listed(&rig, &vault.root);
+    assert_eq!(titled(&root, "rf105 sin")["has_password"], true);
+    let got = rig.args("entry_get", json!({ "id": id })).unwrap();
+    assert_eq!(got["has_password"], true);
+    assert!(!got.to_string().contains(CANARY));
 }
 
 // ---------- RF-90: copy and lock, one at a time ----------

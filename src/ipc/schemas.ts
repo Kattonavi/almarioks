@@ -176,12 +176,32 @@ const entrySummaryShape = {
   id,
   title: maybeProtected,
   username: maybeProtected,
+  /**
+   * RF-105: whether the entry has a password (the field exists and is not empty). Only yes or no: the value, its
+   * length or anything else taken from it never travels in a summary.
+   */
+  has_password: z.boolean(),
   url: maybeProtected,
   tags: z.array(z.string()),
   modified: timestamp,
 };
 
-export const entrySummarySchema = z.object(entrySummaryShape);
+const entrySummaryWire = z.object(entrySummaryShape);
+
+/** The summary as the window uses it: the same fields, with `has_password` as `hasPassword`. */
+function toEntrySummary(wire: z.output<typeof entrySummaryWire>) {
+  return {
+    id: wire.id,
+    title: wire.title,
+    username: wire.username,
+    hasPassword: wire.has_password,
+    url: wire.url,
+    tags: wire.tags,
+    modified: wire.modified,
+  };
+}
+
+export const entrySummarySchema = entrySummaryWire.transform(toEntrySummary);
 export type EntrySummary = z.output<typeof entrySummarySchema>;
 export const entryListSchema = z.array(entrySummarySchema);
 
@@ -198,12 +218,7 @@ export const entryDetailSchema = z
     created: timestamp,
   })
   .transform((wire) => ({
-    id: wire.id,
-    title: wire.title,
-    username: wire.username,
-    url: wire.url,
-    tags: wire.tags,
-    modified: wire.modified,
+    ...toEntrySummary(wire),
     groupId: wire.group_id,
     notes: wire.notes,
     protectedFields: wire.protected_fields,
@@ -222,7 +237,7 @@ export type EntryDetail = z.output<typeof entryDetailSchema>;
 export const searchResultsSchema = z.array(
   z
     .object({ ...entrySummaryShape, group_path: z.array(z.string()) })
-    .transform(({ group_path, ...summary }) => ({ ...summary, groupPath: group_path })),
+    .transform((wire) => ({ ...toEntrySummary(wire), groupPath: wire.group_path })),
 );
 export type SearchResult = z.output<typeof searchResultsSchema>[number];
 

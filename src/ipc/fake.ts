@@ -330,6 +330,8 @@ function summaryOf(entry: StoredEntry) {
     id: entry.id,
     title: entry.title,
     username: entry.username,
+    // RF-105: yes or no, never the password itself.
+    has_password: entry.password !== "",
     url: entry.url,
     tags: [...entry.tags],
     modified: entry.modified,
