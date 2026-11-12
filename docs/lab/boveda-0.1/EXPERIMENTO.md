@@ -278,3 +278,40 @@ llamada, pero es FFI con `unsafe` y el núcleo lo prohíbe: se resolvió con `st
 No probado: unidades de red, FAT/exFAT y carpetas sincronizadas (OneDrive, Dropbox).
 
 ---
+
+## P5. Fortaleza y tipos que se borran (RF-7, RF-70; ADR-0002)
+
+**Fuente:** https://docs.rs/zxcvbn/3.1.1/zxcvbn/ (MIT, `cargo info zxcvbn@3.1.1`), https://docs.rs/secrecy/0.10.3/secrecy/
+y https://docs.rs/zeroize/1.9.1/zeroize/. Hecho por el hilo principal.
+
+### Respuestas
+- `zxcvbn::zxcvbn(texto, &[])` devuelve `score()` de 0 a 4, convertible con `u8::from`. Sin `default-features` no trae
+  dependencias de tiempo ni de WebAssembly. No es criptografía: es un estimador.
+- Los umbrales son generosos: una contraseña de 11 caracteres con sustituciones conocidas ya da 4. El aviso de RF-7
+  ("menor que 3") solo saltará con contraseñas muy malas. Se deja el puntaje tal cual, como dice la spec, y se anota
+  para el dueño: si quiere un aviso más exigente, se cambia el umbral, no el estimador.
+- `secrecy::SecretString` no imprime su contenido con `Debug` (`[REDACTED]`) y se borra al soltarse; `Zeroizing<T>`
+  hace lo mismo con búferes. Un `String` que llega por `invoke` se envuelve de inmediato en `SecretString`.
+
+### Salida real (`cargo run --release --bin p5_secrets`)
+```
+== P5 zxcvbn: puntaje 0-4 ==
+  ""                               -> score 0 (log10 intentos -inf)
+  "123456"                         -> score 0 (log10 intentos 0.3)
+  "password"                       -> score 0 (log10 intentos 0.5)
+  "Tr0ub4dor&3"                    -> score 4 (log10 intentos 11.0)
+  "correct horse battery staple"   -> score 4 (log10 intentos 19.3)
+  "lab-Maestra-2026"               -> score 4 (log10 intentos 14.0)
+  "ñandú-€-2026"                   -> score 4 (log10 intentos 10.0)
+  "kV7#pQ2!xW9@mL4$zR8&"           -> score 4 (log10 intentos 19.3)
+== P5 secrecy / zeroize ==
+  Debug de SecretString: SecretBox<str>([REDACTED])
+  largo expuesto a proposito: 16
+  Zeroizing<Vec<u8>> largo 8 (se borra al soltarse)
+```
+
+---
+
+## Pendiente de este laboratorio
+P1 (portapapeles: `src/bin/p1_clipboard.rs` escrito, sin correr ni documentar), P2 (sesión de Windows) y P6 (Tauri:
+comandos asíncronos, instancia única, diálogos, recarga de la webview). Se retoman antes de las tareas T13 a T16.
