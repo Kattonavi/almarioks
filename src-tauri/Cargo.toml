@@ -45,7 +45,7 @@ tauri-plugin-updater = "~2.14.1"
 # RF-81: one instance per user session. Registered FIRST in `lib.rs`.
 tauri-plugin-single-instance = "~2.5.5"
 
-# Clipboard (`src/clipboard/ffi.rs`, the only module with `unsafe`): owner window, exclusion formats and
+# Clipboard (`src/clipboard/ffi.rs`, one of the two modules with `unsafe`): owner window, exclusion formats and
 # clear-by-sequence-number, as measured in docs/lab/boveda-0.1 (P1). MIT OR Apache-2.0.
 # `Win32_System_Com` is only for the test probe that enters a single-threaded apartment.
 [target.'cfg(windows)'.dependencies]
