@@ -47,7 +47,7 @@ dependencies = [
 name = "almarioks"
 version = "0.0.2"
 dependencies = [
- "base64 0.22.1",
+ "base64 0.23.1",
  "minisign",
  "serde_json",
  "tauri",
@@ -66,7 +66,7 @@ dependencies = [
 name = "almarioks-release-verify"
 version = "0.0.2"
 dependencies = [
- "base64 0.22.1",
+ "base64 0.23.1",
  "minisign",
  "minisign-verify",
  "serde_json",
@@ -2179,9 +2179,9 @@ checksum = "d5848f5a9e8117cf94f2f90faac24a87ff81600ff8628c1e3deaab572e76bfa1"
 
 [[package]]
 name = "minisign"
-version = "0.9.1"
+version = "0.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "aefd422a7a8b5efced01cd7cdf3771e62ebecbc90e3d27695002d3af6af94586"
+checksum = "3062dbbf4d8f57899e2252804f7512a4fd89c8211c58fa6c786d38794a0c809d"
 dependencies = [
  "ct-codecs",
  "getrandom 0.4.3",
