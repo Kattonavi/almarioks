@@ -117,6 +117,8 @@
 
 .groups {
   display: grid;
+  /* One column that never grows past the rail: a long name is cut with an ellipsis instead of pushing the row out. */
+  grid-template-columns: minmax(0, 1fr);
   gap: 2px;
   margin: 0;
   padding: 0;
@@ -209,6 +211,11 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* The recycle bin: its label is drawn here, so it adds no text to the button (the real name stays in it). */
+.rail-name[data-label]::before {
+  content: attr(data-label);
 }
 
 .rail-count {

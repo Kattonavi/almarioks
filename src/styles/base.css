@@ -561,3 +561,12 @@ dialog:has(.settings) {
   max-width: 20rem;
   margin-bottom: var(--space-3);
 }
+
+/* Settings: the file of the open vault, a read-only row (the rail shows no paths). */
+.settings-vault {
+  margin: 0 0 var(--space-4);
+}
+
+.settings-vault dd {
+  margin: 0;
+}

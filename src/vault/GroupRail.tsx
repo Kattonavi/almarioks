@@ -165,7 +165,18 @@ function GroupList({ nodes, depth, bin, context }: GroupListProps) {
                   The text of the button stays "Nombre · N entradas" (its accessible name): the parts that are not
                   drawn are hidden, and every space is its own text node so it is not trimmed out of the name.
                 */}
-                <span className="rail-name">{name}</span>
+                {isBin ? (
+                  <>
+                    {/*
+                      The rail says "Papelera" whatever the vault calls its recycle bin (another app names it). It is
+                      drawn by CSS, so the text of the button, and its `title`, keep the real name.
+                    */}
+                    <span className="rail-name" data-label="Papelera" aria-hidden="true" />
+                    <span className="sr-only">{name}</span>
+                  </>
+                ) : (
+                  <span className="rail-name">{name}</span>
+                )}
                 {isBin && " "}
                 {isBin && <span className="sr-only">(papelera)</span>} <span className="sr-only">·</span>{" "}
                 <span className="rail-count">{node.entryCount}</span>{" "}
