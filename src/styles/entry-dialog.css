@@ -1,0 +1,333 @@
+/*
+ * The entry dialog, "Nueva entrada" and "Editar entrada" (RF-100, RF-101): a sheet whose head and foot stay still
+ * while its body scrolls. Colours are the roles and measures the tokens; the approved drawing is
+ * docs/diseno/prototipo-0.1/Main.dc.html.
+ */
+dialog[data-layout="form"] {
+  width: min(var(--dialog-w), calc(100vw - var(--space-6) * 2));
+  max-height: calc(100vh - var(--space-6) * 2);
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  border-radius: var(--radius-dialog);
+}
+
+/* Only while open: a closed dialog stays `display: none`. */
+dialog[data-layout="form"][open] {
+  display: flex;
+  flex-direction: column;
+}
+
+.dialog-head {
+  display: flex;
+  flex: none;
+  gap: var(--space-3);
+  align-items: center;
+  padding: var(--space-4) var(--space-3) var(--space-3) var(--space-6);
+  border-bottom: 1px solid var(--rule);
+}
+
+.dialog-head > div {
+  flex: 1;
+  min-width: 0;
+}
+
+.dialog-head h2 {
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-size: var(--text-xl);
+  font-weight: var(--weight-display);
+  line-height: var(--leading);
+}
+
+.dialog-lead {
+  display: flex;
+  gap: calc(var(--space-1) * 1.5);
+  align-items: center;
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-size: var(--text-sm);
+  color: var(--ink-muted);
+}
+
+.dialog-dot {
+  flex: none;
+  width: var(--space-2);
+  height: var(--space-2);
+  background: var(--line, var(--line-neutral));
+  border-radius: var(--radius-round);
+}
+
+.dialog-close {
+  flex: none;
+  width: var(--control-h);
+  height: var(--control-h);
+  padding: 0;
+  border-color: transparent;
+}
+
+/* ---- The form: the body scrolls, the foot does not. ---- */
+.entry-dialog {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.entry-dialog-body {
+  flex: 1;
+  min-height: 0;
+  padding: var(--space-5) var(--space-6);
+  overflow-y: auto;
+}
+
+.entry-dialog-fields {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+  padding: 0;
+  border: 0;
+}
+
+.entry-field {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--space-1) * 1.5);
+  min-width: 0;
+}
+
+.entry-field > label {
+  font-size: var(--text-control);
+  font-weight: var(--weight-strong);
+}
+
+.entry-field > :is(input, textarea) {
+  width: 100%;
+  background: var(--ground);
+}
+
+.entry-field > input {
+  height: var(--control-h);
+  padding-block: 0;
+}
+
+/* Notes and tags: two lines that grow with what is written. */
+.entry-field > textarea {
+  min-height: calc(2lh + var(--space-5) + 2px);
+  max-height: 12lh;
+  padding: calc(var(--space-2) + 2px) var(--space-3);
+  resize: vertical;
+  field-sizing: content;
+}
+
+.entry-field p {
+  margin: 0;
+}
+
+.field-error {
+  font-size: var(--text-sm);
+  color: var(--danger);
+}
+
+.field-error:empty {
+  display: none;
+}
+
+.entry-more {
+  display: flex;
+  flex-direction: column;
+}
+
+/* A text button that opens or closes what is right under it. */
+.link-button {
+  align-self: flex-start;
+  min-height: var(--control-h);
+  padding: 0;
+  font-size: var(--text-control);
+  text-decoration: underline;
+  border: 0;
+}
+
+.link-button:hover:not(:disabled) {
+  text-decoration-thickness: 2px;
+  background: transparent;
+}
+
+.entry-dialog-foot {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  justify-content: flex-end;
+  padding: var(--space-3) var(--space-6) var(--space-5);
+}
+
+.entry-dialog-foot > .error {
+  flex: 1 1 100%;
+  margin: 0;
+}
+
+.entry-dialog-foot > .error:empty {
+  display: none;
+}
+
+.entry-dialog-foot > button {
+  padding-inline: var(--space-4);
+}
+
+.entry-dialog-foot > .btn-primary {
+  padding-inline: calc(var(--space-4) + 2px);
+}
+
+/* Saving: the main action stays in place and says so; it takes no second order. */
+.entry-dialog-foot > .btn-primary[aria-disabled="true"] {
+  color: var(--on-panel);
+  cursor: progress;
+  opacity: 0.7;
+}
+
+/* ---- Password: the field, the eye and "Generar" share one box. ---- */
+.password-box {
+  display: flex;
+  align-items: center;
+  background: var(--ground);
+  border: 1px solid var(--control-border);
+  border-radius: var(--radius);
+}
+
+.password-box:hover:not(:has(input:disabled)) {
+  border-color: var(--ink);
+}
+
+.password-box:has(input[aria-invalid="true"]) {
+  border-color: var(--danger);
+  box-shadow: inset 0 0 0 1px var(--danger);
+}
+
+.password-box:has(input:focus-visible) {
+  outline: var(--focus-width) solid var(--focus);
+  outline-offset: 2px;
+}
+
+.password-box > input {
+  flex: 1;
+  min-width: 0;
+  height: var(--control-h);
+  padding-block: 0;
+  font-family: var(--font-mono);
+  background: transparent;
+  border: 0;
+  outline: 0;
+  box-shadow: none;
+}
+
+.password-eye {
+  flex: none;
+  width: var(--control-h);
+  height: var(--control-h);
+  padding: 0;
+  border: 0;
+}
+
+.password-generate {
+  flex: none;
+  height: var(--control-h-inline);
+  min-height: var(--control-h-inline);
+  margin: 0 var(--space-1);
+  white-space: nowrap;
+  border: 0;
+}
+
+.password-generate > .icon {
+  width: var(--space-4);
+  height: var(--space-4);
+}
+
+.strength-row {
+  display: flex;
+  gap: calc(var(--space-2) + 2px);
+  align-items: center;
+  font-size: var(--text-sm);
+  color: var(--ink-muted);
+}
+
+.strength-bar {
+  display: flex;
+  flex: 0 0 120px;
+  height: 6px;
+  overflow: hidden;
+  background: var(--rule);
+  border-radius: 3px;
+}
+
+.strength-bar > span {
+  width: 20%;
+  background: var(--ok);
+}
+
+.strength-bar[data-score="1"] > span {
+  width: 40%;
+}
+
+.strength-bar[data-score="2"] > span {
+  width: 60%;
+}
+
+.strength-bar[data-score="3"] > span {
+  width: 80%;
+}
+
+.strength-bar[data-score="4"] > span {
+  width: 100%;
+}
+
+/* ---- Generator options, folded under the field. ---- */
+.generator-options {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: calc(var(--space-3) + 2px) var(--space-4);
+  font-size: var(--text-control);
+  background: var(--ground);
+  border-radius: var(--radius-card);
+}
+
+.generator-length {
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+}
+
+.generator-length > input {
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  background: transparent;
+  border: 0;
+}
+
+.generator-length > output {
+  flex: 0 0 3ch;
+  font-family: var(--font-mono);
+  text-align: right;
+}
+
+.generator-kinds {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-5);
+}
+
+.generator-kinds > label {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+  min-height: var(--control-h);
+  cursor: pointer;
+}
+
+.generator-kinds input {
+  flex: none;
+  margin: 0;
+}

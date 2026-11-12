@@ -7,6 +7,7 @@ import { strengthLabel } from "./format";
 
 export const DEFAULT_LENGTH = 20;
 export const MIN_LENGTH = 8;
+// [por confirmar por el dueño: el prototipo muestra 64]
 export const MAX_LENGTH = 128;
 
 type Kind = "lower" | "upper" | "digits" | "symbols";
