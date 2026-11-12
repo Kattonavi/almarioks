@@ -72,13 +72,15 @@ interface SettingsPanelProps {
   readonly client: SettingsClient;
   /** The app version; Tauri's by default. */
   readonly readVersion?: () => Promise<string>;
+  /** Both settings were stored: e.g. the open vault asks again how long is left before it locks (RF-29). */
+  readonly onSaved?: () => void;
 }
 
 /**
  * P8 (RF-29, RF-73, RF-82): the two settings, the update panel (P9), the version and the licence. It holds nothing of
  * the vault, so it is the same with the vault open, locked or closed. Few things, finished.
  */
-export function SettingsPanel({ client, readVersion = getVersion }: SettingsPanelProps) {
+export function SettingsPanel({ client, readVersion = getVersion, onSaved }: SettingsPanelProps) {
   const [load, setLoad] = useState<LoadState>({ kind: "loading" });
   const [attempt, setAttempt] = useState(0);
   const [autoLock, setAutoLock] = useState<AutoLockMinutes>(5);
@@ -134,6 +136,7 @@ export function SettingsPanel({ client, readVersion = getVersion }: SettingsPane
       setAutoLock(result.value.autoLockMinutes);
       setClipboard(String(result.value.clipboardSeconds));
       setSave({ kind: "saved" });
+      onSaved?.();
       return;
     }
     // Both values passed the window's checks: an `ArgumentoInvalido` belongs to the control changed last.

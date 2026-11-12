@@ -17,24 +17,37 @@ import { WelcomeScreen } from "./WelcomeScreen";
 interface OpenInfo {
   readonly weakKdf: boolean;
   readonly savePending: boolean;
-  readonly locksInSeconds: number | undefined;
+  /** When the vault locks by itself (ms since the epoch), anchored to the moment the last status arrived (RF-29). */
+  readonly lockDeadline: number | undefined;
   readonly generation: number;
 }
 
 function openInfoReducer(
   current: OpenInfo,
-  action: { readonly status: Extract<VaultStatus, { state: "open" }>; readonly remount: boolean },
+  action: {
+    readonly status: Extract<VaultStatus, { state: "open" }>;
+    readonly remount: boolean;
+    /** `Date.now()` when the answer arrived: taken by the caller, so the reducer stays pure. */
+    readonly receivedAt: number;
+  },
 ): OpenInfo {
+  const seconds = action.status.locksInSeconds;
   return {
     weakKdf: action.status.weakKdf,
     savePending: action.status.savePending,
-    locksInSeconds: action.status.locksInSeconds,
+    lockDeadline: seconds === undefined ? undefined : action.receivedAt + seconds * 1000,
     generation: current.generation + (action.remount ? 1 : 0),
   };
 }
 
 /** How often the window asks again while the core reports a derivation it did not start. */
 const DERIVING_POLL_MS = 250;
+
+/**
+ * RF-29: how often the open vault asks the core how long is left before it locks. `vault_status` is cheap and is not
+ * activity: asking does not push the lock back.
+ */
+export const STATUS_POLL_MS = 5000;
 
 /**
  * Owns the app state machine. Fed by `vault_status` and by the core's `vault-locked` event. Every async answer is
@@ -49,7 +62,7 @@ export function VaultRoot({ client }: { readonly client: VaultClient }) {
   const [openInfo, setOpenInfo] = useReducer(openInfoReducer, {
     weakKdf: false,
     savePending: false,
-    locksInSeconds: undefined,
+    lockDeadline: undefined,
     generation: 0,
   });
   /** RF-17: the weak-protection notice closed "for this session" (until the app closes), per vault file. */
@@ -57,7 +70,7 @@ export function VaultRoot({ client }: { readonly client: VaultClient }) {
 
   const applyStatus = useCallback((status: VaultStatus, remount = false) => {
     dispatch({ type: "status", status });
-    if (status.state === "open") setOpenInfo({ status, remount });
+    if (status.state === "open") setOpenInfo({ status, remount, receivedAt: Date.now() });
   }, []);
 
   const refresh = useCallback(async () => {
@@ -130,6 +143,27 @@ export function VaultRoot({ client }: { readonly client: VaultClient }) {
     };
   }, [state, refresh]);
 
+  /**
+   * RF-29: the countdown follows the core. A failed or late answer changes nothing: a passing hiccup must not take
+   * the vault (and a half-filled form) off the screen, and an answer from before a lock is dropped (RF-32).
+   */
+  const pollStatus = useCallback(async () => {
+    const started = epoch.current;
+    const result = await client.vaultStatus();
+    if (started !== epoch.current || !result.ok) return;
+    if (result.value.state === "open") setOpenInfo({ status: result.value, remount: false, receivedAt: Date.now() });
+    else applyStatus(result.value);
+  }, [client, applyStatus]);
+
+  const isOpen = state.kind === "open";
+  useEffect(() => {
+    if (!isOpen) return;
+    const timer = setInterval(() => void pollStatus(), STATUS_POLL_MS);
+    return () => {
+      clearInterval(timer);
+    };
+  }, [isOpen, pollStatus]);
+
   const ping = useCallback(() => {
     void client.activity();
   }, [client]);
@@ -185,7 +219,13 @@ export function VaultRoot({ client }: { readonly client: VaultClient }) {
             setSettingsOpen(false);
           }}
         >
-          <SettingsPanel client={client} />
+          <SettingsPanel
+            client={client}
+            onSaved={() => {
+              // A new lock time starts counting now: show it without waiting for the next poll.
+              if (isOpen) void pollStatus();
+            }}
+          />
           <div className="actions">
             <button
               type="button"
@@ -290,7 +330,7 @@ export function VaultRoot({ client }: { readonly client: VaultClient }) {
             readOnly={current.readOnly}
             weakKdf={openInfo.weakKdf}
             savePending={openInfo.savePending}
-            locksInSeconds={openInfo.locksInSeconds}
+            lockDeadline={openInfo.lockDeadline}
             recovery={current.recovery}
             generation={openInfo.generation}
             weakDismissed={weakDismissed.has(path)}

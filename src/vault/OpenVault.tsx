@@ -74,8 +74,11 @@ interface OpenVaultProps {
   readonly weakKdf: boolean;
   /** `save_pending` of the last status: the same notice as a failed save (RF-23). */
   readonly savePending: boolean;
-  /** Seconds until the vault locks by itself, when the status brings them: shown as reported, never guessed. */
-  readonly locksInSeconds?: number | undefined;
+  /**
+   * When the vault locks by itself (ms since the epoch), from the `locks_in_seconds` of the last status: counted down
+   * here between polls, never guessed. Absent when the status does not bring it: then nothing is shown.
+   */
+  readonly lockDeadline?: number | undefined;
   readonly recovery: Recovery | null;
   /** Bumped after a reload so the vault screens drop what they had and ask the core again. */
   readonly generation: number;
@@ -336,11 +339,9 @@ export function OpenVault(props: OpenVaultProps) {
         readOnly={readOnly}
         barEnd={
           <>
-            {props.locksInSeconds !== undefined && (
-              <p className="lock-countdown">
-                <span className="label">Se bloquea en</span>{" "}
-                <span className="mono num">{formatCountdown(props.locksInSeconds)}</span>
-              </p>
+            {/* Keyed by the deadline: a new status starts the count from its own moment. */}
+            {props.lockDeadline !== undefined && (
+              <LockCountdown key={props.lockDeadline} deadline={props.lockDeadline} />
             )}
             <button type="button" className="btn-primary" onClick={props.onLock}>
               <LockIcon />
@@ -394,6 +395,25 @@ export function OpenVault(props: OpenVaultProps) {
         </Dialog>
       )}
     </section>
+  );
+}
+
+/** RF-29: a leaf of its own, so only this line repaints every second. It never shows less than zero. */
+function LockCountdown({ deadline }: { readonly deadline: number }) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setNow(Date.now());
+    }, 1000);
+    return () => {
+      clearInterval(timer);
+    };
+  }, []);
+  const seconds = Math.max(0, Math.ceil((deadline - now) / 1000));
+  return (
+    <p className="lock-countdown">
+      <span className="label">Se bloquea en</span> <span className="mono num">{formatCountdown(seconds)}</span>
+    </p>
   );
 }
 

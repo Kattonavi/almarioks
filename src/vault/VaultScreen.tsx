@@ -273,7 +273,7 @@ export function VaultScreen({ client, readOnly = false, barEnd, railHead, banner
             Atajo: Ctrl+F o Ctrl+K. Escape limpia la búsqueda.
           </p>
         </div>
-        {/* The lock countdown belongs here once the core reports the time left: today no status carries it. */}
+        {/* The lock countdown, the lock button and the settings come from whoever owns the open vault. */}
         <div className="vault-bar-end">{barEnd}</div>
       </div>
 

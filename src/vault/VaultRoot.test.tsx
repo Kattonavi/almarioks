@@ -1,12 +1,16 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { createClient } from "../ipc/client";
+import { createClient, type Transport } from "../ipc/client";
 import { ERROR_MESSAGES } from "../ipc/errors";
 import { createFakeBackend, type FakeOptions } from "../ipc/fake";
-import { VaultRoot } from "./VaultRoot";
 
-afterEach(cleanup);
+import { STATUS_POLL_MS, VaultRoot } from "./VaultRoot";
+
+afterEach(() => {
+  cleanup();
+  vi.useRealTimers();
+});
 
 const PATH = "D:/bovedas/cuentas.kdbx";
 const KEY = "D:/llaves/cuentas.keyx";
@@ -387,5 +391,119 @@ describe("P3 Desbloquear", () => {
 
     expect(await screen.findByRole("heading", { name: "Bienvenida" })).toBeDefined();
     expect(backend.count("vault_close")).toBe(1);
+  });
+});
+
+describe("P4 Bóveda · cuenta de bloqueo", () => {
+  const OPEN = {
+    state: "open",
+    path: PATH,
+    name: "Cuentas",
+    read_only: false,
+    weak_kdf: false,
+    save_pending: false,
+    recovery: null,
+  } as const;
+
+  const countdown = () => document.querySelector(".lock-countdown .num")?.textContent ?? null;
+
+  async function advance(ms: number) {
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(ms);
+    });
+  }
+
+  it("RF-29: la cuenta «Se bloquea en» baja cada segundo y sigue al núcleo cada 5 s sin contar como actividad", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const backend = setup({ status: { ...OPEN, locks_in_seconds: 300 } });
+    await screen.findByRole("heading", { name: "Cuentas" });
+    expect(countdown()).toBe("5:00");
+
+    await advance(3000);
+    expect(countdown()).toBe("4:57");
+
+    // The core says 90 s are left (e.g. the lock time changed in another way): the next poll follows it.
+    const before = backend.count("vault_status");
+    backend.respondOnce("vault_status", { ...OPEN, locks_in_seconds: 90 });
+    await advance(STATUS_POLL_MS - 3000);
+    expect(backend.count("vault_status")).toBe(before + 1);
+    expect(countdown()).toBe("1:30");
+
+    await advance(2000);
+    expect(countdown()).toBe("1:28");
+    // Asking is not activity: the lock is never pushed back by the window itself.
+    expect(backend.count("activity")).toBe(0);
+  });
+
+  it("RF-29: nunca muestra menos de cero, y sin «locks_in_seconds» no muestra nada", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const backend = setup({ status: { ...OPEN, locks_in_seconds: 2 } });
+    await screen.findByRole("heading", { name: "Cuentas" });
+    expect(countdown()).toBe("0:02");
+    // The next poll still brings the field: answer without it before the clock runs out, then let it run out.
+    await advance(4000);
+    expect(countdown()).toBe("0:00");
+
+    backend.respondOnce("vault_status", OPEN);
+    await advance(STATUS_POLL_MS);
+    expect(countdown()).toBeNull();
+    expect(screen.queryByText("Se bloquea en")).toBeNull();
+  });
+
+  it("RF-29: tras guardar los ajustes la cuenta usa el tiempo nuevo sin esperar a la siguiente consulta", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const backend = setup({ status: { ...OPEN, locks_in_seconds: 300 } });
+    await screen.findByRole("heading", { name: "Cuentas" });
+
+    fireEvent.click(screen.getByRole("button", { name: "Ajustes y Acerca de" }));
+    const select = await screen.findByLabelText<HTMLSelectElement>(
+      "Bloquear la bóveda tras este tiempo sin usar la app",
+    );
+    fireEvent.change(select, { target: { value: "1" } });
+    backend.respondOnce("vault_status", { ...OPEN, locks_in_seconds: 60 });
+    fireEvent.click(screen.getByRole("button", { name: "Guardar ajustes" }));
+
+    await waitFor(() => {
+      expect(countdown()).toBe("1:00");
+    });
+  });
+
+  it("RF-29: RF-32: al bloquear deja de consultar y una respuesta tardía no vuelve a montar la bóveda", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const backend = createFakeBackend({ status: { ...OPEN, locks_in_seconds: 300 } });
+    let gate: Promise<void> | null = null;
+    let release: () => void = () => undefined;
+    // A poll that left before the lock and answers after it: an "open" status taken before, delivered after.
+    const transport: Transport = {
+      listen: (event, handler) => backend.transport.listen(event, handler),
+      async invoke(command, payload) {
+        const value = await backend.transport.invoke(command, payload);
+        if (command === "vault_status" && gate !== null) await gate;
+        return value;
+      },
+    };
+    render(<VaultRoot client={createClient(transport)} />);
+    await screen.findByRole("heading", { name: "Cuentas" });
+
+    gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await advance(STATUS_POLL_MS);
+    gate = null;
+    act(() => {
+      backend.lockFromCore();
+    });
+    expect(await findUnlockScreen()).toBeDefined();
+    await act(async () => {
+      release();
+      await Promise.resolve();
+    });
+    await waitForTicks();
+    expect(screen.queryByRole("heading", { name: "Cuentas" })).toBeNull();
+    expect(countdown()).toBeNull();
+
+    const afterLock = backend.count("vault_status");
+    await advance(STATUS_POLL_MS * 3);
+    expect(backend.count("vault_status")).toBe(afterLock);
   });
 });
