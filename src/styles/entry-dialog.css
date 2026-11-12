@@ -77,14 +77,19 @@ dialog[data-layout="form"][open] {
 .entry-dialog-body {
   flex: 1;
   min-height: 0;
-  padding: var(--space-5) var(--space-6);
-  overflow-y: auto;
+  padding: var(--space-5) 0 var(--space-5) var(--space-6);
+  overflow: hidden auto;
 }
 
+/*
+ * The fields take the width of the sheet minus its two margins, whether the body scrolls or not: the scrollbar
+ * lives in the right margin instead of narrowing them.
+ */
 .entry-dialog-fields {
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
+  width: min(calc(var(--dialog-w) - var(--space-6) * 2), calc(100vw - var(--space-6) * 4));
   min-width: 0;
   padding: 0;
   border: 0;
