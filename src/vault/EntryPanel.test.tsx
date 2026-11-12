@@ -82,6 +82,24 @@ async function openEntry(group: string, title: string) {
   await within(detailZone()).findByRole("button", { name: "Editar" });
 }
 
+const moreButton = () => within(detailZone()).getByRole("button", { name: "Más acciones de la entrada" });
+
+/** Opens the menu of the entry and chooses one of its orders, the way a person does with the pointer. */
+function chooseOrder(label: string) {
+  fireEvent.click(moreButton());
+  fireEvent.click(screen.getByRole("menuitem", { name: label }));
+}
+
+/** The row of the card with that label. */
+function rowOf(label: string): HTMLElement {
+  const row = within(detailZone()).getByText(label, { selector: "dt" }).closest<HTMLElement>(".card-row");
+  if (row === null) throw new Error(`missing row ${label}`);
+  return row;
+}
+
+/** The copy notice at the foot of the detail zone: the one live region that speaks of a copy. */
+const copyNotice = () => detailZone().querySelector('.toast-zone[role="status"]')?.textContent ?? "";
+
 async function startNewEntry(group = "Personal") {
   await openGroup(group);
   fireEvent.click(screen.getByRole("button", { name: "Nueva entrada" }));
@@ -128,15 +146,22 @@ describe("P5 Entrada — ver, mostrar y copiar", () => {
     expect(bodyContains("4321")).toBe(false);
   });
 
-  it("RF-43: un campo estándar protegido (null) se ve «(protegido)» y solo se muestra a pedido", async () => {
+  it("RF-43: un campo estándar protegido (null) se ve oculto tras la barra, en su propia fila, y solo se muestra a pedido", async () => {
     await setup();
 
     await openEntry("Trabajo", "VPN");
 
     const detail = detailZone();
-    expect(within(detail).getByText("(protegido)")).toBeDefined();
-    expect(within(detail).getByRole("button", { name: "Mostrar usuario" })).toBeDefined();
+    // One row for the user, not two: its value is behind the bar of fixed width, with show and copy next to it.
+    const row = rowOf("Usuario");
+    expect(within(detail).getAllByText("Usuario")).toHaveLength(1);
+    expect(row.querySelector(".secret[data-masked]")?.textContent).toBe("(oculto)");
+    expect(within(row).getByRole("button", { name: "Mostrar usuario" })).toBeDefined();
+    expect(within(row).getByRole("button", { name: "Copiar usuario" })).toBeDefined();
     expect(within(detail).queryByText("usuario-vpn")).toBeNull();
+
+    fireEvent.click(within(row).getByRole("button", { name: "Mostrar usuario" }));
+    expect((await within(row).findByText("usuario-vpn")).className).toBe("secret");
   });
 
   it("RF-44: mostrar pide solo ese campo, lo oculta con el botón y al cambiar de entrada", async () => {
@@ -179,16 +204,20 @@ describe("P5 Entrada — ver, mostrar y copiar", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Copiar contraseña" }));
 
-    expect(await screen.findByText("Copiado: se borra en 20 s")).toBeDefined();
+    expect(await screen.findByText("Contraseña copiada. Se borra del portapapeles en 20 s")).toBeDefined();
     expect(lastArgs(backend, "entry_copy")).toEqual({ id: "entry-github", field: "Password" });
     expect(backend.clipboard()).toBe(PASSWORD);
     expect(bodyContains(PASSWORD)).toBe(false);
     expect(backend.count("entry_reveal")).toBe(0);
 
     await act(() => vi.advanceTimersByTimeAsync(5_000));
-    expect(screen.getByText("Copiado: se borra en 15 s")).toBeDefined();
+    expect(screen.getByText("Contraseña copiada. Se borra del portapapeles en 15 s")).toBeDefined();
+    // One source: the notice is the only thing on screen that speaks of the copy.
+    expect(screen.getAllByText(/copiad/i)).toHaveLength(1);
+    expect(copyNotice()).toBe("Contraseña copiada. Se borra del portapapeles en 15 s");
     await act(() => vi.advanceTimersByTimeAsync(15_000));
     expect(screen.getByText(/limpió el portapapeles/)).toBeDefined();
+    expect(screen.queryByText(/Se borra del portapapeles/)).toBeNull();
   });
 
   it("RF-74: copiar el usuario también va por entry_copy; como no es protegido, no hay cuenta regresiva", async () => {
@@ -198,8 +227,9 @@ describe("P5 Entrada — ver, mostrar y copiar", () => {
     fireEvent.click(screen.getByRole("button", { name: "Copiar usuario" }));
 
     // plan.md, precision 16: `clears_in_seconds` is `null` for a field that is not protected.
-    expect(await screen.findByText(/^Usuario: copiado\. No es un dato protegido/)).toBeDefined();
-    expect(screen.queryByText(/se borra en/)).toBeNull();
+    expect(await screen.findByText("Usuario copiado")).toBeDefined();
+    expect(copyNotice()).toBe("Usuario copiado");
+    expect(screen.queryByText(/Se borra del portapapeles/)).toBeNull();
     expect(lastArgs(backend, "entry_copy")).toEqual({ id: "entry-github", field: "UserName" });
     expect(backend.clipboard()).toBe("ana@example.com");
   });
@@ -212,20 +242,21 @@ describe("P5 Entrada — ver, mostrar y copiar", () => {
     fireEvent.click(screen.getByRole("button", { name: "Copiar contraseña" }));
 
     expect(await screen.findByText(ERROR_MESSAGES.Bloqueada)).toBeDefined();
-    expect(screen.queryByText(/Copiado/)).toBeNull();
+    expect(screen.queryByText(/copiad/i)).toBeNull();
+    expect(copyNotice()).toBe("");
   });
 
   it("RF-49: abre una URL http(s) por el núcleo y explica UrlNoPermitida sin anteponer https://", async () => {
     const { backend } = await setup();
     await openEntry("Trabajo", "GitHub");
 
-    fireEvent.click(screen.getByRole("button", { name: "Abrir URL en el navegador" }));
+    fireEvent.click(screen.getByRole("button", { name: "Abrir el sitio en el navegador" }));
     expect(await screen.findByText("La dirección se abrió en el navegador.")).toBeDefined();
     expect(backend.openedUrls).toEqual(["https://github.com/login"]);
 
     fireEvent.click(within(screen.getByRole("table")).getByRole("button", { name: "VPN" }));
     await within(detailZone()).findByRole("button", { name: "Editar" });
-    fireEvent.click(screen.getByRole("button", { name: "Abrir URL en el navegador" }));
+    fireEvent.click(screen.getByRole("button", { name: "Abrir el sitio en el navegador" }));
 
     expect(await screen.findByText(ERROR_MESSAGES.UrlNoPermitida)).toBeDefined();
     expect(lastArgs(backend, "entry_open_url")).toEqual({ id: "entry-vpn" });
@@ -511,10 +542,10 @@ describe("P5 Entrada — mover y borrar", () => {
   it("RF-46: mover abre un diálogo con el destino y devuelve el foco al cancelar", async () => {
     const { backend } = await setup();
     await openEntry("Trabajo", "GitHub");
-    const opener = screen.getByRole("button", { name: "Mover a otro grupo…" });
+    // The order is in the menu of the entry: what opened the dialog, and gets the focus back, is the menu button.
+    const opener = moreButton();
 
-    opener.focus();
-    fireEvent.click(opener);
+    chooseOrder("Mover a otro grupo…");
     const dialog = await screen.findByRole("dialog", { name: "Mover «GitHub»" });
     const options = within(dialog).getAllByRole("option").map((option) => option.textContent);
     expect(options).not.toContain("Cuentas › Trabajo");
@@ -523,7 +554,7 @@ describe("P5 Entrada — mover y borrar", () => {
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(document.activeElement).toBe(opener);
 
-    fireEvent.click(opener);
+    chooseOrder("Mover a otro grupo…");
     const again = await screen.findByRole("dialog", { name: "Mover «GitHub»" });
     fireEvent.change(within(again).getByLabelText("Grupo de destino"), { target: { value: "group-personal" } });
     fireEvent.click(within(again).getByRole("button", { name: "Mover" }));
@@ -540,7 +571,7 @@ describe("P5 Entrada — mover y borrar", () => {
     const { backend } = await setup();
     await openEntry("Trabajo", "GitHub");
 
-    fireEvent.click(screen.getByRole("button", { name: "Enviar a la papelera" }));
+    chooseOrder("Enviar a la papelera…");
 
     expect(await screen.findByText(/«GitHub» se movió a la papelera/)).toBeDefined();
     expect(screen.queryByRole("dialog")).toBeNull();
@@ -558,7 +589,7 @@ describe("P5 Entrada — mover y borrar", () => {
     });
     await openEntry("Personal", "Única");
 
-    fireEvent.click(screen.getByRole("button", { name: "Enviar a la papelera" }));
+    chooseOrder("Enviar a la papelera…");
 
     expect(await screen.findByRole("button", { name: "Papelera de reciclaje (papelera) · 1 entrada" })).toBeDefined();
     expect(backend.groupTrail(backend.entry("e")?.groupId ?? "")).toEqual(["Cuentas", "Papelera de reciclaje"]);
@@ -568,13 +599,13 @@ describe("P5 Entrada — mover y borrar", () => {
     const { backend } = await setup();
     await openEntry("Papelera de reciclaje", "Canción borrada");
 
-    fireEvent.click(screen.getByRole("button", { name: "Borrar definitivamente…" }));
+    chooseOrder("Borrar definitivamente…");
     const dialog = await screen.findByRole("dialog", { name: "Borrar «Canción borrada» de forma definitiva" });
     expect(within(dialog).getByText(/no se puede deshacer/)).toBeDefined();
     fireEvent.click(within(dialog).getByRole("button", { name: "Cancelar" }));
     expect(backend.entry("entry-old")).toBeDefined();
 
-    fireEvent.click(screen.getByRole("button", { name: "Borrar definitivamente…" }));
+    chooseOrder("Borrar definitivamente…");
     fireEvent.click(
       within(await screen.findByRole("dialog")).getByRole("button", { name: "Borrar definitivamente" }),
     );
@@ -586,6 +617,331 @@ describe("P5 Entrada — mover y borrar", () => {
       expect(document.activeElement).toBe(screen.getByRole("heading", { name: "Detalle" }));
     });
     expect(await screen.findByText("La papelera está vacía.")).toBeDefined();
+  });
+});
+
+describe("P5 Entrada — la tarjeta de campos", () => {
+  it("RF-43: una fila por campo, en orden: usuario, contraseña, sitio, campos propios, etiquetas, adjuntos y las notas al final", async () => {
+    await setup();
+    await openEntry("Trabajo", "GitHub");
+
+    const labels = [...detailZone().querySelectorAll(".entry-card > .card-row > dt")].map((dt) => dt.textContent);
+    expect(labels).toEqual(["Usuario", "Contraseña", "Sitio", "PIN", "Recuperación", "Etiquetas", "Adjuntos", "Notas"]);
+    // The tags and the attachments are rows without buttons; the notes too.
+    for (const label of ["Etiquetas", "Adjuntos", "Notas"]) expect(within(rowOf(label)).queryAllByRole("button")).toEqual([]);
+    expect(within(rowOf("Etiquetas")).getAllByRole("listitem").map((tag) => tag.textContent)).toEqual(["código", "trabajo"]);
+    expect(rowOf("Adjuntos").textContent).toContain("codigos.txt (120 bytes)");
+    expect(within(rowOf("Notas")).getByText("cuenta del trabajo").className).toBe("card-notes");
+  });
+
+  it("RF-43: los botones de cada fila son solo de icono, con nombre y ayuda al pasar el cursor, y van en una columna al final", async () => {
+    await setup();
+    await openEntry("Trabajo", "GitHub");
+
+    const names = (label: string) =>
+      within(rowOf(label)).getAllByRole("button").map((button) => button.getAttribute("aria-label"));
+    expect(names("Usuario")).toEqual(["Copiar usuario"]);
+    expect(names("Contraseña")).toEqual(["Mostrar contraseña", "Copiar contraseña"]);
+    expect(names("Sitio")).toEqual(["Abrir el sitio en el navegador", "Copiar dirección del sitio"]);
+    expect(names("PIN")).toEqual(["Mostrar «PIN»", "Copiar «PIN»"]);
+    expect(names("Recuperación")).toEqual(["Copiar «Recuperación»"]);
+    const buttons = [...detailZone().querySelectorAll<HTMLElement>(".entry-card button")];
+    for (const button of buttons) {
+      // No text of its own: the name is the `aria-label`, and the same words are the help under the pointer.
+      expect(button.textContent).toBe("");
+      expect(button.getAttribute("title")).toBe(button.getAttribute("aria-label"));
+      // Every button sits in the actions column that closes its row.
+      expect(button.parentElement?.className).toBe("card-actions");
+      expect(button.parentElement?.parentElement?.lastElementChild).toBe(button.parentElement);
+    }
+  });
+
+  it("RF-71: «Copiar contraseña» es el único botón de icono con fondo", async () => {
+    await setup();
+    await openEntry("Trabajo", "GitHub");
+
+    const plated = [...detailZone().querySelectorAll(".entry-card button.btn-primary")];
+    expect(plated.map((button) => button.getAttribute("aria-label"))).toEqual(["Copiar contraseña"]);
+    // Showing a value does not give any other button a plate.
+    fireEvent.click(screen.getByRole("button", { name: "Mostrar «PIN»" }));
+    await screen.findByText("4321");
+    expect(detailZone().querySelectorAll(".entry-card button.btn-primary")).toHaveLength(1);
+  });
+
+  it("RF-44: RF-76: un valor mostrado va en un elemento `.secret`, oculto es la barra de ancho fijo, y nunca entra a un atributo", async () => {
+    await setup();
+    await openEntry("Trabajo", "GitHub");
+
+    const hidden = rowOf("Contraseña").querySelector(".secret");
+    expect(hidden?.hasAttribute("data-masked")).toBe(true);
+    // The bar says nothing of the value: the same element, with the same text, whatever its length.
+    expect(hidden?.textContent).toBe("(oculto)");
+    expect(rowOf("PIN").querySelector(".secret")?.outerHTML).toBe(hidden?.outerHTML);
+
+    fireEvent.click(screen.getByRole("button", { name: "Mostrar contraseña" }));
+    const shownValue = await screen.findByText(PASSWORD);
+    expect(shownValue.className).toBe("secret");
+    expect(shownValue.hasAttribute("data-masked")).toBe(false);
+    fireEvent.click(screen.getByRole("button", { name: "Mostrar «PIN»" }));
+    expect((await screen.findByText("4321")).className).toBe("secret");
+
+    // Neither value is in any attribute of the page: no `title`, no `aria-label`, no `data-*`.
+    for (const element of document.querySelectorAll("*")) {
+      for (const attribute of element.attributes) {
+        expect(attribute.value).not.toContain(PASSWORD);
+        expect(attribute.value).not.toContain("4321");
+      }
+    }
+  });
+
+  it("RF-44: la nota de los 20 segundos se ve solo mientras hay algo mostrado", async () => {
+    await setup();
+    await openEntry("Trabajo", "GitHub");
+    const hint = () => screen.queryByText("Lo que muestres se oculta solo a los 20 segundos.");
+
+    expect(hint()).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Mostrar contraseña" }));
+    await screen.findByText(PASSWORD);
+    expect(hint()).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Ocultar contraseña" }));
+    expect(hint()).toBeNull();
+  });
+
+  it("RF-43: sin usuario, sin contraseña, sin sitio o sin notas lo dice y no ofrece botones que no tengan sentido", async () => {
+    await setup({ entries: [{ id: "x", groupId: "group-personal", title: "Vacía", username: "", url: "", notes: "" }] });
+    await openEntry("Personal", "Vacía");
+
+    expect(rowOf("Usuario").textContent).toBe("UsuarioSin usuario");
+    expect(rowOf("Contraseña").textContent).toBe("ContraseñaSin contraseña");
+    expect(rowOf("Sitio").textContent).toBe("SitioSin sitio");
+    expect(rowOf("Notas").textContent).toBe("NotasSin notas");
+    expect(detailZone().querySelectorAll(".entry-card button")).toHaveLength(0);
+    // Without tags or attachments there is no row for them.
+    expect(within(detailZone()).queryByText("Etiquetas")).toBeNull();
+    expect(within(detailZone()).queryByText("Adjuntos")).toBeNull();
+  });
+
+  it("RF-43: bajo la tarjeta dice cuándo se creó y cuándo se modificó, en una línea, con la hora en el `title`", async () => {
+    await setup();
+    await openEntry("Trabajo", "GitHub");
+
+    const dates = detailZone().querySelector(".entry-dates");
+    expect(dates?.textContent).toBe("Creada el 1 oct 2026 · Modificada el 1 nov 2026");
+    expect(dates?.querySelector('time[datetime="2026-11-01T08:00:00Z"]')?.getAttribute("title")).toMatch(/2026/);
+  });
+});
+
+describe("P5 Entrada — el aviso de copiado", () => {
+  it("RF-74: copiar la dirección del sitio va por el núcleo y avisa «Dirección copiada», sin cuenta", async () => {
+    const { backend } = await setup();
+    await openEntry("Trabajo", "GitHub");
+
+    fireEvent.click(screen.getByRole("button", { name: "Copiar dirección del sitio" }));
+
+    expect(await screen.findByText("Dirección copiada")).toBeDefined();
+    expect(lastArgs(backend, "entry_copy")).toEqual({ id: "entry-github", field: "URL" });
+    expect(backend.clipboard()).toBe("https://github.com/login");
+  });
+
+  it("RF-74: un campo propio no protegido se copia sin cuenta; uno protegido, con la cuenta del ajuste real", async () => {
+    const { backend } = await setup({ clipboardSeconds: 45 });
+    await openEntry("Trabajo", "GitHub");
+
+    fireEvent.click(screen.getByRole("button", { name: "Copiar «Recuperación»" }));
+    expect(await screen.findByText("«Recuperación» copiado")).toBeDefined();
+    expect(backend.clipboard()).toBe("pregunta: mascota");
+
+    fireEvent.click(screen.getByRole("button", { name: "Copiar «PIN»" }));
+    expect(await screen.findByText("«PIN» copiado. Se borra del portapapeles en 45 s")).toBeDefined();
+    expect(lastArgs(backend, "entry_copy")).toEqual({ id: "entry-github", field: "PIN" });
+    // The last copy is the one the notice speaks of.
+    expect(screen.queryByText("«Recuperación» copiado")).toBeNull();
+    expect(bodyContains("4321")).toBe(false);
+  });
+
+  it("RF-74: el aviso es un `role=status` al pie del detalle, con el visto bueno, y existe antes de tener algo que decir", async () => {
+    await setup();
+    await openEntry("Trabajo", "GitHub");
+
+    const zone = detailZone().querySelector(".toast-zone");
+    expect(zone?.getAttribute("role")).toBe("status");
+    expect(zone?.childElementCount).toBe(0);
+    // The last thing in the detail zone: the stylesheet pins it to the foot.
+    expect(detailZone().lastElementChild).toBe(zone);
+
+    fireEvent.click(screen.getByRole("button", { name: "Copiar usuario" }));
+    const notice = await screen.findByText("Usuario copiado");
+    expect(notice.className).toBe("toast");
+    expect(notice.parentElement).toBe(zone);
+    expect(notice.querySelector("svg")?.getAttribute("aria-hidden")).toBe("true");
+  });
+
+  it("RF-74: la cuenta sigue al elegir otra entrada mientras el portapapeles tenga el valor; un aviso sin cuenta se va con su entrada", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    await setup();
+    await openEntry("Trabajo", "GitHub");
+
+    fireEvent.click(screen.getByRole("button", { name: "Copiar contraseña" }));
+    await screen.findByText("Contraseña copiada. Se borra del portapapeles en 20 s");
+    fireEvent.click(within(screen.getByRole("table")).getByRole("button", { name: "VPN" }));
+    await within(detailZone()).findByRole("heading", { name: "VPN" });
+    await act(() => vi.advanceTimersByTimeAsync(3_000));
+    expect(copyNotice()).toBe("Contraseña copiada. Se borra del portapapeles en 17 s");
+
+    // Once the time is over it says so, and choosing another entry takes that away.
+    await act(() => vi.advanceTimersByTimeAsync(17_000));
+    expect(copyNotice()).toMatch(/limpió el portapapeles/);
+    fireEvent.click(within(screen.getByRole("table")).getByRole("button", { name: "GitHub" }));
+    await within(detailZone()).findByRole("heading", { name: "GitHub" });
+    expect(copyNotice()).toBe("");
+
+    fireEvent.click(await screen.findByRole("button", { name: "Copiar usuario" }));
+    await screen.findByText("Usuario copiado");
+    fireEvent.click(within(screen.getByRole("table")).getByRole("button", { name: "VPN" }));
+    await within(detailZone()).findByRole("heading", { name: "VPN" });
+    expect(copyNotice()).toBe("");
+  });
+});
+
+describe("P5 Entrada — cabecera y menú de la entrada", () => {
+  const items = () => screen.getAllByRole("menuitem").map((item) => item.textContent);
+
+  it("RF-43: la cabecera lleva el círculo con la inicial del título sobre el color de su grupo, y el grupo debajo", async () => {
+    await setup();
+    await openEntry("Trabajo", "GitHub");
+
+    const head = detailZone().querySelector(".entry-head");
+    const circle = head?.querySelector(".bullet");
+    expect(circle?.getAttribute("data-initial")).toBe("G");
+    // Trabajo is the second group of the rail: line 2. The dot of the group line has the same colour.
+    expect(circle?.getAttribute("data-line")).toBe("2");
+    expect(circle?.getAttribute("aria-hidden")).toBe("true");
+    const group = head?.querySelector(".entry-group");
+    expect(group?.textContent).toBe("Grupo: Trabajo");
+    expect(group?.querySelector(".group-dot")?.getAttribute("data-line")).toBe("2");
+    // Only the group of the entry is read; the whole way from the root is in the `title`.
+    expect(group?.getAttribute("title")).toBe("Cuentas › Trabajo");
+  });
+
+  it("RF-43: un subgrupo se nombra solo y lleva el color de su grupo de primer nivel", async () => {
+    await setup();
+    await openEntry("Clientes", "Banana");
+
+    const group = detailZone().querySelector(".entry-group");
+    expect(group?.textContent).toBe("Grupo: Clientes");
+    expect(group?.getAttribute("title")).toBe("Cuentas › Trabajo › Clientes");
+    expect(detailZone().querySelector(".entry-head .bullet")?.getAttribute("data-line")).toBe("2");
+  });
+
+  it("RF-46: RF-47: «Editar» queda a la vista y mover y enviar a la papelera van en el menú, lo destructivo al final", async () => {
+    await setup();
+    await openEntry("Trabajo", "GitHub");
+
+    const detail = detailZone();
+    expect(within(detail).getByRole("button", { name: "Editar" })).toBeDefined();
+    // Nothing destructive is in sight until the menu opens, and the old row of buttons at the foot is gone.
+    expect(within(detail).queryByRole("button", { name: /papelera/i })).toBeNull();
+    expect(within(detail).queryByRole("button", { name: /^Mover/ })).toBeNull();
+    expect(screen.queryByRole("menu")).toBeNull();
+    const more = moreButton();
+    expect(more.getAttribute("aria-haspopup")).toBe("menu");
+    expect(more.getAttribute("aria-expanded")).toBe("false");
+    expect(more.getAttribute("title")).toBe("Más acciones de la entrada");
+
+    fireEvent.click(more);
+
+    expect(more.getAttribute("aria-expanded")).toBe("true");
+    expect(screen.getByRole("menu", { name: "Acciones de la entrada" })).toBeDefined();
+    // "Duplicar" is not offered: the core has no such command.
+    expect(items()).toEqual(["Mover a otro grupo…", "Enviar a la papelera…"]);
+    expect(screen.getByRole("menuitem", { name: "Enviar a la papelera…" }).className).toBe("menu-danger");
+    expect(screen.getByRole("menuitem", { name: "Mover a otro grupo…" }).className).toBe("");
+  });
+
+  it("RF-48: en la papelera el menú ofrece mover (así se restaura) y borrar definitivamente", async () => {
+    await setup();
+    await openEntry("Papelera de reciclaje", "Canción borrada");
+
+    fireEvent.click(moreButton());
+
+    expect(items()).toEqual(["Mover a otro grupo…", "Borrar definitivamente…"]);
+    expect(screen.getByRole("menuitem", { name: "Borrar definitivamente…" }).className).toBe("menu-danger");
+  });
+
+  it("RF-46: el menú de la entrada se recorre con las flechas, Inicio y Fin, y abre con flecha abajo", async () => {
+    await setup();
+    await openEntry("Trabajo", "GitHub");
+    const more = moreButton();
+
+    more.focus();
+    fireEvent.keyDown(more, { key: "ArrowDown" });
+    const [move, bin] = screen.getAllByRole("menuitem");
+    if (move === undefined || bin === undefined) throw new Error("expected two orders");
+    // Opening puts the focus on the first order.
+    expect(document.activeElement).toBe(move);
+
+    fireEvent.keyDown(move, { key: "ArrowDown" });
+    expect(document.activeElement).toBe(bin);
+    fireEvent.keyDown(bin, { key: "ArrowDown" });
+    expect(document.activeElement).toBe(move);
+    fireEvent.keyDown(move, { key: "ArrowUp" });
+    expect(document.activeElement).toBe(bin);
+    fireEvent.keyDown(bin, { key: "Home" });
+    expect(document.activeElement).toBe(move);
+    fireEvent.keyDown(move, { key: "End" });
+    expect(document.activeElement).toBe(bin);
+  });
+
+  it("RF-46: Escape cierra el menú de la entrada sin ordenar nada y devuelve el foco a su botón; un clic fuera también lo cierra", async () => {
+    const { backend } = await setup();
+    await openEntry("Trabajo", "GitHub");
+    const more = moreButton();
+
+    fireEvent.click(more);
+    fireEvent.keyDown(screen.getAllByRole("menuitem")[0] ?? more, { key: "Escape" });
+
+    expect(screen.queryByRole("menu")).toBeNull();
+    expect(document.activeElement).toBe(more);
+    expect(more.getAttribute("aria-expanded")).toBe("false");
+
+    fireEvent.click(more);
+    expect(screen.getByRole("menu")).toBeDefined();
+    fireEvent.pointerDown(document.body);
+    expect(screen.queryByRole("menu")).toBeNull();
+
+    // The button also closes the menu it opened.
+    fireEvent.click(more);
+    fireEvent.click(more);
+    expect(screen.queryByRole("menu")).toBeNull();
+    expect(backend.count("entry_move")).toBe(0);
+    expect(backend.count("entry_delete")).toBe(0);
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("RF-47: elegir «Enviar a la papelera…» en el menú lo cierra y actúa de una vez, sin diálogo", async () => {
+    const { backend } = await setup();
+    await openEntry("Trabajo", "GitHub");
+
+    chooseOrder("Enviar a la papelera…");
+
+    expect(screen.queryByRole("menu")).toBeNull();
+    expect(screen.queryByRole("dialog")).toBeNull();
+    await waitFor(() => {
+      expect(backend.entry("entry-github")?.groupId).toBe("group-bin");
+    });
+  });
+
+  it("RF-14: en solo lectura no hay «Editar» ni menú de la entrada, y lo dice", async () => {
+    await setup({ status: { ...OPEN, read_only: true } });
+    await openGroup("Trabajo");
+    fireEvent.click(within(screen.getByRole("table")).getByRole("button", { name: "GitHub" }));
+
+    const detail = detailZone();
+    expect(await within(detail).findByText(/Solo lectura: esta entrada no se puede editar, mover ni borrar/)).toBeDefined();
+    expect(within(detail).queryByRole("button", { name: "Editar" })).toBeNull();
+    expect(within(detail).queryByRole("button", { name: "Más acciones de la entrada" })).toBeNull();
+    // Looking and copying stay.
+    expect(within(detail).getByRole("button", { name: "Copiar contraseña" })).toBeDefined();
   });
 });
 
@@ -741,7 +1097,7 @@ describe("P5 Entrada — bloqueada", () => {
     const release = backend.hold("entry_reveal");
     fireEvent.click(screen.getByRole("button", { name: "Mostrar «PIN»" }));
     fireEvent.click(screen.getByRole("button", { name: "Copiar contraseña" }));
-    expect(await screen.findByText("Copiado: se borra en 20 s")).toBeDefined();
+    expect(await screen.findByText("Contraseña copiada. Se borra del portapapeles en 20 s")).toBeDefined();
 
     act(() => {
       backend.lockFromCore();
@@ -752,7 +1108,7 @@ describe("P5 Entrada — bloqueada", () => {
     });
 
     expect(await screen.findByRole("heading", { name: "Desbloquear cuentas.kdbx" })).toBeDefined();
-    for (const value of [PASSWORD, "4321", "ana@example.com", "Copiado"]) {
+    for (const value of [PASSWORD, "4321", "ana@example.com", "copiada", "portapapeles"]) {
       expect(bodyContains(value)).toBe(false);
     }
     expect(backend.clipboard()).toBeNull();

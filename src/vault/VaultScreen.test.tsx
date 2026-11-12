@@ -84,7 +84,8 @@ describe("P4 Bóveda", () => {
     const song = within(entriesTable()).getByRole("button", { name: "Canción favorita" }).closest("tr");
     if (song === null) throw new Error("missing row");
     expect(within(song).getByText("ana")).toBeDefined();
-    expect(within(song).getByText("https://musica.example")).toBeDefined();
+    // The row shows the site without `https://`; the whole address stays in its `title`.
+    expect(within(song).getByText("musica.example").getAttribute("title")).toBe("https://musica.example");
     expect(within(song).getByText("música")).toBeDefined();
     expect(song.querySelector("time")?.getAttribute("datetime")).toBe("2026-11-02T09:30:00Z");
     expect(screen.getByText("3 entradas")).toBeDefined();
@@ -157,7 +158,8 @@ describe("P4 Bóveda", () => {
   it("RF-42: vacío — una bóveda sin entradas lo explica y ofrece «Nueva entrada»", async () => {
     await setup({});
 
-    expect(await screen.findByText(/Esta bóveda todavía no tiene entradas/)).toBeDefined();
+    expect(await screen.findByText("No hay entradas aquí. Crea la primera con «Nueva entrada».")).toBeDefined();
+    expect(screen.getByText("0 entradas")).toBeDefined();
     const create = screen.getByRole("button", { name: "Nueva entrada" });
     expect(create.getAttribute("aria-disabled")).not.toBe("true");
     expect(screen.queryByText("Próximamente")).toBeNull();
@@ -169,8 +171,23 @@ describe("P4 Bóveda", () => {
 
     await openGroup("Archivo");
 
-    expect(screen.getByText("Este grupo no tiene entradas.")).toBeDefined();
+    expect(screen.getByText("No hay entradas aquí. Crea la primera con «Nueva entrada».")).toBeDefined();
     expect(screen.queryByRole("table")).toBeNull();
+  });
+
+  it("RF-42: RF-14: vacío — en solo lectura no nombra «Nueva entrada», que no se ofrece; la papelera vacía dice lo suyo", async () => {
+    await setup({
+      status: { ...OPEN, read_only: true },
+      groups: SAMPLE_GROUPS,
+      entries: SAMPLE_ENTRIES.filter((entry) => entry.groupId !== "group-bin"),
+    });
+
+    await openGroup("Archivo");
+    expect(screen.getByText("No hay entradas aquí.")).toBeDefined();
+    expect(screen.queryByRole("button", { name: "Nueva entrada" })).toBeNull();
+
+    await openGroup("Papelera de reciclaje");
+    expect(screen.getByText("La papelera está vacía.")).toBeDefined();
   });
 
   it("RF-59: la búsqueda del ejemplo 2 muestra lo que da el núcleo, con la ruta del grupo y el número de resultados", async () => {
@@ -332,6 +349,138 @@ describe("P4 Bóveda", () => {
     expect(screen.queryByRole("searchbox")).toBeNull();
     expect(await screen.findByRole("heading", { name: "Desbloquear cuentas.kdbx" })).toBeDefined();
     expect(screen.queryByText("Banco")).toBeNull();
+  });
+});
+
+describe("P4 Bóveda — la fila de una entrada", () => {
+  /** The circle of each row, in order: the initial it draws and the line colour under it. */
+  function circles(): string[] {
+    const rows = within(entriesTable()).getAllByRole("row").slice(1);
+    return rows.map((row) => {
+      const circle = row.querySelector(".bullet");
+      return `${circle?.getAttribute("data-initial") ?? "?"}:${circle?.getAttribute("data-line") ?? "?"}`;
+    });
+  }
+
+  it("RF-42: cada fila lleva la inicial de su título, no la del grupo, sobre el color de su grupo", async () => {
+    await setup();
+    await openGroup("Personal");
+
+    expect(rowTitles()).toEqual(["Años", "Banco", "Canción favorita"]);
+    expect(circles()).toEqual(["A:1", "B:1", "C:1"]);
+    // Decoration: it adds nothing to the name of the row's button, and it is hidden from assistive technology.
+    const circle = within(entriesTable()).getAllByRole("row")[1]?.querySelector(".bullet");
+    expect(circle?.getAttribute("aria-hidden")).toBe("true");
+    expect(circle?.textContent).toBe("");
+  });
+
+  it("RF-42: RF-102: en «Todas las entradas» cada fila lleva el color de SU grupo; un subgrupo, el de su grupo de primer nivel", async () => {
+    await setup({
+      groups: SAMPLE_GROUPS,
+      entries: [...SAMPLE_ENTRIES, { id: "entry-root", groupId: "group-root", title: "Wifi de casa" }],
+    });
+
+    await waitFor(() => {
+      expect(rowTitles()).toEqual(["Años", "Banana", "Banco", "Canción favorita", "GitHub", "VPN", "Wifi de casa"]);
+    });
+    // Personal is line 1 and Trabajo line 2; "Banana" is in Clientes, under Trabajo. The root itself has no line.
+    expect(circles()).toEqual(["A:1", "B:2", "B:1", "C:1", "G:2", "V:2", "W:neutral"]);
+  });
+
+  it("RF-59: en los resultados de la búsqueda cada fila lleva la inicial de su título y el color de su grupo", async () => {
+    await setup();
+
+    await searchFor("ana");
+
+    expect(rowTitles()).toEqual(expect.arrayContaining(["Banana", "GitHub", "Canción favorita"]));
+    const byTitle = new Map(rowTitles().map((title, index) => [title, circles()[index]]));
+    expect(byTitle.get("Banana")).toBe("B:2");
+    expect(byTitle.get("GitHub")).toBe("G:2");
+    expect(byTitle.get("Canción favorita")).toBe("C:1");
+  });
+
+  it("RF-42: un título vacío, protegido o sin letras ni números lleva el signo neutro «#»", async () => {
+    await setup({
+      groups: SAMPLE_GROUPS,
+      entries: [
+        { id: "e1", groupId: "group-personal", title: "" },
+        { id: "e2", groupId: "group-personal", title: null },
+        { id: "e3", groupId: "group-personal", title: "—·—" },
+        { id: "e4", groupId: "group-personal", title: "  ñandú" },
+        { id: "e5", groupId: "group-personal", title: "9 de julio" },
+      ],
+    });
+    await openGroup("Personal");
+
+    const drawn = new Map(rowTitles().map((title, index) => [title, circles()[index]]));
+    expect(drawn.get("(sin título)")).toBe("#:1");
+    // A protected title never reaches the circle: not even its first letter.
+    expect(drawn.get("(protegido)")).toBe("#:1");
+    expect(drawn.get("—·—")).toBe("#:1");
+    expect(drawn.get("  ñandú")).toBe("Ñ:1");
+    expect(drawn.get("9 de julio")).toBe("9:1");
+  });
+
+  it("RF-42: la segunda línea es «usuario · sitio», el sitio sin https://; si falta uno queda solo el otro", async () => {
+    await setup({
+      groups: SAMPLE_GROUPS,
+      entries: [
+        { id: "e1", groupId: "group-personal", title: "Ambos", username: "ana", url: "https://uno.example/entrar" },
+        { id: "e2", groupId: "group-personal", title: "Solo sitio", username: "", url: "http://dos.example" },
+        { id: "e3", groupId: "group-personal", title: "Solo usuario", username: "ana.g", url: "" },
+      ],
+    });
+    await openGroup("Personal");
+
+    const cells = (title: string) => {
+      const row = within(entriesTable()).getByRole("button", { name: title }).closest("tr");
+      return [row?.querySelector(".cell-user")?.textContent, row?.querySelector(".cell-url")?.textContent];
+    };
+    expect(cells("Ambos")).toEqual(["ana", "uno.example/entrar"]);
+    // Only `https://` is dropped: a site without encryption keeps its scheme in sight.
+    expect(cells("Solo sitio")).toEqual(["", "http://dos.example"]);
+    // An empty cell draws nothing, so the separator (CSS, between two cells that are not empty) does not show.
+    expect(cells("Solo usuario")).toEqual(["ana.g", ""]);
+  });
+
+  it("RF-42: la fecha de la fila es corta, sin año cuando es el actual, y la completa queda en su `title`", async () => {
+    const year = new Date().getFullYear();
+    await setup({
+      groups: SAMPLE_GROUPS,
+      entries: [
+        { id: "e1", groupId: "group-personal", title: "Este año", modified: `${String(year)}-06-08T15:00:00Z` },
+        { id: "e2", groupId: "group-personal", title: "Otro año", modified: `${String(year - 1)}-06-08T15:00:00Z` },
+      ],
+    });
+    await openGroup("Personal");
+
+    const day = (title: string) =>
+      within(entriesTable()).getByRole("button", { name: title }).closest("tr")?.querySelector("time");
+    expect(day("Este año")?.textContent).toBe("8 jun");
+    expect(day("Otro año")?.textContent).toBe(`8 jun ${String(year - 1)}`);
+    expect(day("Este año")?.getAttribute("title")).toContain(String(year));
+  });
+
+  it("RF-59: al buscar la cabecera dice «Resultados» y sigue ofreciendo «Nueva entrada», que va al grupo que estaba abierto", async () => {
+    const { backend } = await setup();
+    await openGroup("Trabajo");
+
+    await searchFor("git");
+    const heading = screen.getByRole("heading", { name: "Resultados de la búsqueda" });
+    // What is read is "Resultados": the rest of the name is only for assistive technology.
+    const read = [...heading.childNodes].filter((node) => node.nodeType === Node.TEXT_NODE);
+    expect(read.map((node) => node.textContent).join("").trim()).toBe("Resultados");
+    expect(heading.querySelector(".sr-only")?.textContent).toBe("de la búsqueda");
+
+    fireEvent.click(screen.getByRole("button", { name: "Nueva entrada" }));
+    fireEvent.change(await screen.findByLabelText("Título"), { target: { value: "Gitea" } });
+    fireEvent.click(screen.getByRole("button", { name: "Guardar entrada" }));
+    await waitFor(() => {
+      expect(backend.calls.filter((call) => call.command === "entry_create").at(-1)?.args).toMatchObject({
+        group_id: "group-work",
+        title: "Gitea",
+      });
+    });
   });
 });
 

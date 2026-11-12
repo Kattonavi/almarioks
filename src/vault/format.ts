@@ -30,6 +30,25 @@ export function formatDay(iso: string): string {
     .join(" ");
 }
 
+/**
+ * The day for a row of the entry list: "8 nov", and the year only when it is not the current one ("8 nov 2025").
+ * `today` is a parameter so the rule does not depend on the day the code runs.
+ */
+export function formatShortDay(iso: string, today: Date = new Date()): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return iso;
+  const sameYear = date.getFullYear() === today.getFullYear();
+  return DAY_FORMAT.formatToParts(date)
+    .filter((part) => part.type !== "literal" && !(sameYear && part.type === "year"))
+    .map((part) => part.value.replace(".", ""))
+    .join(" ");
+}
+
+/** An address the way a row shows it: without the `https://` everyone assumes. Any other scheme stays in sight. */
+export function shortSite(url: string): string {
+  return url.replace(/^https:\/\//i, "");
+}
+
 export function strengthLabel(score: number): string {
   return ["muy débil", "débil", "regular", "buena", "muy buena"][score] ?? "";
 }

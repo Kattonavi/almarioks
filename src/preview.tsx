@@ -8,7 +8,8 @@
  *                           crear-llave · crear-error · creando · creada · desbloquear · derivando · error-llave ·
  *                           bloqueada · ajustes
  *       open vault          todas · foco-todas · menu-grupo · menu-papelera · busqueda ·
- *                           copiado · detalle · ninguna · formulario · generador · editar · dialogo-mover ·
+ *                           copiado · detalle · mostrada · menu-entrada · ninguna · formulario · generador · editar ·
+ *                           dialogo-mover ·
  *                           dialogo-borrar · dialogo-papelera · dialogo-renombrar · dialogo-recarga ·
  *                           aviso-guardado · cambio-externo · solo-lectura · ajustes-abierta
  *   ?densidad=compacta      the compact density, which no setting offers yet
@@ -222,6 +223,35 @@ function measures(): string[] {
     return node === null ? "-" : getComputedStyle(node).backgroundColor;
   };
   const menu = box(".menu");
+  const font = (selector: string) => {
+    const node = document.querySelector(selector);
+    return node === null ? "-" : getComputedStyle(node).fontSize;
+  };
+  const pad = getComputedStyle(document.querySelector(".detail-pane") ?? document.body);
+  const icons = [...document.querySelectorAll(".card-actions > button")].map((node) => node.getBoundingClientRect());
+  const lastIcons = [...document.querySelectorAll(".card-actions > button:last-child")].map(
+    (node) => node.getBoundingClientRect().right,
+  );
+  const rows = [...document.querySelectorAll(".card-row:not(.card-row-notes)")].map(
+    (node) => node.getBoundingClientRect().height,
+  );
+  // `?medidas`: the measures of the list and the detail instead of those of the frame.
+  if (params.has("medidas")) {
+    return [
+      `fila-lista ${px(box(".entries tbody tr")?.height)}`,
+      `circulo-fila ${px(box(".entries .bullet")?.width)}x${px(box(".entries .bullet")?.height)}`,
+      `titulo-lista ${font("#entries-title")}`,
+      `circulo-detalle ${px(box(".entry-badge")?.width)}x${px(box(".entry-badge")?.height)}`,
+      `titulo-entrada ${font(".entry-title")}`,
+      `filas-tarjeta ${[...new Set(rows.map(px))].join("/")}`,
+      `etiqueta ${px(box(".card-row > dt")?.width)}`,
+      `iconos ${[...new Set(icons.map((icon) => `${px(icon.width)}x${px(icon.height)}`))].join("/")} (${String(icons.length)})`,
+      // The right edge of the last button of every row: one value means they line up.
+      `bordes-derechos ${[...new Set(lastIcons.map(px))].join("/")} (${String(lastIcons.length)} filas)`,
+      `relleno-detalle ${pad.paddingTop}/${pad.paddingRight}/${pad.paddingBottom}/${pad.paddingLeft}`,
+      `detalle ${px(box(".detail-pane")?.width)}`,
+    ];
+  }
   return [
     `barra ${px(box(".vault-bar")?.height)}`,
     `riel ${px(box(".rail")?.width)}`,
@@ -297,18 +327,25 @@ async function stageOpen(backend: FakeBackend) {
       if (state === "dialogo-recarga") await click("button", "Recargar descartando lo pendiente…");
       else await click(".entries button", "GitHub");
       return;
-    case "copiado":
-      // Copy from one entry, then move on: the stamp must stay on the row that was copied.
-      await click(".entries button", "Nómina");
-      await click("button", "Copiar contraseña");
-      await find(".stamp", /copiado/i);
-      break;
     default:
   }
   await click(".entries button", "GitHub");
-  await find("button", "Copiar contraseña");
-  if (state === "dialogo-mover") await click("button", "Mover a otro grupo…");
+  // Icon buttons have no text: they are found by their name.
+  await find('button[aria-label="Copiar contraseña"]', /^/);
+  if (state === "menu-entrada" || state === "dialogo-mover") {
+    await click('button[aria-label="Más acciones de la entrada"]', /^/);
+    await find('[role="menuitem"]', /./);
+  }
+  if (state === "dialogo-mover") await click('[role="menuitem"]', "Mover a otro grupo…");
   if (state === "editar") await click("button", "Editar");
+  if (state === "mostrada") {
+    await click('button[aria-label="Mostrar contraseña"]', /^/);
+    await find(".secret:not([data-masked])", /./);
+  }
+  if (state === "copiado") {
+    await click('button[aria-label="Copiar contraseña"]', /^/);
+    await find(".toast", /copiada/);
+  }
 }
 
 /** What a screenshot cannot show by itself: the real viewport, horizontal overflow and whether the fonts loaded. */

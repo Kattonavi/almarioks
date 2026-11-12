@@ -126,6 +126,11 @@
   margin: 0;
 }
 
+/* With the vault open the strip takes no height: the version and the development note are in Settings. */
+.app:has(.open-vault) .app-status {
+  display: none;
+}
+
 .app-status-note {
   display: inline-flex;
   align-items: center;
@@ -407,11 +412,18 @@
   border-inline-end: 1px solid var(--rule);
 }
 
+/* A column: what it shows on top and, pushed to its foot, the copy notice. */
 .detail-pane {
+  display: flex;
+  flex-direction: column;
   min-width: 0;
-  padding: var(--space-6) var(--space-10);
+  padding: var(--space-6) var(--space-8);
   overflow-y: auto;
   container: detail / inline-size;
+}
+
+.detail-pane > .pane-state {
+  margin: 3rem 0 0;
 }
 
 .pane-state {
@@ -420,5 +432,5 @@
 
 .list-pane > .pane-state {
   margin: 0;
-  padding: var(--space-4) var(--space-6);
+  padding: var(--space-6) var(--space-4);
 }
