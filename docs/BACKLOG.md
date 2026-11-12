@@ -83,3 +83,6 @@ Lo que no cabe en la fase va aquí, un renglón por ítem: `- [origen] qué · s
 - [seguridad ronda 2, Q-6] Las pruebas estadísticas del generador miden solo frecuencias marginales: no ven dependencia entre caracteres consecutivos ni posiciones intermedias; los subconjuntos de tipos van a ±3 % · Info
 - [seguridad ronda 2, Q-7] Una contraseña guardada sin proteger en el archivo da `has_password: true` sin estar en `protected_fields`: revisar cómo la muestra la ventana de la entrada · Info
 - [ronda 2] RF-111: una letra de unidad mapeada a una carpeta de red no se distingue de un disco local sin código nativo nuevo · residuo declarado
+- [ronda 2, RF-111] Un archivo llave recordado de más de 1 MiB (RF-87 admite cualquier archivo) deja de proponerse y la pantalla dice "No encuentro…", que es inexacto · Bajo
+- [ronda 2, RF-111] Tercer estado "abrió sin llave" que recomendó seguridad (para que una llave vieja junto a una bóveda que no la usa deje de proponerse): no entró; hoy la pantalla dice "si esta bóveda no la usa, quítala" · Bajo
+- [ronda 2] Sin verificar: si Windows muestra "no hay disco en la unidad" cuando la llave recordada estaba en un lector vacío · por verificar

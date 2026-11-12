@@ -505,8 +505,9 @@ Nuevos:
 - RF-111: EL SISTEMA recordará, por cada bóveda reciente, la ruta (solo la ruta) del último archivo llave con el que
   se abrió, y la traerá elegida la próxima vez; la recordada gana a la que está junto a la bóveda. SI ese archivo ya
   no existe, ENTONCES lo dirá y pedirá elegirlo (o usará el que está junto a la bóveda, si existe).
-  Solo se recuerda si el desbloqueo llevó también contraseña, y solo rutas locales con letra de unidad; la llave que
-  está junto a la bóveda no se guarda. [aprobado por seguridad con diez condiciones: `docs/revisiones/0.1-seguridad.md`,
+  Solo se recuerda si el desbloqueo llevó también contraseña, y solo rutas locales con letra de unidad elegidas con
+  el diálogo; la llave que está junto a la bóveda no se guarda; abrir sin llave, con la de al lado o con otra
+  olvida la anterior. No se propone un archivo de más de 1 MiB. [aprobado por seguridad con diez condiciones: `docs/revisiones/0.1-seguridad.md`,
   "Segunda ronda del dueño"]
 - RF-112: SI el desbloqueo falla, ENTONCES EL SISTEMA dirá "La contraseña o el archivo llave no coinciden. Si esta
   bóveda usa archivo llave, elígelo.", sin afirmar si la bóveda usa archivo llave.

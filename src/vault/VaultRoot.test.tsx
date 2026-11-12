@@ -5,7 +5,7 @@ import { createClient, type Transport } from "../ipc/client";
 import { ERROR_MESSAGES } from "../ipc/errors";
 import { createFakeBackend, keyFileBeside, type FakeOptions } from "../ipc/fake";
 
-import { KEY_SUGGESTED } from "./UnlockScreen";
+import { KEY_REMEMBERED, KEY_SUGGESTED, keyMissingText } from "./UnlockScreen";
 import { STATUS_POLL_MS, VaultRoot } from "./VaultRoot";
 
 afterEach(() => {
@@ -706,5 +706,71 @@ describe("P4 Bóveda · cuenta de bloqueo", () => {
     const afterLock = backend.count("vault_status");
     await advance(STATUS_POLL_MS * 3);
     expect(backend.count("vault_status")).toBe(afterLock);
+  });
+});
+
+describe("RF-111: la llave que se usó la última vez", () => {
+  /** A recent vault whose key file lives in another folder, as the core remembers it after a good unlock. */
+  const REMEMBERED: FakeOptions = {
+    vaults: [WITH_BOTH],
+    recent: [{ path: PATH, exists: true }],
+    keyFiles: { [PATH]: KEY },
+  };
+
+  it("RF-111: viene ya elegida, con su ruta entera y diciendo que es la última usada; Desbloquear la manda", async () => {
+    const backend = setup({ ...REMEMBERED, files: [KEY] });
+    fireEvent.click(await screen.findByRole("button", { name: "Abrir cuentas.kdbx" }));
+    await findUnlockScreen();
+
+    // It is in another folder, so the whole path is said, not only the name.
+    expect(await screen.findByText(KEY)).toBeDefined();
+    expect(screen.getByText(KEY_REMEMBERED)).toBeDefined();
+    expect(screen.queryByText(KEY_SUGGESTED)).toBeNull();
+    expect(screen.queryByText("Ninguno")).toBeNull();
+
+    typePassword("correcta");
+    fireEvent.click(unlockButton());
+
+    expect(await screen.findByRole("heading", { name: "Cuentas" })).toBeDefined();
+    expect(backend.calls.filter((call) => call.command === "vault_open")).toEqual([
+      { command: "vault_open", args: { path: PATH, password: "correcta", key_file_path: KEY } },
+    ]);
+  });
+
+  it("RF-111: gana a la que está junto a la bóveda", async () => {
+    setup({ ...REMEMBERED, files: [KEY, BESIDE] });
+    fireEvent.click(await screen.findByRole("button", { name: "Abrir cuentas.kdbx" }));
+    await findUnlockScreen();
+
+    expect(await screen.findByText(KEY)).toBeDefined();
+    expect(screen.getByText(KEY_REMEMBERED)).toBeDefined();
+    expect(screen.queryByText("cuentas.keyx")).toBeNull();
+  });
+
+  it("RF-111: si ya no está, lo dice con su ruta y pide elegirla; elegir otra quita el aviso", async () => {
+    setup({ ...REMEMBERED, files: [], picks: { pick_key_file: ["E:/usb/otra.keyx"] } });
+    fireEvent.click(await screen.findByRole("button", { name: "Abrir cuentas.kdbx" }));
+    await findUnlockScreen();
+
+    expect(await screen.findByText(keyMissingText(KEY))).toBeDefined();
+    expect(keyMissingText(KEY)).toBe(
+      `No encuentro el archivo llave que usaste la última vez (${KEY}). Conéctalo o elige otro.`,
+    );
+    expect(screen.getByText("Ninguno")).toBeDefined();
+    expect(screen.queryByText(KEY_REMEMBERED)).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Elegir archivo llave…" }));
+    expect(await screen.findByText("E:/usb/otra.keyx")).toBeDefined();
+    expect(screen.queryByText(keyMissingText(KEY))).toBeNull();
+  });
+
+  it("RF-111: si ya no está pero hay una junto a la bóveda, propone esa y dice las dos cosas", async () => {
+    setup({ ...REMEMBERED, files: [BESIDE] });
+    fireEvent.click(await screen.findByRole("button", { name: "Abrir cuentas.kdbx" }));
+    await findUnlockScreen();
+
+    expect(await screen.findByText("cuentas.keyx")).toBeDefined();
+    expect(screen.getByText(KEY_SUGGESTED)).toBeDefined();
+    expect(screen.getByText(keyMissingText(KEY))).toBeDefined();
   });
 });
