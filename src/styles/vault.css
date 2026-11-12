@@ -427,6 +427,16 @@
 }
 
 /*
+ * In the narrowest detail (the 1000 px window) the bar is shorter, so the buttons stay inside the card. It is still
+ * a fixed width, the same for every value.
+ */
+@container detail (max-width: 25rem) {
+  .secret[data-masked] {
+    width: calc(5 * var(--mask-period));
+  }
+}
+
+/*
  * A shown secret is read whole: it cannot be selected or put in a `title`, so it breaks into lines instead of being
  * cut with an ellipsis.
  */

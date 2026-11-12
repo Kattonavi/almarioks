@@ -307,6 +307,7 @@ export function VaultScreen({
 
   /** A group, or `null` for "Todas las entradas". Choosing in the rail ends a search: the list shows what was chosen. */
   function selectGroup(id: string | null) {
+    settleCopyNotice();
     setSelectedGroupId(id);
     setDetail({ kind: "none" });
     if (query !== "") onQueryChange("");
@@ -555,6 +556,7 @@ export function VaultScreen({
               setCopyNotice(copy);
             }}
             onDeleted={(message) => {
+              settleCopyNotice();
               setDetail({ kind: "none" });
               setNotice({ kind: "text", text: message });
               refresh();
@@ -632,6 +634,7 @@ export function VaultScreen({
         type="button"
         className="btn-primary"
         onClick={() => {
+          settleCopyNotice();
           setNotice(NO_NOTICE);
           setDetail({ kind: "new", groupId: target });
         }}
