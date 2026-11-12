@@ -82,7 +82,7 @@ mod queue;
 mod recovery;
 mod save;
 #[cfg(test)]
-mod test_disk;
+pub(crate) mod test_disk;
 #[cfg(test)]
 mod tests;
 
