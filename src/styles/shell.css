@@ -281,7 +281,7 @@
   font-size: var(--text-xs);
 }
 
-.rail-nav h3 {
+.rail-nav > h3 {
   margin: 0;
   padding: 0 10px var(--space-2);
   font-size: var(--text-xs);
@@ -344,12 +344,12 @@
   border-top: 1px solid var(--rule);
 }
 
-.group-actions .actions {
+.group-actions > .actions {
   display: grid;
   gap: 2px;
 }
 
-.group-actions .actions button {
+.group-actions > .actions > button {
   justify-content: flex-start;
   min-height: 32px;
   padding: 0 10px;
@@ -357,13 +357,15 @@
   border-color: transparent;
 }
 
-.group-actions .actions .btn-danger {
+.group-actions > .actions > .btn-danger {
   justify-self: start;
   margin-top: var(--space-1);
   border-color: var(--danger);
 }
 
-.group-actions p {
+/* Only the rail's own lines: the dialogs of a group are mounted in here and keep the standard look. */
+.group-actions > p,
+.group-actions > [aria-live] p {
   margin: var(--space-2) 10px 0;
   font-size: var(--text-sm);
 }
@@ -499,12 +501,13 @@
   .app:has(.open-vault) .app-name,
   .app-status > p:first-child,
   .rail-head,
-  .rail-nav h3,
+  .rail-nav > h3,
   .rail-nav > .path,
   .rail-name,
   .rail-count,
-  .group-actions .label,
-  .group-actions p,
+  .group-actions > .actions .label,
+  .group-actions > p,
+  .group-actions > [aria-live] p,
   .vault-search kbd {
     position: absolute;
     width: 1px;
@@ -530,7 +533,7 @@
   }
 
   .rail-item,
-  .group-actions .actions button {
+  .group-actions > .actions > button {
     justify-content: center;
     width: 44px;
     margin-inline: auto;

@@ -2,7 +2,9 @@
  * Design tokens of the "Señalética" direction. Colour is named by ROLE, never by hue: components read roles, and
  * `theme-dark.css` redefines the same roles. Contrast of every text/ground pair is AA in both themes (computed).
  */
-:root {
+/* A dialog is always a work surface, even when it is mounted inside the signal frame: it takes the roles again. */
+:root,
+dialog {
   color-scheme: light;
 
   /* ---- Type: Overpass for the interface, Overpass Mono only for data (dates, counts, secrets, file paths). ---- */

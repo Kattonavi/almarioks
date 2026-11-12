@@ -299,6 +299,8 @@ dialog {
   padding: var(--space-6);
   overflow: auto;
   color: var(--ink);
+  caret-color: var(--ink);
+  accent-color: var(--ink);
   background: var(--surface);
   border: 1px solid var(--rule);
   border-radius: var(--radius);

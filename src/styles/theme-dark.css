@@ -3,7 +3,8 @@
  * The frame is still a signal panel (deeper black); the work ground goes dark and the panel inside it inverts to
  * light, the way the selected group does on the rail.
  */
-:root {
+:root,
+dialog {
   color-scheme: dark;
 
   --ground: #191b21;

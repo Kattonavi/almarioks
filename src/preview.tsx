@@ -4,7 +4,7 @@
  *
  *   ?tema=oscuro|claro           forces a theme (dark is the same file production loads by media query)
  *   ?estado=cerrado              the welcome screen instead of the open vault
- *   ?demo=copiado|dialogo|lectura|nueva|ninguna   what the open vault shows (default: copiado)
+ *   ?demo=copiado|dialogo|grupo|lectura|nueva|ninguna   what the open vault shows (default: copiado)
  *   ?marco=480x360               draws the preview inside a frame of that exact viewport (for screenshots)
  */
 import { mockIPC } from "@tauri-apps/api/mocks";
@@ -92,6 +92,10 @@ async function click(selector: string, text: string | RegExp) {
 async function stage() {
   if (closed || demo === "ninguna" || demo === "lectura") return;
   await click(".rail-item", /^Trabajo/);
+  if (demo === "grupo") {
+    await click("button", "Borrar grupo…");
+    return;
+  }
   if (demo === "nueva") {
     await click("button", "Nueva entrada");
     return;
@@ -133,7 +137,7 @@ async function boot() {
       .map((match) => `${match[1] ?? ""}:${match[2] ?? ""};`)
       .join("");
     const style = document.createElement("style");
-    style.textContent = `:root{color-scheme:light;${colors}}`;
+    style.textContent = `:root,dialog{color-scheme:light;${colors}}`;
     document.head.append(style);
   }
 
