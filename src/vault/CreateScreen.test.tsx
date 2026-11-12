@@ -5,6 +5,7 @@ import { createClient } from "../ipc/client";
 import { ERROR_MESSAGES } from "../ipc/errors";
 import { createFakeBackend, type FakeOptions } from "../ipc/fake";
 import { VaultRoot } from "./VaultRoot";
+import { EXISTS_VAULT, PATH_HELP } from "./CreateScreen";
 
 afterEach(cleanup);
 
@@ -244,8 +245,11 @@ describe("P2 Crear bóveda", () => {
 
     fireEvent.click(createButton());
 
-    const alert = await screen.findByText(ERROR_MESSAGES.ArchivoExiste);
+    // D-8: next to the path, it says the file exists, that nothing replaces it even if Windows asked, and what to do.
+    const alert = await screen.findByText(EXISTS_VAULT);
     expect(alert.textContent).not.toContain("ArchivoExiste");
+    expect(alert.closest('[role="group"]')?.getAttribute("aria-labelledby")).toBe("create-path-label");
+    expect(screen.getByText(PATH_HELP)).toBeDefined();
     expect(backend.count("vault_create")).toBe(1);
     expect(passwordField().value).toBe("");
     expect(screen.getByRole("heading", { name: "Crear bóveda" })).toBeDefined();

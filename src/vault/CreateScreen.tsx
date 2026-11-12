@@ -33,9 +33,21 @@ interface CreateScreenProps {
   readonly onDone: () => void;
 }
 
-function formErrorText(error: FormError): string {
+/**
+ * RF-4: the app never replaces a file, but the Windows save dialog has just asked "replace it?". The core does not
+ * say which file exists, so with a key file to generate the message names both.
+ */
+export const EXISTS_VAULT =
+  "Ya existe un archivo con ese nombre en esa carpeta. AlmarioKS nunca reemplaza un archivo, aunque Windows haya preguntado si querías reemplazarlo: no se tocó. Elige otro nombre u otra carpeta.";
+export const EXISTS_EITHER =
+  "Ya existe el archivo de la bóveda o el archivo llave que elegiste. AlmarioKS nunca reemplaza un archivo, aunque Windows haya preguntado si querías reemplazarlo: no se tocó ninguno. Elige otro nombre u otra carpeta para el que ya existe.";
+export const PATH_HELP =
+  "AlmarioKS no reemplaza archivos: si eliges uno que ya existe, aunque Windows pregunte si quieres reemplazarlo, te pedirá otro nombre.";
+
+function formErrorText(error: FormError, keyMode: KeyMode): string {
   switch (error.kind) {
     case "app":
+      if (error.error.code === "ArchivoExiste") return keyMode === "generate" ? EXISTS_EITHER : EXISTS_VAULT;
       return errorMessage(error.error);
     case "mismatch":
       return "La contraseña maestra y su confirmación no coinciden. Escríbelas otra vez.";
@@ -229,11 +241,12 @@ export function CreateScreen({ client, onBack, onDone }: CreateScreenProps) {
 
   const creating = phase.kind === "creating";
   const formError = phase.kind === "editing" ? phase.error : null;
-  const shownError = formError === null ? (pickError === null ? "" : errorMessage(pickError)) : formErrorText(formError);
+  const shownError = formError === null ? (pickError === null ? "" : errorMessage(pickError)) : formErrorText(formError, keyMode);
   const keyPath = keyMode === "none" ? null : keyPaths[keyMode];
   /** The one error line sits next to the field it is about; what belongs to no field goes above the actions. */
   const errorAt =
-    formError?.kind === "no-path"
+    formError?.kind === "no-path" ||
+    (formError?.kind === "app" && formError.error.code === "ArchivoExiste" && keyMode !== "generate")
       ? "path"
       : formError?.kind === "mismatch"
         ? "confirm"
@@ -270,6 +283,7 @@ export function CreateScreen({ client, onBack, onDone }: CreateScreenProps) {
                 Elegir dónde guardarla…
               </button>
             </div>
+            <p className="path field-hint">{PATH_HELP}</p>
             {errorAt === "path" && errorNode}
           </div>
 

@@ -33,6 +33,8 @@ type WireStatus =
       weak_kdf: boolean;
       save_pending: boolean;
       recovery: WireRecovery;
+      /** RF-29: seconds until the vault locks by itself; the fake leaves it out unless a test sets it. */
+      locks_in_seconds?: number | null;
     };
 
 type PickCommand = "pick_vault_to_open" | "pick_vault_to_create" | "pick_key_file" | "pick_new_key_file";

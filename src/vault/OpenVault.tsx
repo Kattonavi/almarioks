@@ -7,6 +7,7 @@ import type { Recovery, SaveState, VaultStatus } from "../ipc/schemas";
 import { InfoIcon, LockIcon, WarningIcon } from "../ui/icons";
 import { Dialog } from "./Dialog";
 import { RecoveryNotice } from "./RecoveryNotice";
+import type { SaveSignal } from "./saveSignal";
 import { formatCountdown } from "./format";
 import { fileNameOf, type VaultRef } from "./state";
 import { VaultScreen } from "./VaultScreen";
@@ -74,8 +75,11 @@ interface OpenVaultProps {
   readonly weakKdf: boolean;
   /** `save_pending` of the last status: the same notice as a failed save (RF-23). */
   readonly savePending: boolean;
-  /** Seconds until the vault locks by itself, when the status brings them: shown as reported, never guessed. */
-  readonly locksInSeconds?: number | undefined;
+  /**
+   * When the vault locks by itself (ms since the epoch), from the `locks_in_seconds` of the last status: counted down
+   * here between polls, never guessed. Absent when the status does not bring it: then nothing is shown.
+   */
+  readonly lockDeadline?: number | undefined;
   readonly recovery: Recovery | null;
   /** Bumped after a reload so the vault screens drop what they had and ask the core again. */
   readonly generation: number;
@@ -97,6 +101,8 @@ export function OpenVault(props: OpenVaultProps) {
     props.savePending ? { kind: "failed", error: null } : { kind: "idle" },
   );
   const [notice, setNotice] = useState("");
+  /** RF-21: how many saves reached the disk since this screen opened (see `SaveSignal`). */
+  const [savedCount, setSavedCount] = useState(0);
   const [busy, setBusy] = useState(false);
   const [confirmReload, setConfirmReload] = useState(false);
   const [convertError, setConvertError] = useState<AppError | null>(null);
@@ -115,7 +121,9 @@ export function OpenVault(props: OpenVaultProps) {
     let unlisten: Unlisten | undefined;
     client
       .onSaveState((state) => {
-        if (!disposed) setSave(viewOf(state));
+        if (disposed) return;
+        setSave(viewOf(state));
+        if (state === "saved") setSavedCount((count) => count + 1);
       })
       .then(
         (stop) => {
@@ -151,9 +159,13 @@ export function OpenVault(props: OpenVaultProps) {
       case "applied":
         focusTitle.current = true;
         setNotice("");
-        setSave(
-          outcome.status.state === "open" && outcome.status.savePending ? { kind: "failed", error: null } : after,
-        );
+        if (outcome.status.state === "open" && outcome.status.savePending) {
+          setSave({ kind: "failed", error: null });
+          return;
+        }
+        setSave(after);
+        // A retry or a save elsewhere that answered without anything pending wrote the file.
+        if (after.kind === "saved") setSavedCount((count) => count + 1);
         return;
       default:
         assertNever(outcome);
@@ -213,6 +225,7 @@ export function OpenVault(props: OpenVaultProps) {
   }
 
   const problem = save.kind === "failed" || save.kind === "external" ? save : null;
+  const saveSignal: SaveSignal = { saved: savedCount, problem: problem !== null };
 
   /** What the person has to know before working: above the work area, never over it. */
   const notices = (
@@ -334,13 +347,12 @@ export function OpenVault(props: OpenVaultProps) {
         key={`${vault.path}#${String(props.generation)}`}
         client={client}
         readOnly={readOnly}
+        saveSignal={saveSignal}
         barEnd={
           <>
-            {props.locksInSeconds !== undefined && (
-              <p className="lock-countdown">
-                <span className="label">Se bloquea en</span>{" "}
-                <span className="mono num">{formatCountdown(props.locksInSeconds)}</span>
-              </p>
+            {/* Keyed by the deadline: a new status starts the count from its own moment. */}
+            {props.lockDeadline !== undefined && (
+              <LockCountdown key={props.lockDeadline} deadline={props.lockDeadline} />
             )}
             <button type="button" className="btn-primary" onClick={props.onLock}>
               <LockIcon />
@@ -394,6 +406,25 @@ export function OpenVault(props: OpenVaultProps) {
         </Dialog>
       )}
     </section>
+  );
+}
+
+/** RF-29: a leaf of its own, so only this line repaints every second. It never shows less than zero. */
+function LockCountdown({ deadline }: { readonly deadline: number }) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setNow(Date.now());
+    }, 1000);
+    return () => {
+      clearInterval(timer);
+    };
+  }, []);
+  const seconds = Math.max(0, Math.ceil((deadline - now) / 1000));
+  return (
+    <p className="lock-countdown">
+      <span className="label">Se bloquea en</span> <span className="mono num">{formatCountdown(seconds)}</span>
+    </p>
   );
 }
 

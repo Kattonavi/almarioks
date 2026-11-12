@@ -38,7 +38,7 @@ export const vaultStatusSchema = z
       weak_kdf: z.boolean(),
       save_pending: z.boolean(),
       recovery: recoveryWire,
-      /** Optional: seconds until the vault locks by itself. The core does not send it yet. */
+      /** Seconds until the vault locks by itself (plan.md: sent while open); optional, so an older core still parses. */
       locks_in_seconds: z.number().int().nonnegative().nullish(),
     }),
   ])

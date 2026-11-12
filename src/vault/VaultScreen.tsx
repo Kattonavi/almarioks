@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
 
 import { assertNever } from "../assertNever";
 import type { VaultClient } from "../ipc/client";
@@ -10,6 +10,7 @@ import { EntryPanel } from "./EntryPanel";
 import { findGroup, formatDate, formatDay, liveEntryCount, plural, shown } from "./format";
 import { GroupActions, type GroupChange } from "./GroupActions";
 import { assignLines, initialOf, lineOfPath, type GroupLine } from "./lines";
+import { NO_SAVE_SIGNAL, savingText, type SaveSignal } from "./saveSignal";
 
 /** RF-59: wait this long after the last keystroke before asking the core to search. */
 export const SEARCH_DELAY_MS = 150;
@@ -42,6 +43,11 @@ type DetailState =
   | { readonly kind: "entry"; readonly entry: SelectedEntry }
   | { readonly kind: "new"; readonly groupId: string };
 
+/** The notice of the detail zone: a plain text, or a new entry waiting for its save to reach the disk (RF-21). */
+type Notice = { readonly kind: "text"; readonly text: string } | { readonly kind: "created"; readonly since: number };
+
+const NO_NOTICE: Notice = { kind: "text", text: "" };
+
 /** What a group badge shows: the line colour of the group and its initial (the recycle bin shows its icon). */
 interface Badge {
   readonly line: GroupLine;
@@ -61,6 +67,8 @@ interface VaultScreenProps {
   readonly client: VaultClient;
   /** RF-14: nothing that changes the vault is offered; the notice above the screen says why. */
   readonly readOnly?: boolean;
+  /** RF-21: saves that reached the disk, so "guardada" is said only when it is true. */
+  readonly saveSignal?: SaveSignal;
   /** Frame slots, filled by whoever owns the open vault: the end of the top bar (lock, settings)… */
   readonly barEnd?: ReactNode;
   /** …the head of the group rail (name and file of the vault)… */
@@ -75,7 +83,14 @@ interface VaultScreenProps {
  * the detail. Every vault datum is rendered as a React text child, never as HTML or as a link (RF-78). All its data
  * is local state, so a lock, which unmounts this screen, drops it at once (RF-32).
  */
-export function VaultScreen({ client, readOnly = false, barEnd, railHead, banner }: VaultScreenProps) {
+export function VaultScreen({
+  client,
+  readOnly = false,
+  saveSignal = NO_SAVE_SIGNAL,
+  barEnd,
+  railHead,
+  banner,
+}: VaultScreenProps) {
   const [tree, setTree] = useState<TreeState>({ kind: "loading" });
   const [treeAttempt, setTreeAttempt] = useState(0);
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
@@ -84,18 +99,25 @@ export function VaultScreen({ client, readOnly = false, barEnd, railHead, banner
   /** Asks the list again after a change without showing "Cargando" in between. */
   const [listRefresh, setListRefresh] = useState(0);
   const [detail, setDetail] = useState<DetailState>({ kind: "none" });
-  const [notice, setNotice] = useState("");
+  const [notice, setNotice] = useState<Notice>(NO_NOTICE);
   const [query, setQuery] = useState("");
   const [search, setSearch] = useState<SearchState>({ kind: "idle" });
   /** RF-74 on the list: which row holds the clipboard and until when. It outlives the detail of that entry. */
   const [stamp, setStamp] = useState<{ readonly entryId: string; readonly deadline: number } | null>(null);
   const [now, setNow] = useState(() => Date.now());
   const searchRef = useRef<HTMLInputElement>(null);
+  const listPaneRef = useRef<HTMLElement>(null);
+  /** RF-59: Enter pressed while the search was still on its way: open the first result when it lands. */
+  const openFirst = useRef(false);
+  /** The entry opened from the keyboard: its detail takes the focus once loaded (`seq` asks again for the same one). */
+  const [keyboardOpen, setKeyboardOpen] = useState<{ readonly entryId: string; readonly seq: number } | null>(null);
   const detailTitleRef = useRef<HTMLHeadingElement>(null);
   const groupsTitleRef = useRef<HTMLHeadingElement>(null);
   /** After a group action removed what had focus, focus goes back to the tree once it is painted. */
   const focusTree = useRef(false);
   const focusDetail = useRef(false);
+  /** After "Volver a la lista": the row of the entry that was open takes the focus once the list is shown again. */
+  const focusRow = useRef<string | null>(null);
   const searchSeq = useRef(0);
   const searchTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const mounted = useRef(false);
@@ -126,6 +148,18 @@ export function VaultScreen({ client, readOnly = false, barEnd, railHead, banner
     if (!focusDetail.current) return;
     focusDetail.current = false;
     detailTitleRef.current?.focus();
+  }, [detail]);
+
+  useEffect(() => {
+    const entryId = focusRow.current;
+    if (entryId === null) return;
+    focusRow.current = null;
+    const index = shownItems().findIndex((item) => item.id === entryId);
+    const row = rowButtons()[index];
+    if (row === undefined) listPaneRef.current?.querySelector<HTMLElement>("#entries-title")?.focus();
+    else row.focus();
+    // shownItems and rowButtons read the state of this same render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [detail]);
 
   useEffect(() => {
@@ -185,6 +219,7 @@ export function VaultScreen({ client, readOnly = false, barEnd, railHead, banner
   function onQueryChange(value: string) {
     setQuery(value);
     cancelSearch();
+    openFirst.current = false;
     // RF-92: an empty query (after trimming) does not filter: back to the current group.
     if (value.trim() === "") {
       setSearch({ kind: "idle" });
@@ -196,6 +231,9 @@ export function VaultScreen({ client, readOnly = false, barEnd, railHead, banner
       void client.search(value).then((result) => {
         if (!mounted.current || mine !== searchSeq.current) return;
         setSearch(result.ok ? { kind: "done", items: result.value } : { kind: "failed", error: result.error });
+        const first = result.ok ? result.value[0] : undefined;
+        if (openFirst.current && first !== undefined) openFromKeyboard({ id: first.id, title: first.title });
+        openFirst.current = false;
       });
     }, SEARCH_DELAY_MS);
   }
@@ -230,11 +268,84 @@ export function VaultScreen({ client, readOnly = false, barEnd, railHead, banner
   }
 
   function selectEntry(entry: SelectedEntry) {
-    setNotice("");
+    setNotice(NO_NOTICE);
+    setKeyboardOpen(null);
     setDetail({ kind: "entry", entry });
   }
 
+  /** RF-59, UX "buscar y copiar en 3 pasos": open from the keyboard and hand the focus to the detail. */
+  function openFromKeyboard(entry: SelectedEntry) {
+    setNotice(NO_NOTICE);
+    setKeyboardOpen((current) => ({ entryId: entry.id, seq: (current?.seq ?? 0) + 1 }));
+    setDetail({ kind: "entry", entry });
+  }
+
+  function rowButtons(): HTMLButtonElement[] {
+    return [...(listPaneRef.current?.querySelectorAll<HTMLButtonElement>("table.entries tbody th button") ?? [])];
+  }
+
+  /** The entries the list shows right now, in order: the search results or the loaded group. */
+  function shownItems(): readonly EntrySummary[] {
+    if (searching) return search.kind === "done" ? search.items : [];
+    const loaded = list !== null && list.groupId === groupId && list.attempt === listAttempt ? list.result : null;
+    return loaded?.ok === true ? loaded.value : [];
+  }
+
+  function onSearchKeyDown(event: ReactKeyboardEvent<HTMLInputElement>) {
+    switch (event.key) {
+      case "Escape":
+        if (query === "") return;
+        event.preventDefault();
+        clearSearch();
+        return;
+      case "ArrowDown":
+        event.preventDefault();
+        rowButtons()[0]?.focus();
+        return;
+      case "Enter": {
+        event.preventDefault();
+        if (searching && search.kind === "searching") {
+          openFirst.current = true;
+          return;
+        }
+        const first = shownItems()[0];
+        if (first !== undefined) openFromKeyboard({ id: first.id, title: first.title });
+        return;
+      }
+      default:
+        return;
+    }
+  }
+
+  function onRowKeyDown(event: ReactKeyboardEvent<HTMLButtonElement>, entry: SelectedEntry) {
+    const buttons = rowButtons();
+    const index = buttons.indexOf(event.currentTarget);
+    switch (event.key) {
+      case "ArrowDown":
+      case "ArrowUp": {
+        event.preventDefault();
+        const next = buttons[index + (event.key === "ArrowDown" ? 1 : -1)];
+        next?.focus();
+        return;
+      }
+      case "Enter":
+        event.preventDefault();
+        openFromKeyboard(entry);
+        return;
+      case "Escape":
+        event.preventDefault();
+        searchRef.current?.focus();
+        return;
+      default:
+        return;
+    }
+  }
+
   const searching = query.trim() !== "";
+  const noticeText =
+    notice.kind === "text"
+      ? notice.text
+      : savingText(saveSignal, notice.since, "Entrada creada. Guardándola en el archivo…", "Entrada guardada.");
   const stamped: Stamped | null =
     stamp === null ? null : { entryId: stamp.entryId, seconds: Math.max(1, Math.ceil((stamp.deadline - now) / 1000)) };
   /** The line colour of every group: by position, so it only changes when the tree does. */
@@ -261,19 +372,15 @@ export function VaultScreen({ client, readOnly = false, barEnd, railHead, banner
             onChange={(event) => {
               onQueryChange(event.target.value);
             }}
-            onKeyDown={(event) => {
-              if (event.key === "Escape" && query !== "") {
-                event.preventDefault();
-                clearSearch();
-              }
-            }}
+            onKeyDown={onSearchKeyDown}
           />
           <kbd aria-hidden="true">Ctrl K</kbd>
           <p id="vault-search-help" className="sr-only">
-            Atajo: Ctrl+F o Ctrl+K. Escape limpia la búsqueda.
+            Atajo: Ctrl+F o Ctrl+K. Enter abre el primer resultado y flecha abajo lleva a la lista, donde las
+            flechas recorren las entradas, Enter abre una y Escape vuelve aquí. Escape limpia la búsqueda.
           </p>
         </div>
-        {/* The lock countdown belongs here once the core reports the time left: today no status carries it. */}
+        {/* The lock countdown, the lock button and the settings come from whoever owns the open vault. */}
         <div className="vault-bar-end">{barEnd}</div>
       </div>
 
@@ -290,7 +397,7 @@ export function VaultScreen({ client, readOnly = false, barEnd, railHead, banner
       <div className="work" data-detail={detail.kind}>
         <div className="work-banner">{banner}</div>
         <div className="vault-zones">
-          <section aria-labelledby="entries-title" className="list-pane">
+          <section ref={listPaneRef} aria-labelledby="entries-title" className="list-pane">
             {searching ? renderSearch() : renderGroup()}
           </section>
 
@@ -299,7 +406,7 @@ export function VaultScreen({ client, readOnly = false, barEnd, railHead, banner
             <h3 id="detail-title" ref={detailTitleRef} tabIndex={-1} className="sr-only">
               Detalle
             </h3>
-            <div aria-live="polite">{notice !== "" && <p className="notice">{notice}</p>}</div>
+            <div aria-live="polite">{noticeText !== "" && <p className="notice">{noticeText}</p>}</div>
             {renderDetail()}
           </section>
         </div>
@@ -319,7 +426,7 @@ export function VaultScreen({ client, readOnly = false, barEnd, railHead, banner
             client={client}
             mode={{ kind: "create", groupId: group.id, groupName: shown(group.name, "(sin nombre)") }}
             onSaved={(entry) => {
-              setNotice("Entrada guardada.");
+              setNotice({ kind: "created", since: saveSignal.saved });
               setDetail({ kind: "entry", entry: { id: entry.id, title: entry.title } });
               refresh();
             }}
@@ -340,6 +447,13 @@ export function VaultScreen({ client, readOnly = false, barEnd, railHead, banner
             listTitle={detail.entry.title}
             root={tree.root}
             readOnly={readOnly}
+            saveSignal={saveSignal}
+            focusRequest={keyboardOpen?.entryId === detail.entry.id ? keyboardOpen.seq : 0}
+            onBack={() => {
+              focusRow.current = detail.entry.id;
+              setKeyboardOpen(null);
+              setDetail({ kind: "none" });
+            }}
             onChanged={refresh}
             onCopied={(deadline) => {
               setNow(Date.now());
@@ -347,7 +461,7 @@ export function VaultScreen({ client, readOnly = false, barEnd, railHead, banner
             }}
             onDeleted={(message) => {
               setDetail({ kind: "none" });
-              setNotice(message);
+              setNotice({ kind: "text", text: message });
               refresh();
               // After the commit: while a modal dialog is open, everything outside it is inert.
               focusDetail.current = true;
@@ -439,7 +553,7 @@ export function VaultScreen({ client, readOnly = false, barEnd, railHead, banner
               type="button"
               className="btn-primary"
               onClick={() => {
-                setNotice("");
+                setNotice(NO_NOTICE);
                 setDetail({ kind: "new", groupId: group.id });
               }}
             >
@@ -484,6 +598,7 @@ export function VaultScreen({ client, readOnly = false, barEnd, railHead, banner
             stamped={stamped}
             selectedId={selectedId}
             onSelect={selectEntry}
+            onRowKeyDown={onRowKeyDown}
           />
         )}
       </>
@@ -544,6 +659,7 @@ export function VaultScreen({ client, readOnly = false, barEnd, railHead, banner
             stamped={stamped}
             selectedId={selectedId}
             onSelect={selectEntry}
+            onRowKeyDown={onRowKeyDown}
           />
         )}
       </>
@@ -635,13 +751,15 @@ interface EntryTableProps {
   readonly stamped: Stamped | null;
   readonly selectedId: string | null;
   readonly onSelect: (entry: SelectedEntry) => void;
+  /** RF-59: arrows move between rows, Enter opens one, Escape goes back to the search. */
+  readonly onRowKeyDown: (event: ReactKeyboardEvent<HTMLButtonElement>, entry: SelectedEntry) => void;
 }
 
 /**
  * RF-42: entries in the order the core sends (by title). The URL is text, never a link (RF-78, RF-49). It is a real
  * table drawn as a list of rows: the title button stretches over its row, and the header row stays for screen readers.
  */
-function EntryTable({ items, groupPaths, badgeOf, stamped, selectedId, onSelect }: EntryTableProps) {
+function EntryTable({ items, groupPaths, badgeOf, stamped, selectedId, onSelect, onRowKeyDown }: EntryTableProps) {
   return (
     <div className="table-scroll">
       <table className="entries" data-search={groupPaths === null ? undefined : ""}>
@@ -665,6 +783,9 @@ function EntryTable({ items, groupPaths, badgeOf, stamped, selectedId, onSelect 
                   aria-current={entry.id === selectedId ? "true" : undefined}
                   onClick={() => {
                     onSelect({ id: entry.id, title: entry.title });
+                  }}
+                  onKeyDown={(event) => {
+                    onRowKeyDown(event, { id: entry.id, title: entry.title });
                   }}
                 >
                   {shown(entry.title, "(sin título)")}
