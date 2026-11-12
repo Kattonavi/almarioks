@@ -4,8 +4,8 @@ import type { EntryDetail } from "../ipc/schemas";
 import { checkEntry, entryFieldOf, parseTags, type FieldProblem } from "./rules";
 
 /**
- * What the entry form in the panel and the entry dialog share: what a draft holds, what travels to the core and how a
- * core error finds its field. No React here.
+ * The draft of the entry dialog without its screen: what it holds, what travels to the core and how a core error
+ * finds its field. No React here.
  */
 export type EntryTextField = "title" | "username" | "url" | "notes";
 

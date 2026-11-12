@@ -7,7 +7,7 @@ import { take } from "./entryDraft";
 import { strengthLabel } from "./format";
 
 /** RF-70: wait this long after the last keystroke before asking the core for the strength. */
-export const PASSWORD_STRENGTH_DELAY_MS = 150;
+const PASSWORD_STRENGTH_DELAY_MS = 150;
 
 /** RF-65: the length of a generated password until the owner moves the slider, and the range the core accepts. */
 const DEFAULT_LENGTH = 20;

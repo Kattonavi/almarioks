@@ -745,3 +745,39 @@ describe("Diálogo de entrada — el navegador lo cierra por su cuenta", () => {
     expect(screen.queryByRole("dialog")).toBeNull();
   });
 });
+
+describe("Diálogo de entrada — Esc repetido", () => {
+  it("RF-100: si el navegador avisa con un `cancel` que ya no se puede anular y cierra el diálogo, la pregunta queda encima del diálogo reabierto y sus dos salidas funcionan", () => {
+    const { onClose } = open();
+    fireEvent.change(title(), { target: { value: "A medias" } });
+    typePassword("escrita-sin-guardar");
+    const dialog = sheet();
+    // The top layer is a stack: the last dialog shown is the one on top, and the only one that can be used.
+    const shown: HTMLDialogElement[] = [];
+    const spy = vi.spyOn(HTMLDialogElement.prototype, "showModal").mockImplementation(function (this: HTMLDialogElement) {
+      shown.push(this);
+      this.open = true;
+    });
+
+    fireEvent(dialog, new Event("cancel", { cancelable: false }));
+    closedByTheBrowser(dialog);
+
+    const question = confirmation();
+    expect(dialog.open).toBe(true);
+    expect(question).not.toBeNull();
+    expect(shown).toContain(dialog);
+    expect(shown.at(-1)).toBe(question);
+    expect(screen.getAllByRole("dialog", { name: "¿Descartar los cambios?" })).toHaveLength(1);
+    spy.mockRestore();
+
+    fireEvent.click(screen.getByRole("button", { name: "Seguir editando" }));
+    expect(confirmation()).toBeNull();
+    expect(title().value).toBe("A medias");
+    expect(passwordField().value).toBe("escrita-sin-guardar");
+    expect(onClose).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Cancelar" }));
+    fireEvent.click(screen.getByRole("button", { name: "Descartar" }));
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+});

@@ -72,7 +72,12 @@ export function EntryDialog({ client, mode, onClose, onSaved }: EntryDialogProps
   const [moreOpen, setMoreOpen] = useState(
     () => editing !== null && (editing.tags.length > 0 || editing.customFields.length > 0),
   );
-  const [confirming, setConfirming] = useState(false);
+  /**
+   * 0: not asking. Every request to close with changes counts one more, so the question is mounted again and is the
+   * last dialog opened: it stays on top of the sheet also when the browser has just closed the sheet on its own and
+   * it was opened again under it.
+   */
+  const [asking, setAsking] = useState(0);
   const passwordRef = useRef<PasswordFieldHandle>(null);
   const mounted = useRef(false);
   const busy = useRef(false);
@@ -99,7 +104,7 @@ export function EntryDialog({ client, mode, onClose, onSaved }: EntryDialogProps
   /** Escape, the close button and "Cancelar" (RF-100): it asks only if something would be lost. */
   function requestClose() {
     if (saving) return;
-    if (dirty) setConfirming(true);
+    if (dirty) setAsking((count) => count + 1);
     else onClose();
   }
 
@@ -313,11 +318,12 @@ export function EntryDialog({ client, mode, onClose, onSaved }: EntryDialogProps
           </footer>
         </form>
       </Dialog>
-      {confirming && (
+      {asking > 0 && (
         <Dialog
+          key={asking}
           title="¿Descartar los cambios?"
           onClose={() => {
-            setConfirming(false);
+            setAsking(0);
           }}
         >
           <p>Lo que escribiste en esta entrada no se guardará.</p>
@@ -329,7 +335,7 @@ export function EntryDialog({ client, mode, onClose, onSaved }: EntryDialogProps
               type="button"
               data-initial-focus=""
               onClick={() => {
-                setConfirming(false);
+                setAsking(0);
               }}
             >
               Seguir editando
