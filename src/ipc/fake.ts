@@ -13,6 +13,10 @@ export interface FakeVaultFile {
   readonly name: string;
   readonly password?: string;
   readonly keyFilePath?: string;
+  /** RF-14: a KDBX 3.x file opens read-only. */
+  readonly readOnly?: boolean;
+  /** RF-17: a KDF weaker than Argon2id with 64 MiB. */
+  readonly weakKdf?: boolean;
 }
 
 type WireRecovery = { kind: "saved"; path: string } | { kind: "lost" } | null;
@@ -428,8 +432,29 @@ export function createFakeBackend(options: FakeOptions = {}): FakeBackend {
     recent = [{ path, exists: true }, ...recent.filter((item) => item.path !== path)].slice(0, 5);
   }
 
-  function openStatus(path: string, name: string, recovery: WireRecovery): WireStatus {
-    return { state: "open", path, name, read_only: false, weak_kdf: false, save_pending: false, recovery };
+  function openStatus(path: string, name: string, recovery: WireRecovery, file?: FakeVaultFile): WireStatus {
+    return {
+      state: "open",
+      path,
+      name,
+      read_only: file?.readOnly ?? false,
+      weak_kdf: file?.weakKdf ?? false,
+      save_pending: false,
+      recovery,
+    };
+  }
+
+  type OpenWire = Extract<WireStatus, { state: "open" }>;
+
+  function openNow(): OpenWire {
+    if (status.state !== "open") failWith("Bloqueada");
+    return status;
+  }
+
+  /** RF-23, RF-24: retry, save as and reload leave nothing pending; the test drives the events with `emit`. */
+  function settle(next: Partial<OpenWire> = {}): WireStatus {
+    status = { ...openNow(), save_pending: false, ...next };
+    return status;
   }
 
   async function vaultOpen(args: Record<string, unknown>): Promise<WireStatus> {
@@ -451,7 +476,7 @@ export function createFakeBackend(options: FakeOptions = {}): FakeBackend {
       status = before;
       failWith("LlaveIncorrecta");
     }
-    const opened = openStatus(path, vault.name, recovery);
+    const opened = openStatus(path, vault.name, recovery, vault);
     // Locked while deriving: the core stays locked, but the late answer still reaches the window (a race to survive).
     if (stateNow() !== "deriving") return opened;
     status = opened;
@@ -781,6 +806,27 @@ export function createFakeBackend(options: FakeOptions = {}): FakeBackend {
         clipboard = null;
         emit("vault-locked");
         return null;
+      case "vault_retry_save":
+      case "vault_reload":
+        return settle();
+      case "vault_save_as": {
+        onlyKeys(args, ["path"]);
+        const path = requiredString(args.path);
+        openNow();
+        files.add(path);
+        remember(path);
+        return settle({ path });
+      }
+      case "vault_convert": {
+        onlyKeys(args, ["new_path"]);
+        const path = requiredString(args.new_path);
+        openNow();
+        if (files.has(path) || vaults.some((vault) => vault.path === path)) failWith("ArchivoExiste");
+        // RF-15: a new KDBX 4 file; the original one stays as it was.
+        files.add(path);
+        remember(path);
+        return settle({ path, read_only: false, weak_kdf: false });
+      }
       case "recent_list":
         return recent;
       case "recent_remove":

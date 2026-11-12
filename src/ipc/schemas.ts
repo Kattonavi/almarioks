@@ -236,5 +236,6 @@ export type Settings = z.output<typeof settingsSchema>;
 
 // ---------- Events ----------
 
-export const saveStateSchema = z.enum(["saved", "failed", "external-change"]);
+/** plan.md, precision 13. */
+export const saveStateSchema = z.enum(["saving", "saved", "failed", "external-change"]);
 export type SaveState = z.output<typeof saveStateSchema>;

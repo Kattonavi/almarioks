@@ -85,7 +85,7 @@ export const ERROR_MESSAGES: Readonly<Record<ErrorCode, string>> = {
     "La bóveda pide más memoria o tiempo del que es seguro usar y no se intentó abrir. Ábrela en KeePass 2 o KeePassXC y baja sus ajustes de cifrado.",
   Ocupada: "La bóveda ya se está abriendo. Espera a que termine.",
   GuardadoFallido:
-    "No se pudo guardar. Tus cambios siguen aquí: vuelve a intentarlo o guárdalos en otra ubicación.",
+    "No se pudo guardar. Tus cambios siguen aquí: vuelve a intentarlo o guárdalos en otra ubicación. Si otra app tiene abierto el archivo (por ejemplo, KeePass o un programa de sincronización), ciérrala y reintenta.",
   CambioExterno:
     "Otra app cambió el archivo de la bóveda y no se sobrescribió. Guarda tus cambios en otra ubicación o recarga el archivo descartando lo pendiente.",
   TituloVacio: "La entrada necesita un título. Escribe uno.",

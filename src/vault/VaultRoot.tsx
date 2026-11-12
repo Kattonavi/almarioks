@@ -3,13 +3,30 @@ import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { assertNever } from "../assertNever";
 import type { Unlisten, VaultClient } from "../ipc/client";
 import { errorMessage } from "../ipc/errors";
+import type { VaultStatus } from "../ipc/schemas";
 import { CreateScreen } from "./CreateScreen";
-import { RecoveryNotice } from "./RecoveryNotice";
+import { OpenVault, type Guard } from "./OpenVault";
 import { initialState, reducer, type AppState } from "./state";
 import { UnlockScreen, type UnlockKey } from "./UnlockScreen";
 import { useActivityPing } from "./useActivityPing";
-import { VaultScreen } from "./VaultScreen";
 import { WelcomeScreen } from "./WelcomeScreen";
+
+interface OpenInfo {
+  readonly weakKdf: boolean;
+  readonly savePending: boolean;
+  readonly generation: number;
+}
+
+function openInfoReducer(
+  current: OpenInfo,
+  action: { readonly status: Extract<VaultStatus, { state: "open" }>; readonly remount: boolean },
+): OpenInfo {
+  return {
+    weakKdf: action.status.weakKdf,
+    savePending: action.status.savePending,
+    generation: current.generation + (action.remount ? 1 : 0),
+  };
+}
 
 /** How often the window asks again while the core reports a derivation it did not start. */
 const DERIVING_POLL_MS = 250;
@@ -23,15 +40,39 @@ export function VaultRoot({ client }: { readonly client: VaultClient }) {
   const [state, dispatch] = useReducer(reducer, initialState);
   const [attempt, setAttempt] = useState(0);
   const epoch = useRef(0);
+  /** Flags of the open vault that only its screen needs (RF-17, RF-23); `generation` remounts it after a reload. */
+  const [openInfo, setOpenInfo] = useReducer(openInfoReducer, { weakKdf: false, savePending: false, generation: 0 });
+  /** RF-17: the weak-protection notice closed "for this session" (until the app closes), per vault file. */
+  const [weakDismissed, setWeakDismissed] = useState<ReadonlySet<string>>(() => new Set());
+
+  const applyStatus = useCallback((status: VaultStatus, remount = false) => {
+    dispatch({ type: "status", status });
+    if (status.state === "open") setOpenInfo({ status, remount });
+  }, []);
 
   const refresh = useCallback(async () => {
     const started = epoch.current;
     const result = await client.vaultStatus();
     if (started !== epoch.current) return;
-    dispatch(
-      result.ok ? { type: "status", status: result.value } : { type: "status-failed", error: result.error },
-    );
-  }, [client]);
+    if (result.ok) applyStatus(result.value);
+    else dispatch({ type: "status-failed", error: result.error });
+  }, [client, applyStatus]);
+
+  /** Tags an action of the open vault with the current lock epoch: a late answer after a lock is dropped (RF-32). */
+  const begin = useCallback((): Guard => {
+    const started = epoch.current;
+    const stale = () => started !== epoch.current;
+    return {
+      stale,
+      apply: async (op, remount) => {
+        const result = await op();
+        if (stale()) return { kind: "stale" };
+        if (!result.ok) return { kind: "failed", error: result.error };
+        applyStatus(result.value, remount);
+        return { kind: "applied", status: result.value };
+      },
+    };
+  }, [applyStatus]);
 
   const dropVault = useCallback(() => {
     epoch.current += 1;
@@ -85,9 +126,8 @@ export function VaultRoot({ client }: { readonly client: VaultClient }) {
     dispatch({ type: "unlock-started" });
     const result = await client.vaultOpen({ path, ...key });
     if (started !== epoch.current) return;
-    dispatch(
-      result.ok ? { type: "status", status: result.value } : { type: "unlock-failed", error: result.error },
-    );
+    if (result.ok) applyStatus(result.value);
+    else dispatch({ type: "unlock-failed", error: result.error });
   }
 
   async function lock() {
@@ -179,21 +219,27 @@ export function VaultRoot({ client }: { readonly client: VaultClient }) {
           />
         );
       }
-      case "open":
+      case "open": {
+        const { path } = current.vault;
         return (
-          <section aria-labelledby="vault-title">
-            <h2 id="vault-title">{current.name === "" ? current.vault.fileName : current.name}</h2>
-            <p className="path">{current.vault.path}</p>
-            {current.readOnly && <p>Esta bóveda está abierta en solo lectura.</p>}
-            {current.recovery !== null && <RecoveryNotice recovery={current.recovery} />}
-            <div className="actions">
-              <button type="button" onClick={() => void lock()}>
-                Bloquear
-              </button>
-            </div>
-            <VaultScreen key={current.vault.path} client={client} />
-          </section>
+          <OpenVault
+            client={client}
+            vault={current.vault}
+            name={current.name}
+            readOnly={current.readOnly}
+            weakKdf={openInfo.weakKdf}
+            savePending={openInfo.savePending}
+            recovery={current.recovery}
+            generation={openInfo.generation}
+            weakDismissed={weakDismissed.has(path)}
+            onDismissWeak={() => {
+              setWeakDismissed((dismissed) => new Set([...dismissed, path]));
+            }}
+            begin={begin}
+            onLock={() => void lock()}
+          />
         );
+      }
       default:
         return assertNever(current);
     }
