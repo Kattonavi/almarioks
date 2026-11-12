@@ -434,6 +434,9 @@ Salieron al implementar; en cada una se eligió lo más conservador. Ninguna cam
   contraseña mostrada. Consecuencia: no hay "Pegar" con el botón derecho; Ctrl+V sí.
 - Si la app no logra apagar ese menú y esas teclas al arrancar (por ejemplo, con un WebView2 demasiado antiguo), no
   arranca. Hoy lo hace sin mensaje visible (`docs/BACKLOG.md`).
+- Un valor protegido mostrado en el detalle no se puede seleccionar, y la ventana cancela copiar, cortar y
+  arrastrar cuando tocan uno: copiado por selección quedaba en el portapapeles sin limpieza por tiempo ni al bloquear.
+  Sale solo por "Copiar". Consecuencia: con un valor mostrado, Ctrl+A y Ctrl+C no copian nada.
 - La ventana abre centrada.
 
 ## Propuestas al dueño sobre la constitución (no se cambió nada)
