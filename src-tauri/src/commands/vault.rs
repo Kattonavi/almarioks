@@ -26,6 +26,7 @@ use super::{
     args::{SecretArg, expect_no_args, parse_args, present},
     blocking,
     error::AppError,
+    location::ensure_default_folder,
     require_open, with_field_data,
 };
 use crate::{
@@ -235,6 +236,11 @@ pub async fn vault_status(
 
 /// Creates a vault and leaves it open (RF-1 to RF-6, RF-9).
 ///
+/// The folder of the vault must exist, with one exception (RF-97): if the vault goes directly inside
+/// `Documents › AlmarioKS` and that folder is missing, it is created first (and removed again if the creation
+/// fails). No other folder is ever created. Whatever the path, a file that is already there is never replaced
+/// (RF-4, RF-98): the answer is `ArchivoExiste`, also for the new key file (RF-6, RF-99).
+///
 /// # Errors
 /// In the order of the plan ("Precisiones" 12): `ArgumentoInvalido` › `LlaveVacia` › `ArchivoExiste` (vault) ›
 /// `ArchivoExiste` (new key file); then those of the key file given (`ArchivoLlaveNoEncontrado`,
@@ -249,6 +255,7 @@ pub async fn vault_create(
     let path = path_arg(&args.path)?;
     let (session, center) = (state.session(), state.lock_center());
     let (settings, choose_kdf) = (state.settings(), state.new_vault_kdf());
+    let documents = state.documents_dir();
     blocking(move || {
         // The cheap refusals first, in the order of the plan: choosing the KDF takes seconds and the person
         // should not wait for it to learn that the file exists. The core checks them all again.
@@ -276,6 +283,9 @@ pub async fn vault_create(
         // A lock that is still writing its recovery file ends first (see `vault_open`).
         center.settle();
         center.unlocking();
+        // RF-97: after every cheap refusal and right before writing. Only `Documents › AlmarioKS`, and only when
+        // the vault goes directly inside it; if the creation fails, the folder this call made goes away again.
+        let made_folder = ensure_default_folder(documents().as_deref(), &path)?;
         let status = session
             .create(
                 &path,
@@ -287,6 +297,7 @@ pub async fn vault_create(
             .map_err(|error| {
                 with_field_data(error, || validate_group_name(&args.name).map(drop))
             })?;
+        made_folder.keep();
         center.activity();
         remember(&settings, &path);
         Ok(status_view(status, &center))

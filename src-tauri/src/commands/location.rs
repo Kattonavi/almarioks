@@ -3,11 +3,19 @@
 //! file beside it.
 //!
 //! The rules (file name, key file, "is it the default folder") are the core's (`almarioks_core::location`); this
-//! module asks the system for Documents and looks at the disk. `vault_create_location` writes nothing.
+//! module asks the system for Documents and looks at the disk. `vault_create_location` writes nothing: the folder
+//! `AlmarioKS` is created by `vault_create`, through [`ensure_default_folder`], and it is the only folder the app
+//! ever creates.
 
-use std::path::PathBuf;
+use std::{
+    io::ErrorKind,
+    path::{Path, PathBuf},
+};
 
-use almarioks_core::location::VaultLocation;
+use almarioks_core::{
+    CoreError,
+    location::{VaultLocation, default_folder, is_in_default_folder},
+};
 use serde::{Deserialize, Serialize};
 use tauri::{State, ipc::Request};
 
@@ -90,4 +98,50 @@ pub async fn vault_create_location(
         })
     })
     .await
+}
+
+/// The folder `Documents › AlmarioKS` if this call created it. Dropped without [`Self::keep`], it is removed
+/// again, and only while it is still empty: a creation that fails leaves nothing behind.
+#[derive(Debug)]
+pub(super) struct MadeFolder(Option<PathBuf>);
+
+impl MadeFolder {
+    /// The vault was created inside: the folder stays.
+    pub(super) fn keep(mut self) {
+        self.0 = None;
+    }
+}
+
+impl Drop for MadeFolder {
+    fn drop(&mut self) {
+        if let Some(folder) = &self.0 {
+            // Best effort, and `remove_dir` only removes an empty folder: nothing of the person's can go with it.
+            _ = std::fs::remove_dir(folder);
+        }
+    }
+}
+
+/// RF-97: creates the folder `Documents › AlmarioKS` if `vault_path` is a file directly inside it and the folder
+/// is missing. For any other path it does nothing: the app creates no folder the window asks for, only this one.
+///
+/// # Errors
+/// `GuardadoFallido` if the folder is missing and cannot be created.
+pub(super) fn ensure_default_folder(
+    documents: Option<&Path>,
+    vault_path: &Path,
+) -> Result<MadeFolder, AppError> {
+    let Some(documents) = documents else {
+        return Ok(MadeFolder(None));
+    };
+    if !is_in_default_folder(documents, vault_path) {
+        return Ok(MadeFolder(None));
+    }
+    // One level only: Documents itself is the system's to create.
+    let folder = default_folder(documents);
+    match std::fs::create_dir(&folder) {
+        Ok(()) => Ok(MadeFolder(Some(folder))),
+        // Already there. If it is a file and not a folder, creating the vault inside fails on its own.
+        Err(error) if error.kind() == ErrorKind::AlreadyExists => Ok(MadeFolder(None)),
+        Err(_) => Err(CoreError::GuardadoFallido.into()),
+    }
 }
