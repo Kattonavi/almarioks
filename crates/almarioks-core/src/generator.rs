@@ -35,8 +35,9 @@ pub const SYMBOLS: &str = "!@#$%^&*()-_=+[]{};:,.<>?/~|";
 /// Characters that "avoid look-alikes" removes (RF-67).
 pub const LOOKALIKES: &str = "0Oo1lI|";
 
-/// Most candidates drawn before giving up. With a healthy source the chance of needing even a few is tiny; the
-/// bound only stops a broken source (for instance one that always returns the same byte) from looping forever.
+/// Most candidates drawn before giving up, and most calls to the source that may give no usable byte. With a
+/// healthy source the chance of needing even a few is tiny; the bound only stops a broken source (for instance one
+/// that always returns the same byte) from looping forever.
 const MAX_ATTEMPTS: usize = 10_000;
 
 /// Where the random bytes come from. The product uses [`OsRandom`]; tests inject a fixed-seed source.
@@ -123,8 +124,9 @@ pub fn generate_password(rules: &PasswordRules) -> CoreResult<SecretString> {
 ///
 /// # Errors
 /// `ReglasImposibles` as in [`generate_password`]; the error of `source` as it comes, at its first failure (RF-109);
-/// `GeneradorNoDisponible` if [`MAX_ATTEMPTS`] candidates in a row lack a chosen type, which only a source that is
-/// not random can cause: a source that gives no randomness is not available either (RF-109).
+/// `GeneradorNoDisponible` if [`MAX_ATTEMPTS`] candidates in a row lack a chosen type, or if the source answered
+/// [`MAX_ATTEMPTS`] times with bytes that were all rejected, which only a source that is not random can cause: a
+/// source that gives no randomness is not available either (RF-109).
 pub fn generate_with(
     rules: &PasswordRules,
     source: &mut impl RandomSource,
@@ -141,6 +143,10 @@ pub fn generate_with(
     // Largest multiple of `size` that fits in a byte: bytes from here up are rejected (no modulo bias).
     let limit = 256 - 256 % size;
 
+    // Calls to the source that gave not one usable byte, over the whole generation. With a healthy source one of
+    // them is already rare (at worst 76 of every 256 bytes are rejected, and a call asks for 8 bytes or more), so
+    // the bound of the candidates serves here too: it only stops a source that answers and gives nothing.
+    let mut barren_fills = 0_usize;
     for _ in 0..MAX_ATTEMPTS {
         let mut candidate = String::with_capacity(rules.length);
         let mut bytes = Zeroizing::new(vec![0_u8; rules.length]);
@@ -148,6 +154,7 @@ pub fn generate_with(
             source.fill(bytes.as_mut_slice()).inspect_err(|_| {
                 candidate.zeroize();
             })?;
+            let had = candidate.len();
             for &byte in bytes.iter() {
                 if candidate.len() == rules.length {
                     break;
@@ -157,6 +164,13 @@ pub fn generate_with(
                     && let Some(&ch) = alphabet.get(index % size)
                 {
                     candidate.push(char::from(ch));
+                }
+            }
+            if candidate.len() == had {
+                barren_fills += 1;
+                if barren_fills >= MAX_ATTEMPTS {
+                    candidate.zeroize();
+                    return Err(CoreError::GeneradorNoDisponible);
                 }
             }
         }

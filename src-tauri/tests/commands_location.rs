@@ -1445,3 +1445,42 @@ fn rf_111_c10_a_vault_that_opens_with_its_key_file_alone_leaves_nothing_remember
         );
     }
 }
+
+// ---------- Review 0.1, Q-2: a huge file nobody chose is not proposed as a key file ----------
+
+/// Makes the file at `path` exactly `bytes` long (what is added reads as zeros).
+fn resize(path: &Path, bytes: u64) {
+    let file = std::fs::OpenOptions::new().write(true).open(path).unwrap();
+    file.set_len(bytes).unwrap();
+}
+
+#[test]
+fn rf_110_rf_111_a_key_file_larger_than_1_mib_is_not_proposed() {
+    const MIB: u64 = 1024 * 1024;
+    let rig = keyed("q2-size");
+    let beside = rig.dir.path().join("Familia.keyx");
+    let proposed_beside = json!({ "key_file_path": text(&beside), "key_file": "Familia.keyx" });
+
+    // RF-110, the one beside the vault: up to 1 MiB it is proposed, one byte more and it is not.
+    write_key(&beside);
+    assert_eq!(suggestion(&rig.app, &rig.vault), proposed_beside);
+    resize(&beside, MIB);
+    assert_eq!(suggestion(&rig.app, &rig.vault), proposed_beside);
+    resize(&beside, MIB + 1);
+    assert_eq!(suggestion(&rig.app, &rig.vault), Value::Null);
+    std::fs::remove_file(&beside).unwrap();
+
+    // RF-111, the remembered one: the same limit. Too large, it is not proposed: the answer is the one of a
+    // remembered key file that is not there, and it is not forgotten.
+    rig.open_once_with_the_key_chosen();
+    let before = settings_file(&rig.dir);
+    assert_eq!(suggestion(&rig.app, &rig.vault), remembered(&rig.key));
+    resize(&rig.key, MIB);
+    assert_eq!(suggestion(&rig.app, &rig.vault), remembered(&rig.key));
+    resize(&rig.key, MIB + 1);
+    assert_eq!(
+        suggestion(&rig.app, &rig.vault),
+        json!({ "remembered_missing": text(&rig.key) })
+    );
+    assert_eq!(settings_file(&rig.dir), before);
+}

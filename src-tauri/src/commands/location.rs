@@ -163,10 +163,17 @@ fn is_unlock_candidate(
     locked || picked.is(path) || settings.recent_vaults().iter().any(|recent| recent == path)
 }
 
-/// Whether `path` can be proposed as a key file. Asks the disk one question, "is a file at that path?", without
-/// opening it and without following a link: a folder or a link there is not a key file to propose.
+/// The largest file that is proposed as a key file: 1 MiB. A `.keyx` weighs some 200 bytes; `vault_open` reads the
+/// key file whole, and a file nobody chose (one left beside a vault in a shared or synced folder) must not be
+/// able to freeze the unlock by being huge (review 0.1, Q-2). A larger one can still be chosen with the dialog.
+const MAX_PROPOSED_KEY_FILE_BYTES: u64 = 1024 * 1024;
+
+/// Whether `path` can be proposed as a key file. Asks the disk one question, "what is at that path?", without
+/// opening it and without following a link: a folder or a link there is not a key file to propose, and neither
+/// is a file larger than [`MAX_PROPOSED_KEY_FILE_BYTES`].
 fn is_key_file_there(path: &Path) -> bool {
-    path.symlink_metadata().is_ok_and(|found| found.is_file())
+    path.symlink_metadata()
+        .is_ok_and(|found| found.is_file() && found.len() <= MAX_PROPOSED_KEY_FILE_BYTES)
 }
 
 /// The key file beside `vault_path`, if a file is there: its path and its name. Same folder, same name, `.keyx`
@@ -185,8 +192,9 @@ fn key_file_beside(vault_path: &Path) -> Option<(String, String)> {
 /// What to propose for the vault at `vault_path`, a vault the person is about to unlock (RF-110, RF-111).
 /// `remembered` is the key file the settings remember for it, which wins over the one beside the vault.
 ///
-/// If the remembered one is not there, the answer says so with its path and falls back to the one beside the
-/// vault. It is not forgotten for that: nothing is written here.
+/// If the remembered one is not there (or is not a file that can be proposed, [`is_key_file_there`]), the answer
+/// says so with its path and falls back to the one beside the vault. It is not forgotten for that: nothing is
+/// written here.
 fn suggestion_for(vault_path: &Path, remembered: Option<&Path>) -> Option<KeySuggestionView> {
     // The settings only hold paths that are valid text with a file name after the last separator
     // (`is_rememberable_key_file`).
