@@ -417,6 +417,22 @@
   max-width: 32.5rem; /* 520 */
 }
 
+/*
+ * At the default window (1120 x 720) the form with a password typed was 14 px taller than the window and its last
+ * notice slid under the buttons (walkthrough on the installed app). A shorter window takes one step off the
+ * spacing, so the usual state fits; the taller one keeps the measures of the approved prototype.
+ */
+@media (max-height: 760px) {
+  .create {
+    padding-block: var(--space-5);
+  }
+
+  .create-column,
+  .create-form > fieldset {
+    gap: var(--space-4);
+  }
+}
+
 .create-title {
   margin: 0;
   font-size: var(--text-2xl);

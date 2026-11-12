@@ -622,6 +622,12 @@ describe("P2 Crear bóveda", () => {
       expect(createButton().matches(":disabled")).toBe(false);
     });
     expect(screen.getByText(EXISTS_VAULT)).toBeDefined();
+    // The walkthrough on the installed app reported a "passwords differ" message here: with both equal there is
+    // none, and the focus goes back to the name, which is what has to change.
+    expect(screen.queryByText(/no son iguales/)).toBeNull();
+    await waitFor(() => {
+      expect(document.activeElement).toBe(nameField());
+    });
     expect(document.activeElement).toBe(nameField());
     expect(backend.count("vault_create")).toBe(0);
     expect(passwordField().value).toBe("");

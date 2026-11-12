@@ -122,7 +122,8 @@ dialog[data-layout="form"][open] {
   min-height: calc(2lh + var(--space-5) + 2px);
   max-height: 12lh;
   padding: calc(var(--space-2) + 2px) var(--space-3);
-  resize: vertical;
+  /* It grows by itself with what is written, so it needs no handle. */
+  resize: none;
   field-sizing: content;
 }
 
