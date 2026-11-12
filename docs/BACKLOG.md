@@ -61,3 +61,10 @@ Lo que no cabe en la fase va aquí, un renglón por ítem: `- [origen] qué · s
 - [pase de interacción] Elegir con un diálogo dónde crear el archivo llave nuevo: dejó de ofrecerse (se crea junto a la bóveda); el comando `pick_new_key_file` sigue existiendo sin uso · Bajo
 - [pase de interacción] Ventana por debajo de 1000 × 640 y versión de una sola columna · Bajo
 - [pase de interacción] `vault_create_location` dice si existe cualquier ruta que nombre la ventana: revisar con seguridad · para la revisión del delta
+- [pase de interacción] Los menús usan posicionamiento por ancla de CSS, sin respaldo para un WebView2 anterior a Chromium 128 · Bajo
+- [pase de interacción] Dos componentes de menú con el mismo contrato (`GroupMenuButton` en `GroupRail.tsx` y `ui/MenuButton.tsx`): unificarlos · Bajo
+- [pase de interacción] La cuenta regresiva del aviso de copiado se anuncia cada segundo al lector de pantalla (igual que el sello anterior) · Medio
+- [pase de interacción] Editar campos propios desde el diálogo de entrada (hoy solo se conservan; pide un comando del núcleo) · Medio
+- [pase de interacción] Se perdió frente al formulario anterior: "(N de 4)" junto a la fortaleza en el diálogo y el marcado por carácter de dígitos y símbolos de una contraseña a la vista · Bajo
+- [pase de interacción] "Enviar a la papelera…" de una entrada lleva puntos suspensivos (como el prototipo) pero actúa sin diálogo (RF-47): quitar los puntos o confirmar · Bajo
+- [pase de interacción] Mover el aviso "Entrada guardada" al aviso del pie del detalle (hoy sigue en su sitio anterior) · Bajo
