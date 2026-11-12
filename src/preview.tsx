@@ -9,11 +9,11 @@
  *                           bloqueada · ajustes
  *       open vault          todas · foco-todas · menu-grupo · menu-papelera · busqueda ·
  *                           copiado · detalle · mostrada · menu-entrada · ninguna · formulario · generador · editar ·
- *                           dialogo-mover ·
+ *                           dialogo-nueva-boveda · dialogo-nueva-boveda-generada · dialogo-mover ·
  *                           dialogo-borrar · dialogo-papelera · dialogo-renombrar · dialogo-recarga ·
  *                           aviso-guardado · cambio-externo · solo-lectura · ajustes-abierta
  *       entry dialog alone  dialogo-nueva · dialogo-nueva-generada · dialogo-opciones · dialogo-editar ·
- *                           dialogo-error (the dialog by itself over the work ground: not wired to the vault yet)
+ *                           dialogo-error (the dialog by itself over the work ground; formulario, generador and editar open it over the vault)
  *   ?densidad=compacta      the compact density, which no setting offers yet
  *   ?marco=480x360          draws the preview inside a frame of that exact viewport (for screenshots)
  *   ?hoja=a:b,c:d;e:f       with `marco`: one frame per `;` item, each overriding parameters as `name:value` pairs
@@ -312,7 +312,7 @@ function entryDialogMeasures(): string[] {
   ];
 }
 
-/** The entry dialog by itself, over the work ground: the vault screen does not open it yet. */
+/** The entry dialog by itself, over the work ground, to judge it without the vault behind. */
 async function stageEntryDialog(container: HTMLElement, backend: FakeBackend) {
   const client = createClient(backend.transport);
   const group = { id: "g-work", name: "Trabajo", line: "2" } as const;
@@ -388,16 +388,15 @@ async function stageOpen(backend: FakeBackend) {
     case "formulario":
     case "generador":
       await click("button", "Nueva entrada");
-      await fill("entry-title", "Banco de la esquina");
-      await fill("entry-username", "ana@example.com");
+      await fill("entry-dialog-title", "Banco de la esquina");
+      await fill("entry-dialog-username", "ana@example.com");
       if (state === "formulario") {
-        await fill("entry-password", "abcdefgh1");
-        await find("meter", /^/);
+        await fill("entry-dialog-password", "abcdefgh1");
+        await find(".strength-row", /Fortaleza/);
         return;
       }
-      await click("button", "Generar contraseña");
-      await click(".generator button", "Generar");
-      await find(".generator output", /./);
+      await click("button", "Generar");
+      await find(".strength-row", /Fortaleza/);
       return;
     case "aviso-guardado":
     case "cambio-externo":
@@ -417,6 +416,16 @@ async function stageOpen(backend: FakeBackend) {
   }
   if (state === "dialogo-mover") await click('[role="menuitem"]', "Mover a otro grupo…");
   if (state === "editar") await click("button", "Editar");
+  // Screen 2 of the approved prototype: the vault behind, as it was, and the new entry dialog over it.
+  if (state === "dialogo-nueva-boveda" || state === "dialogo-nueva-boveda-generada") {
+    await click("button", "Nueva entrada");
+    await find("#entry-dialog-title", /^/);
+    if (state === "dialogo-nueva-boveda-generada") {
+      await fill("entry-dialog-title", "GitLab");
+      await click("button", "Generar");
+      await find(".strength-row", /Fortaleza/);
+    }
+  }
   if (state === "mostrada") {
     await click('button[aria-label="Mostrar contraseña"]', /^/);
     await find(".secret:not([data-masked])", /./);
@@ -441,7 +450,8 @@ function badge() {
     `sans ${document.fonts.check('16px "Overpass Variable"') ? "ok" : "NO"}`,
     `esquema ${getComputedStyle(root).colorScheme}`,
     `foco ${document.activeElement?.textContent.trim().slice(0, 24) ?? ""}`,
-    ...(ENTRY_DIALOG.has(state) ? entryDialogMeasures() : measures()),
+    // The entry dialog brings its own measures, alone or over the vault.
+    ...(document.querySelector('dialog[data-layout="form"]') === null ? measures() : entryDialogMeasures()),
   ].join(" · ");
   // Inside an open modal dialog everything else is inert and hidden behind the top layer.
   (document.querySelector("dialog[open]") ?? document.body).append(node);

@@ -345,20 +345,6 @@ legend {
  * ---- Strength. It reads by hatch and by its text, never by colour alone: each level has its own pattern (upright
  * and sparse, slanted and thin, slanted and dense), and the words sit next to it. ----
  */
-.strength-line {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-1) var(--space-3);
-  align-items: center;
-  margin: 0;
-  font-size: var(--text-sm);
-}
-
-.strength > .notice {
-  margin: var(--space-2) 0 0;
-  font-size: var(--text-sm);
-}
-
 meter {
   width: 9rem;
   height: 12px;

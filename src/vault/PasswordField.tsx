@@ -5,10 +5,15 @@ import { errorMessage, type AppError } from "../ipc/errors";
 import { GenerateIcon, HideIcon, ShowIcon } from "../ui/icons";
 import { take } from "./entryDraft";
 import { strengthLabel } from "./format";
-import { DEFAULT_LENGTH, MAX_LENGTH, MIN_LENGTH } from "./Generator";
 
 /** RF-70: wait this long after the last keystroke before asking the core for the strength. */
 export const PASSWORD_STRENGTH_DELAY_MS = 150;
+
+/** RF-65: the length of a generated password until the owner moves the slider, and the range the core accepts. */
+const DEFAULT_LENGTH = 20;
+const MIN_LENGTH = 8;
+// [por confirmar por el dueño: el prototipo muestra 64]
+const MAX_LENGTH = 128;
 
 type Kind = "lower" | "upper" | "digits" | "symbols";
 
