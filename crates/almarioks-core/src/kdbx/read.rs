@@ -40,7 +40,7 @@ fn timestamp(time: Option<NaiveDateTime>) -> Option<Timestamp> {
 }
 
 /// The value a window may see of a field: `None` if protected, the empty text if absent.
-fn visible(entry: &Entry, name: &str) -> Option<String> {
+pub(crate) fn visible(entry: &Entry, name: &str) -> Option<String> {
     match entry.fields.get(name) {
         None => Some(String::new()),
         Some(value) if value.is_protected() => None,
@@ -48,7 +48,7 @@ fn visible(entry: &Entry, name: &str) -> Option<String> {
     }
 }
 
-fn summary(entry: &Entry) -> EntrySummary {
+pub(crate) fn summary(entry: &Entry) -> EntrySummary {
     let modified = timestamp(entry.times.last_modification)
         .or_else(|| timestamp(entry.times.creation))
         .unwrap_or(Timestamp::EPOCH);

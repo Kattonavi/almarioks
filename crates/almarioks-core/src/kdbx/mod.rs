@@ -31,6 +31,9 @@ pub use create::{
 };
 pub use groups::RECYCLE_BIN_NAME;
 
+// Search (T10): a method of `OpenedVault` over the types of `crate::search`.
+mod find;
+
 #[cfg(test)]
 mod tests_entries;
 #[cfg(test)]
@@ -40,3 +43,6 @@ mod tests_read;
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod tests_search;
