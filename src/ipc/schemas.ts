@@ -115,16 +115,83 @@ export const createLocationSchema = z
   }));
 export type CreateLocation = z.output<typeof createLocationSchema>;
 
+function isText(value: string | null | undefined): value is string {
+  return typeof value === "string";
+}
+
 /**
- * `unlock_key_suggestion` (RF-110): the key file beside the vault that is about to be unlocked, or `null` when there
- * is nothing to propose. `keyFilePath` is what `vaultOpen` takes; `keyFile` is the file name, to show it. `null` does
- * not mean "this vault has no key file": the core also answers it for a vault it does not know.
+ * `unlock_key_suggestion` on the wire (RF-110, RF-111). `null` when there is nothing to propose and nothing to say.
+ * Otherwise a field that does not apply is absent, and only these four shapes are valid:
+ * - `key_file_path` + `key_file`: the key file beside the vault (the two fields RF-110 has always answered);
+ * - those two + `source: "remembered"`: the key file this vault was last opened with;
+ * - those two + `remembered_missing`: that one is not there any more, and the one beside the vault is proposed;
+ * - `remembered_missing` alone: that one is not there any more, and there is none beside the vault.
  */
-export const keySuggestionSchema = z
-  .object({ key_file_path: nonEmpty, key_file: nonEmpty })
-  .nullable()
-  .transform((wire) => (wire === null ? null : { keyFilePath: wire.key_file_path, keyFile: wire.key_file }));
+const keySuggestionWire = z
+  .object({
+    key_file_path: nonEmpty.nullish(),
+    key_file: nonEmpty.nullish(),
+    source: z.literal("remembered").nullish(),
+    remembered_missing: nonEmpty.nullish(),
+  })
+  .refine((wire) => {
+    const path = isText(wire.key_file_path);
+    const remembered = isText(wire.source);
+    const missing = isText(wire.remembered_missing);
+    // A key file is its path and its name, both or none. The remembered one is either proposed or missing.
+    if (path !== isText(wire.key_file)) return false;
+    return path ? !(remembered && missing) : missing && !remembered;
+  })
+  .nullable();
+
+/** Where a proposed key file comes from: the one this vault was last opened with, or the one beside the vault. */
+export type KeySource = "remembered" | "beside";
+
+function proposedKeyFile(
+  wire: z.output<typeof keySuggestionWire>,
+): { readonly path: string; readonly name: string; readonly source: KeySource } | null {
+  if (wire === null || !isText(wire.key_file_path) || !isText(wire.key_file)) return null;
+  return { path: wire.key_file_path, name: wire.key_file, source: wire.source ?? "beside" };
+}
+
+/**
+ * `unlock_key_suggestion` as `unlockKeySuggestion` has always given it (RF-110): the key file to bring already
+ * chosen, or `null` when there is none to propose. `keyFilePath` is what `vaultOpen` takes; `keyFile` is the file
+ * name, to show it. `null` does not mean "this vault has no key file": the core also answers it for a vault it does
+ * not know.
+ *
+ * RF-111 adds two keys that are only there when they apply: `source: "remembered"` when the key file is the one
+ * the vault was last opened with (without it, it is the one beside the vault), and `rememberedMissing`, the path of
+ * that one when it is not there any more and the one beside the vault is proposed instead. What this shape cannot
+ * say is "the remembered one is missing and there is nothing to propose": that is `null` here, and
+ * `keyProposalSchema` says it.
+ */
+export const keySuggestionSchema = keySuggestionWire.transform((wire) => {
+  const proposed = proposedKeyFile(wire);
+  if (proposed === null) return null;
+  const missing = wire?.remembered_missing;
+  return {
+    keyFilePath: proposed.path,
+    keyFile: proposed.name,
+    ...(proposed.source === "remembered" ? { source: proposed.source } : {}),
+    ...(isText(missing) ? { rememberedMissing: missing } : {}),
+  };
+});
 export type KeySuggestion = NonNullable<z.output<typeof keySuggestionSchema>>;
+
+/**
+ * The whole answer of `unlock_key_suggestion` (RF-110, RF-111), never `null`:
+ * - `keyFile`: the key file to bring already chosen (`path` is what `vaultOpen` takes, `name` is to show it, and
+ *   `source` says which line goes with it: "la última que usaste" or "junto a la bóveda"), or `null`;
+ * - `rememberedMissing`: the path of the key file this vault was last opened with, when it is not there any more
+ *   ("No encuentro el archivo llave que usaste la última vez (`ruta`). Conéctalo o elige otro."), or `null`. The
+ *   core still remembers it. `keyFile` is then the one beside the vault, or `null`.
+ */
+export const keyProposalSchema = keySuggestionWire.transform((wire) => ({
+  keyFile: proposedKeyFile(wire),
+  rememberedMissing: wire?.remembered_missing ?? null,
+}));
+export type KeyProposal = z.output<typeof keyProposalSchema>;
 
 export const recentListSchema = z.array(z.object({ path: nonEmpty, exists: z.boolean() }));
 export type RecentVault = z.output<typeof recentListSchema>[number];

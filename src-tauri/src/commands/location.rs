@@ -7,8 +7,8 @@
 //! `AlmarioKS` is created by `vault_create`, through [`ensure_default_folder`], and it is the only folder the app
 //! ever creates.
 //!
-//! Also here, because it is the same rule read the other way: `unlock_key_suggestion` (RF-110) proposes the key
-//! file beside a vault that is about to be unlocked.
+//! Also here, because it is the same rule read the other way: `unlock_key_suggestion` proposes, for a vault that
+//! is about to be unlocked, the key file beside it (RF-110) or the one it was last opened with (RF-111).
 
 use std::{
     io::ErrorKind,
@@ -19,6 +19,7 @@ use almarioks_core::{
     CoreError,
     location::{VaultLocation, default_folder, is_in_default_folder},
     session::{Session, Status},
+    settings::Settings,
 };
 use serde::{Deserialize, Serialize};
 use tauri::{State, ipc::Request};
@@ -29,7 +30,7 @@ use super::{
     error::AppError,
     vault::{path_arg, something_at},
 };
-use crate::state::{AppState, PickedVault, SettingsStore};
+use crate::state::{AppState, PickedVault};
 
 /// `vault_create_location{name, chosen_path}`. `chosen_path` is always sent: `null` while the person has not
 /// chosen another location, or the path the dialog (`pick_vault_to_create`) answered.
@@ -111,66 +112,123 @@ pub struct UnlockKeySuggestionArgs {
     path: String,
 }
 
-/// The key file proposed for an unlock (RF-110): where it is, never what it holds.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+/// Where a proposed key file comes from, when it is not the one beside the vault (RF-111).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum KeySource {
+    /// The key file this vault was last opened with.
+    Remembered,
+}
+
+/// What `unlock_key_suggestion` answers when there is something to propose or to say (RF-110, RF-111): where a
+/// key file is, never what it holds. A field that does not apply is left out of the answer, so the proposal of
+/// the key file beside the vault is the two fields RF-110 has always answered:
+///
+/// | Answer | Meaning |
+/// |---|---|
+/// | `key_file_path`, `key_file` | the key file beside the vault |
+/// | those two and `source: "remembered"` | the key file this vault was last opened with |
+/// | those two and `remembered_missing` | that one is not there; the one beside the vault is proposed |
+/// | `remembered_missing` alone | that one is not there, and there is none beside the vault |
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
 pub struct KeySuggestionView {
     /// The key file: what `vault_open` takes as `key_file_path`.
-    key_file_path: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    key_file_path: Option<String>,
     /// Its file name with extension, to show it.
-    key_file: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    key_file: Option<String>,
+    /// Present only for the remembered key file; the one beside the vault has no `source`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    source: Option<KeySource>,
+    /// The key file remembered for this vault is not at this path any more (RF-111). It is still remembered: it
+    /// may live on a drive that is not plugged in.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    remembered_missing: Option<String>,
 }
 
 /// Whether `path` is a vault the person is about to unlock, as far as the app itself knows (RF-110): the locked
 /// vault of the session, the last vault chosen in the "open a vault" dialog during this run, or a recent vault
-/// of the settings. Those are paths the window already has from the app; any other path is not answered about,
-/// so the command is no way to ask the disk what exists (review 0.1, P-3).
+/// of `settings`. Those are paths the window already has from the app; any other path is not answered about, so
+/// the command adds no way to ask the disk what exists to the ones there already are (review 0.1, P-3 and Q-1).
 ///
-/// Paths are compared as the recent list compares them: as written. Reads the settings file the first time:
-/// blocking.
+/// Paths are compared as the recent list compares them: as written.
 fn is_unlock_candidate(
     path: &Path,
     session: &Session,
     picked: &PickedVault,
-    settings: &SettingsStore,
+    settings: &Settings,
 ) -> bool {
     let locked = matches!(session.status(), Status::Locked { path: locked } if locked == path);
-    locked
-        || picked.is(path)
-        || settings
-            .read()
-            .recent_vaults()
-            .iter()
-            .any(|recent| recent == path)
+    locked || picked.is(path) || settings.recent_vaults().iter().any(|recent| recent == path)
 }
 
-/// The key file beside `vault_path`, if a file is there: same folder, same name, `.keyx` (the rule of
-/// `almarioks_core::location::key_file_name`). Asks the disk one question, "is a file at that path?", without
-/// opening it and without following a link: a folder or a link with that name is not proposed.
-fn key_file_beside(vault_path: &Path) -> Option<KeySuggestionView> {
+/// Whether `path` can be proposed as a key file. Asks the disk one question, "is a file at that path?", without
+/// opening it and without following a link: a folder or a link there is not a key file to propose.
+fn is_key_file_there(path: &Path) -> bool {
+    path.symlink_metadata().is_ok_and(|found| found.is_file())
+}
+
+/// The key file beside `vault_path`, if a file is there: its path and its name. Same folder, same name, `.keyx`
+/// (the rule of `almarioks_core::location::key_file_name`).
+fn key_file_beside(vault_path: &Path) -> Option<(String, String)> {
     let location = VaultLocation::chosen(None, vault_path)?;
-    let is_file = location
-        .key_file_path
-        .symlink_metadata()
-        .is_ok_and(|found| found.is_file());
-    if !is_file {
+    if !is_key_file_there(&location.key_file_path) {
         return None;
     }
-    Some(KeySuggestionView {
-        key_file_path: location.key_file_path.to_str()?.to_owned(),
-        key_file: location.key_file,
-    })
+    Some((
+        location.key_file_path.to_str()?.to_owned(),
+        location.key_file,
+    ))
 }
 
-/// The key file to propose when the person is about to unlock the vault at `path` (RF-110): the `X.keyx` beside
-/// `X.kdbx`, or `null` if there is none. Reads nothing of the key file and writes nothing; the person can still
-/// remove it or choose another one, and `vault_open` is what reads it.
+/// What to propose for the vault at `vault_path`, a vault the person is about to unlock (RF-110, RF-111).
+/// `remembered` is the key file the settings remember for it, which wins over the one beside the vault.
+///
+/// If the remembered one is not there, the answer says so with its path and falls back to the one beside the
+/// vault. It is not forgotten for that: nothing is written here.
+fn suggestion_for(vault_path: &Path, remembered: Option<&Path>) -> Option<KeySuggestionView> {
+    // The settings only hold paths that are valid text with a file name after the last separator
+    // (`is_rememberable_key_file`).
+    let remembered = remembered.and_then(|path| {
+        let text = path.to_str()?;
+        Some((path, text, text.rsplit(['\\', '/']).next()?))
+    });
+    if let Some((path, text, name)) = remembered
+        && is_key_file_there(path)
+    {
+        return Some(KeySuggestionView {
+            key_file_path: Some(text.to_owned()),
+            key_file: Some(name.to_owned()),
+            source: Some(KeySource::Remembered),
+            remembered_missing: None,
+        });
+    }
+    let remembered_missing = remembered.map(|(_, text, _)| text.to_owned());
+    match key_file_beside(vault_path) {
+        Some((key_file_path, key_file)) => Some(KeySuggestionView {
+            key_file_path: Some(key_file_path),
+            key_file: Some(key_file),
+            source: None,
+            remembered_missing,
+        }),
+        None => remembered_missing.map(|missing| KeySuggestionView {
+            remembered_missing: Some(missing),
+            ..KeySuggestionView::default()
+        }),
+    }
+}
+
+/// The key file to propose when the person is about to unlock the vault at `path`: the one it was last opened
+/// with, if the settings remember one for it (RF-111), or else the `X.keyx` beside `X.kdbx` (RF-110); `null` if
+/// there is neither. The shapes of the answer are in [`KeySuggestionView`]. Reads nothing of a key file and writes
+/// nothing; the person can still remove what is proposed or choose another one, and `vault_open` is what reads
+/// it.
 ///
 /// It only answers for a vault the app knows the person is about to unlock ([`is_unlock_candidate`]). For any
 /// other path the answer is `null` without looking at the disk: the same answer as "there is no key file", never
-/// an error that would tell the two apart.
-///
-/// RF-111 (not built; waits for the security review) goes here: a key file remembered for a recent vault would
-/// be looked up after the check and before [`key_file_beside`], and would win over it.
+/// an error that would tell the two apart. A key file is remembered only for a recent vault, and a path of the
+/// settings file that could not have been remembered was dropped when the file was read: it never gets here.
 ///
 /// # Errors
 /// `ArgumentoInvalido` if the arguments are malformed or the path is empty.
@@ -183,10 +241,12 @@ pub async fn unlock_key_suggestion(
     let path = path_arg(&args.path)?;
     let (session, picked, settings) = (state.session(), state.picked_vault(), state.settings());
     blocking(move || {
+        // One reading of the settings for both questions: is it a recent vault, and what is remembered for it.
+        let settings = settings.read();
         if !is_unlock_candidate(&path, &session, &picked, &settings) {
             return Ok(None);
         }
-        Ok(key_file_beside(&path))
+        Ok(suggestion_for(&path, settings.key_file(&path)))
     })
     .await
 }
