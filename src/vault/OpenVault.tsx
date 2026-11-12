@@ -4,7 +4,7 @@ import { assertNever } from "../assertNever";
 import type { Unlisten, VaultClient } from "../ipc/client";
 import { errorMessage, type AppError, type Result } from "../ipc/errors";
 import type { Recovery, SaveState, VaultStatus } from "../ipc/schemas";
-import { InfoIcon, WarningIcon } from "../ui/icons";
+import { InfoIcon, LockIcon, WarningIcon } from "../ui/icons";
 import { Dialog } from "./Dialog";
 import { RecoveryNotice } from "./RecoveryNotice";
 import type { SaveSignal } from "./saveSignal";
@@ -354,7 +354,9 @@ export function OpenVault(props: OpenVaultProps) {
             {props.lockDeadline !== undefined && (
               <LockCountdown key={props.lockDeadline} deadline={props.lockDeadline} />
             )}
-            <button type="button" className="btn-primary" onClick={props.onLock}>
+            {/* A bar action without a plate: the weight of the bar is the search. */}
+            <button type="button" className="btn-bar" onClick={props.onLock}>
+              <LockIcon />
               Bloquear
             </button>
             {props.tools}
