@@ -469,7 +469,7 @@ export function EntryPanel({
     { order: "move", label: "Mover a otro grupo…" },
     inBin
       ? { order: "delete", label: "Borrar definitivamente…", danger: true }
-      : { order: "bin", label: "Enviar a la papelera…", danger: true },
+      : { order: "bin", label: "Enviar a la papelera", danger: true },
   ];
 
   function onOrder(order: EntryOrder) {

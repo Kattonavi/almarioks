@@ -381,13 +381,18 @@ export function VaultScreen({
     setCopyNotice((current) => (current !== null && current.deadline !== null && current.deadline > at ? current : null));
   }
 
+  /**
+   * RF-106: a click on any cell chooses its row, and nothing else. Choosing the row that is already chosen changes
+   * nothing: the second click of a double click must find the row as the first one left it.
+   */
   function selectEntry(entry: SelectedEntry) {
+    if (detail.kind === "entry" && detail.entry.id === entry.id) return;
     focusCopy.current = null;
     settleCopyNotice();
     setNotice(NO_NOTICE);
     setListError(null);
     setKeyboardOpen(null);
-    setDetail({ kind: "entry", entry, open: true });
+    setDetail({ kind: "entry", entry, open: false });
   }
 
   /** RF-43: the window of the entry, over the list. */
@@ -415,8 +420,10 @@ export function VaultScreen({
       setListError(result.error);
       return;
     }
+    // The notice first and the clock after it: the other way round the count could start one second too high.
+    const copied = copyNoticeOf(field, result.value.clearsInSeconds);
     setNow(Date.now());
-    setCopyNotice(copyNoticeOf(field, result.value.clearsInSeconds));
+    setCopyNotice(copied);
   }
 
   /**
@@ -444,6 +451,15 @@ export function VaultScreen({
 
   function rowButtons(): HTMLButtonElement[] {
     return [...(listPaneRef.current?.querySelectorAll<HTMLButtonElement>("table.entries tbody th button") ?? [])];
+  }
+
+  /** RF-49, RF-106: the site of an entry, which the core opens in the browser (only `http` and `https`). */
+  async function openSiteFromList(entry: SelectedEntry) {
+    setListError(null);
+    const result = await client.entryOpenUrl(entry.id);
+    if (!mounted.current) return;
+    if (result.ok) setNotice({ kind: "text", text: "La dirección se abrió en el navegador." });
+    else setListError(result.error);
   }
 
   /** The list that answers what is asked right now, or `null` while it is on its way. */
@@ -842,6 +858,7 @@ export function VaultScreen({
             onSelect={selectEntry}
             onOpen={openWindow}
             onCopy={(entry, field) => void copyFromList(entry, field)}
+            onOpenSite={(entry) => void openSiteFromList(entry)}
             onRowKeyDown={onRowKeyDown}
           />
         )}
@@ -902,6 +919,7 @@ export function VaultScreen({
             onSelect={selectEntry}
             onOpen={openWindow}
             onCopy={(entry, field) => void copyFromList(entry, field)}
+            onOpenSite={(entry) => void openSiteFromList(entry)}
             onRowKeyDown={onRowKeyDown}
           />
         )}
@@ -922,6 +940,8 @@ interface EntryTableProps {
   readonly onOpen: (entry: SelectedEntry) => void;
   /** RF-71: a copy, which the core makes. */
   readonly onCopy: (entry: SelectedEntry, field: FieldName) => void;
+  /** RF-49: the site, which the core opens in the browser. */
+  readonly onOpenSite: (entry: SelectedEntry) => void;
   /** RF-59: arrows move between rows, Enter opens one, Escape goes back to the search. */
   readonly onRowKeyDown: (event: ReactKeyboardEvent<HTMLButtonElement>, entry: SelectedEntry) => void;
 }
@@ -949,8 +969,23 @@ function passwordCell(_entry: EntrySummary): ReactNode {
  * the group stay in the table for screen readers. Each row opens with a circle: the initial of the entry's own title
  * on the colour of its group, drawn by CSS from `data-initial`, so it adds no text; a protected title never reaches
  * it. Only the chosen row shows its two buttons, in a cell every row has: choosing a row moves nothing.
+ *
+ * RF-106: a click on a cell chooses its row; a double click does what the `title` of the cell says. The first click
+ * of a double click paints the row as chosen, and the second one has to land on the same element: no cell is
+ * mounted, unmounted or changes its type or its `key` when its row is chosen. A cell without data has no help and
+ * its double click does nothing. A `title` here never carries the value of a field.
  */
-function EntryTable({ items, groupPaths, lineOf, selectedId, onSelect, onOpen, onCopy, onRowKeyDown }: EntryTableProps) {
+function EntryTable({
+  items,
+  groupPaths,
+  lineOf,
+  selectedId,
+  onSelect,
+  onOpen,
+  onCopy,
+  onOpenSite,
+  onRowKeyDown,
+}: EntryTableProps) {
   const today = new Date();
   return (
     <div className="table-scroll">
@@ -1004,6 +1039,9 @@ function EntryTable({ items, groupPaths, lineOf, selectedId, onSelect, onOpen, o
                     title="Doble clic para abrir la entrada"
                     aria-current={chosen ? "true" : undefined}
                     onClick={select}
+                    onDoubleClick={() => {
+                      onOpen(picked);
+                    }}
                     onKeyDown={(event) => {
                       onRowKeyDown(event, picked);
                     }}
@@ -1022,10 +1060,21 @@ function EntryTable({ items, groupPaths, lineOf, selectedId, onSelect, onOpen, o
                   data-empty={noUser ? "" : undefined}
                   title={noUser ? undefined : "Doble clic para copiar el usuario"}
                   onClick={select}
+                  onDoubleClick={() => {
+                    // A protected user arrives as `null`: the core copies it all the same.
+                    if (!noUser) onCopy(picked, "UserName");
+                  }}
                 >
                   <span className="cell-text">{shown(entry.username, "—")}</span>
                 </td>
-                <td className="cell-password" title="Doble clic para copiar la contraseña" onClick={select}>
+                <td
+                  className="cell-password"
+                  title="Doble clic para copiar la contraseña"
+                  onClick={select}
+                  onDoubleClick={() => {
+                    onCopy(picked, "Password");
+                  }}
+                >
                   {passwordCell(entry)}
                 </td>
                 {/* The row shows the site without `https://`; the whole address is in the window of the entry. */}
@@ -1034,6 +1083,9 @@ function EntryTable({ items, groupPaths, lineOf, selectedId, onSelect, onOpen, o
                   data-empty={noSite ? "" : undefined}
                   title={noSite ? undefined : "Doble clic para abrir el sitio en el navegador"}
                   onClick={select}
+                  onDoubleClick={() => {
+                    if (!noSite) onOpenSite(picked);
+                  }}
                 >
                   <span className="cell-text">
                     {entry.url === null ? shown(entry.url) : noSite ? "—" : shortSite(entry.url)}
@@ -1041,7 +1093,14 @@ function EntryTable({ items, groupPaths, lineOf, selectedId, onSelect, onOpen, o
                 </td>
                 <td className="cell-tags">{entry.tags.join(", ")}</td>
                 {groupPaths !== null && <td className="cell-group">{(groupPaths[index] ?? []).join(" › ")}</td>}
-                <td className="cell-date" title="Doble clic para abrir la entrada" onClick={select}>
+                <td
+                  className="cell-date"
+                  title="Doble clic para abrir la entrada"
+                  onClick={select}
+                  onDoubleClick={() => {
+                    onOpen(picked);
+                  }}
+                >
                   <time dateTime={entry.modified}>{formatShortDay(entry.modified, today)}</time>
                 </td>
                 <td className="cell-actions">

@@ -584,3 +584,320 @@ describe("P4 Bóveda — «Todas las entradas»", () => {
     expect((await groupButton("Trabajo")).getAttribute("aria-current")).toBeNull();
   });
 });
+
+describe("P4 Bóveda — la tabla y sus gestos", () => {
+  /** Two entries of one group, one with every datum and one without user or site; the passwords differ in length. */
+  const PASSWORDS = { full: "canario-corto-7Q", bare: "canario-bastante-mas-largo-que-el-otro-91xZ" } as const;
+  const GESTURES: FakeOptions = {
+    groups: SAMPLE_GROUPS,
+    entries: [
+      {
+        id: "e-full",
+        groupId: "group-personal",
+        title: "Con todo",
+        username: "ana",
+        url: "https://uno.example/entrar",
+        password: PASSWORDS.full,
+        modified: "2026-06-08T15:00:00Z",
+      },
+      { id: "e-bare", groupId: "group-personal", title: "Sin nada", username: "", url: "", password: PASSWORDS.bare },
+      { id: "e-safe", groupId: "group-personal", title: "Usuario protegido", username: null, url: "https://dos.example" },
+    ],
+  };
+
+  function row(title: string): HTMLElement {
+    const found = within(entriesTable()).getByRole("button", { name: title }).closest("tr");
+    if (found === null) throw new Error(`missing row ${title}`);
+    return found;
+  }
+
+  function cell(title: string, selector: string): HTMLElement {
+    const found = row(title).querySelector<HTMLElement>(selector);
+    if (found === null) throw new Error(`missing cell ${selector} of ${title}`);
+    return found;
+  }
+
+  const titleButton = (title: string) => within(entriesTable()).getByRole("button", { name: title });
+
+  /** A double click the way the browser sends it: two clicks and then the double click, on the same element. */
+  function doubleClick(target: HTMLElement) {
+    fireEvent.click(target);
+    fireEvent.click(target);
+    fireEvent.doubleClick(target);
+  }
+
+  function argsOf(backend: { calls: readonly { command: string; args: unknown }[] }, command: string): unknown[] {
+    return backend.calls.filter((call) => call.command === command).map((call) => call.args);
+  }
+
+  /** The value is nowhere in the page: not in its markup, not in an attribute, not in a form field. */
+  function expectAbsent(value: string) {
+    expect(document.body.innerHTML).not.toContain(value);
+    for (const element of document.body.querySelectorAll("*")) {
+      for (const attribute of element.attributes) expect(attribute.value).not.toContain(value);
+    }
+    for (const field of document.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>("input, textarea")) {
+      expect(field.value).not.toContain(value);
+    }
+  }
+
+  async function openGestures() {
+    const result = await setup(GESTURES);
+    await openGroup("Personal");
+    return result;
+  }
+
+  it("RF-42: la tabla tiene sus rótulos a la vista y por fila título, usuario, una máscara fija, sitio y día; sin dato, una raya", async () => {
+    await openGestures();
+
+    const table = entriesTable();
+    // A real table whose row of labels is seen: only the tags stay for the screen reader alone.
+    expect(table.tagName).toBe("TABLE");
+    expect(table.querySelector("thead")?.classList.contains("sr-only")).toBe(false);
+    const labels = within(table).getAllByRole("columnheader");
+    expect(labels.map((label) => label.textContent)).toEqual([
+      "Título",
+      "Usuario",
+      "Contraseña",
+      "Sitio",
+      "Etiquetas",
+      "Modificada",
+      "Acciones",
+    ]);
+    expect(labels.every((label) => label.getAttribute("scope") === "col")).toBe(true);
+    expect(labels.filter((label) => label.className === "cell-tags").map((label) => label.textContent)).toEqual([
+      "Etiquetas",
+    ]);
+
+    expect(titleButton("Con todo").closest("th")?.getAttribute("scope")).toBe("row");
+    expect(cell("Con todo", ".cell-user").textContent).toBe("ana");
+    expect(cell("Con todo", ".cell-url").textContent).toBe("uno.example/entrar");
+    expect(cell("Con todo", ".cell-date").textContent).toBe(`8 jun${new Date().getFullYear() === 2026 ? "" : " 2026"}`);
+    // The mask is the same for every entry, whatever its password: it does not give away the length.
+    const masks = ["Con todo", "Sin nada", "Usuario protegido"].map((title) => cell(title, ".cell-password").textContent);
+    expect(new Set(masks).size).toBe(1);
+    expect(cell("Con todo", ".cell-password .mask").textContent).toBe("••••••••");
+    // Without user or site: a dash. Protected in the file: "(protegido)", as before.
+    expect(cell("Sin nada", ".cell-user").textContent).toBe("—");
+    expect(cell("Sin nada", ".cell-url").textContent).toBe("—");
+    expect(cell("Usuario protegido", ".cell-user").textContent).toBe("(protegido)");
+    // Every row keeps the cell of the actions, empty until the row is chosen.
+    expect(cell("Con todo", ".cell-actions").childElementCount).toBe(0);
+  });
+
+  it("RF-105: la lista no contiene ninguna contraseña del núcleo: ni en el DOM, ni en un atributo, ni tras elegir o copiar", async () => {
+    const { backend } = await openGestures();
+    // The fake core does hold them.
+    expect(backend.entry("e-full")?.password).toBe(PASSWORDS.full);
+    expect(backend.entry("e-bare")?.password).toBe(PASSWORDS.bare);
+
+    const everywhere = () => {
+      for (const password of Object.values(PASSWORDS)) expectAbsent(password);
+    };
+    everywhere();
+    fireEvent.click(cell("Con todo", ".cell-password"));
+    everywhere();
+    doubleClick(cell("Sin nada", ".cell-password"));
+    await screen.findByText("Contraseña copiada. Se borra del portapapeles en 20 s");
+    everywhere();
+    fireEvent.click(await allButton());
+    await screen.findByRole("heading", { name: "Todas las entradas" });
+    await waitFor(() => {
+      expect(rowTitles()).toContain("Con todo");
+    });
+    everywhere();
+    await searchFor("canario");
+    everywhere();
+    // The list never asked for a value: only the copy went to the core, and its answer brings no value.
+    expect(backend.count("entry_reveal")).toBe(0);
+    expect(backend.count("entry_get")).toBe(0);
+  });
+
+  it("RF-106: un clic en cualquier celda elige la fila y nada más", async () => {
+    const { backend } = await openGestures();
+
+    for (const selector of [".cell-user", ".cell-password", ".cell-url", ".cell-date", ".cell-title button"]) {
+      // Another row first, so each cell is seen to choose its own.
+      fireEvent.click(titleButton("Sin nada"));
+      expect(row("Con todo").hasAttribute("data-selected")).toBe(false);
+
+      fireEvent.click(cell("Con todo", selector));
+
+      expect(row("Con todo").hasAttribute("data-selected")).toBe(true);
+      expect(titleButton("Con todo").getAttribute("aria-current")).toBe("true");
+      expect(row("Sin nada").hasAttribute("data-selected")).toBe(false);
+      // Only the chosen row shows its two buttons, in the cell it already had.
+      expect(within(cell("Con todo", ".cell-actions")).getAllByRole("button").map((button) => button.getAttribute("aria-label"))).toEqual(
+        ["Copiar contraseña de Con todo", "Abrir Con todo"],
+      );
+      expect(cell("Sin nada", ".cell-actions").childElementCount).toBe(0);
+    }
+    expect(screen.queryByRole("dialog")).toBeNull();
+    for (const command of ["entry_get", "entry_copy", "entry_reveal", "entry_open_url"]) {
+      expect(backend.count(command)).toBe(0);
+    }
+  });
+
+  it("RF-106: doble clic en el título abre la ventana de la entrada", async () => {
+    await openGestures();
+
+    const title = titleButton("Con todo");
+    expect(title.getAttribute("title")).toBe("Doble clic para abrir la entrada");
+    doubleClick(title);
+
+    const entryWindow = await screen.findByRole<HTMLDialogElement>("dialog", { name: "Con todo" });
+    expect(entryWindow.open).toBe(true);
+    expect(await within(entryWindow).findByRole("button", { name: "Editar" })).toBeDefined();
+    // The first click chose the row without replacing its button: the double click landed on the same element.
+    expect(titleButton("Con todo")).toBe(title);
+    expect(title.getAttribute("aria-current")).toBe("true");
+  });
+
+  it("RF-106: doble clic en «Modificada» abre la ventana de la entrada", async () => {
+    await openGestures();
+
+    const day = cell("Con todo", ".cell-date");
+    expect(day.getAttribute("title")).toBe("Doble clic para abrir la entrada");
+    doubleClick(day);
+
+    expect(await screen.findByRole("dialog", { name: "Con todo" })).toBeDefined();
+    expect(cell("Con todo", ".cell-date")).toBe(day);
+  });
+
+  it("RF-106: doble clic en el usuario lo copia por el núcleo; uno protegido también, sin que su valor llegue a la lista", async () => {
+    const { backend } = await openGestures();
+
+    const user = cell("Con todo", ".cell-user");
+    expect(user.getAttribute("title")).toBe("Doble clic para copiar el usuario");
+    doubleClick(user);
+
+    // Not protected: nothing clears it, so the notice has no countdown.
+    expect(await screen.findByText("Usuario copiado")).toBeDefined();
+    expect(argsOf(backend, "entry_copy")).toEqual([{ id: "e-full", field: "UserName" }]);
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(cell("Con todo", ".cell-user")).toBe(user);
+
+    doubleClick(cell("Usuario protegido", ".cell-user"));
+    await waitFor(() => {
+      expect(argsOf(backend, "entry_copy").at(-1)).toEqual({ id: "e-safe", field: "UserName" });
+    });
+    expect(cell("Usuario protegido", ".cell-user").textContent).toBe("(protegido)");
+    expect(cell("Usuario protegido", ".cell-user").getAttribute("title")).toBe("Doble clic para copiar el usuario");
+  });
+
+  it("RF-106: doble clic en la contraseña la copia por el núcleo sin mostrarla: el valor no llega al DOM", async () => {
+    const { backend } = await openGestures();
+
+    const password = cell("Con todo", ".cell-password");
+    expect(password.getAttribute("title")).toBe("Doble clic para copiar la contraseña");
+    doubleClick(password);
+
+    // The notice is the one of the list, with the countdown the core gave.
+    const notice = await screen.findByText("Contraseña copiada. Se borra del portapapeles en 20 s");
+    expect(notice.className).toBe("toast");
+    expect(notice.closest('[role="status"]')?.closest(".list-foot")).not.toBeNull();
+    expect(argsOf(backend, "entry_copy")).toEqual([{ id: "e-full", field: "Password" }]);
+    expect(backend.count("entry_reveal")).toBe(0);
+    expect(backend.count("entry_get")).toBe(0);
+    expectAbsent(PASSWORDS.full);
+    expect(cell("Con todo", ".cell-password .mask").textContent).toBe("••••••••");
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("RF-106: RF-49: doble clic en el sitio lo abre por el núcleo, sin enlace ni ventana del navegador propia", async () => {
+    const { backend, container } = await openGestures();
+
+    const site = cell("Con todo", ".cell-url");
+    expect(site.getAttribute("title")).toBe("Doble clic para abrir el sitio en el navegador");
+    doubleClick(site);
+
+    expect(await screen.findByText("La dirección se abrió en el navegador.")).toBeDefined();
+    expect(argsOf(backend, "entry_open_url")).toEqual([{ id: "e-full" }]);
+    expect(container.querySelector("a")).toBeNull();
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("RF-106: Enter con el foco en el título de la fila abre la ventana de la entrada", async () => {
+    await openGestures();
+
+    const title = titleButton("Con todo");
+    title.focus();
+    fireEvent.keyDown(title, { key: "Enter" });
+
+    expect(await screen.findByRole("dialog", { name: "Con todo" })).toBeDefined();
+    expect(title.getAttribute("aria-current")).toBe("true");
+  });
+
+  it("RF-106: en una celda sin dato el doble clic no hace nada, y no promete nada en su `title`", async () => {
+    const { backend } = await openGestures();
+
+    for (const selector of [".cell-user", ".cell-url"]) {
+      const empty = cell("Sin nada", selector);
+      expect(empty.hasAttribute("title")).toBe(false);
+      doubleClick(empty);
+    }
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    expect(backend.count("entry_copy")).toBe(0);
+    expect(backend.count("entry_open_url")).toBe(0);
+    expect(screen.queryByRole("dialog")).toBeNull();
+    // The clicks still chose the row.
+    expect(row("Sin nada").hasAttribute("data-selected")).toBe(true);
+  });
+
+  it("RF-106: lo que hace el doble clic también lo hacen los dos botones de la fila elegida", async () => {
+    const { backend } = await openGestures();
+    fireEvent.click(cell("Con todo", ".cell-user"));
+
+    const copy = screen.getByRole("button", { name: "Copiar contraseña de Con todo" });
+    expect(copy.getAttribute("title")).toBe("Copiar contraseña");
+    fireEvent.click(copy);
+    expect(await screen.findByText("Contraseña copiada. Se borra del portapapeles en 20 s")).toBeDefined();
+    expect(argsOf(backend, "entry_copy")).toEqual([{ id: "e-full", field: "Password" }]);
+    expectAbsent(PASSWORDS.full);
+
+    fireEvent.click(screen.getByRole("button", { name: "Abrir Con todo" }));
+    expect(await screen.findByRole("dialog", { name: "Con todo" })).toBeDefined();
+  });
+
+  it("RF-108: Esc cierra la ventana, devuelve el foco a la fila, que sigue elegida, y lo mostrado se oculta", async () => {
+    await openGestures();
+    doubleClick(titleButton("Con todo"));
+    const entryWindow = await screen.findByRole("dialog", { name: "Con todo" });
+
+    fireEvent.click(await within(entryWindow).findByRole("button", { name: "Mostrar contraseña" }));
+    expect((await within(entryWindow).findByText(PASSWORDS.full)).className).toBe("secret");
+
+    // Escape reaches a modal dialog as its `cancel` event.
+    fireEvent(entryWindow, new Event("cancel", { cancelable: true }));
+
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expectAbsent(PASSWORDS.full);
+    expect(titleButton("Con todo").getAttribute("aria-current")).toBe("true");
+    expect(document.activeElement).toBe(titleButton("Con todo"));
+
+    // Opened again, it starts hidden: nothing of what was shown came back.
+    doubleClick(titleButton("Con todo"));
+    await within(await screen.findByRole("dialog", { name: "Con todo" })).findByRole("button", { name: "Mostrar contraseña" });
+    expectAbsent(PASSWORDS.full);
+  });
+
+  it("RF-74: RF-106: el aviso de copiado sale al pie de la lista y, con la ventana abierta, dentro de ella", async () => {
+    await openGestures();
+    const zones = () => [...document.querySelectorAll('.toast-zone[role="status"]')];
+    // It exists before it has anything to say.
+    expect(zones()).toHaveLength(1);
+    expect(zones()[0]?.childElementCount).toBe(0);
+
+    doubleClick(cell("Con todo", ".cell-user"));
+    expect((await screen.findByText("Usuario copiado")).closest(".list-foot")).not.toBeNull();
+
+    doubleClick(cell("Con todo", ".cell-date"));
+    const entryWindow = await screen.findByRole("dialog", { name: "Con todo" });
+    fireEvent.click(await within(entryWindow).findByRole("button", { name: "Copiar contraseña" }));
+    const inside = await screen.findByText("Contraseña copiada. Se borra del portapapeles en 20 s");
+    expect(entryWindow.contains(inside)).toBe(true);
+    // One notice at a time: the one of the list is silent while the window is open.
+    expect(screen.getAllByText(/copiad/)).toEqual([inside]);
+  });
+});

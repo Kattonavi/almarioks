@@ -283,7 +283,8 @@ describe("P5 Entrada — ver, mostrar y copiar", () => {
     expect(await screen.findByText("La dirección se abrió en el navegador.")).toBeDefined();
     expect(backend.openedUrls).toEqual(["https://github.com/login"]);
 
-    fireEvent.click(within(screen.getByRole("table")).getByRole("button", { name: "VPN" }));
+    closeWindow();
+    await openRow("VPN");
     await within(detailZone()).findByRole("button", { name: "Editar" });
     fireEvent.click(screen.getByRole("button", { name: "Abrir el sitio en el navegador" }));
 
@@ -331,7 +332,7 @@ describe("P5 Entrada — ver, mostrar y copiar", () => {
     await openGroup("Trabajo");
     const release = backend.hold("entry_get");
 
-    fireEvent.click(within(screen.getByRole("table")).getByRole("button", { name: "GitHub" }));
+    await openRow("GitHub");
     expect(await screen.findByText("Cargando la entrada…")).toBeDefined();
     await act(async () => {
       release();
@@ -340,7 +341,8 @@ describe("P5 Entrada — ver, mostrar y copiar", () => {
     await within(detailZone()).findByRole("button", { name: "Editar" });
 
     backend.rejectOnce("entry_get", { code: "NoEncontrado", message: "core text" });
-    fireEvent.click(within(screen.getByRole("table")).getByRole("button", { name: "VPN" }));
+    closeWindow();
+    await openRow("VPN");
     expect(await screen.findByText(ERROR_MESSAGES.NoEncontrado)).toBeDefined();
     fireEvent.click(within(detailZone()).getByRole("button", { name: "Reintentar" }));
     expect(await within(detailZone()).findByRole("heading", { name: "VPN" })).toBeDefined();
@@ -607,7 +609,7 @@ describe("P5 Entrada — mover y borrar", () => {
     const { backend } = await setup();
     await openEntry("Trabajo", "GitHub");
 
-    chooseOrder("Enviar a la papelera…");
+    chooseOrder("Enviar a la papelera");
 
     expect(await screen.findByText(/«GitHub» se movió a la papelera/)).toBeDefined();
     expect(screen.queryByRole("dialog")).toBeNull();
@@ -626,7 +628,7 @@ describe("P5 Entrada — mover y borrar", () => {
     });
     await openEntry("Personal", "Única");
 
-    chooseOrder("Enviar a la papelera…");
+    chooseOrder("Enviar a la papelera");
 
     expect(await screen.findByRole("button", { name: "Papelera de reciclaje (papelera) · 1 entrada" })).toBeDefined();
     expect(backend.groupTrail(backend.entry("e")?.groupId ?? "")).toEqual(["Cuentas", "Papelera de reciclaje"]);
@@ -894,8 +896,9 @@ describe("P5 Entrada — cabecera y menú de la entrada", () => {
     expect(more.getAttribute("aria-expanded")).toBe("true");
     expect(screen.getByRole("menu", { name: "Acciones de la entrada" })).toBeDefined();
     // "Duplicar" is not offered: the core has no such command.
-    expect(items()).toEqual(["Mover a otro grupo…", "Enviar a la papelera…"]);
-    expect(screen.getByRole("menuitem", { name: "Enviar a la papelera…" }).className).toBe("menu-danger");
+    // It acts at once, without asking: no ellipsis (RF-47).
+    expect(items()).toEqual(["Mover a otro grupo…", "Enviar a la papelera"]);
+    expect(screen.getByRole("menuitem", { name: "Enviar a la papelera" }).className).toBe("menu-danger");
     expect(screen.getByRole("menuitem", { name: "Mover a otro grupo…" }).className).toBe("");
   });
 
@@ -961,11 +964,11 @@ describe("P5 Entrada — cabecera y menú de la entrada", () => {
     expect(screen.getAllByRole("dialog")).toEqual([detailZone()]);
   });
 
-  it("RF-47: elegir «Enviar a la papelera…» en el menú lo cierra y actúa de una vez, sin diálogo", async () => {
+  it("RF-47: elegir «Enviar a la papelera» en el menú lo cierra y actúa de una vez, sin diálogo", async () => {
     const { backend } = await setup();
     await openEntry("Trabajo", "GitHub");
 
-    chooseOrder("Enviar a la papelera…");
+    chooseOrder("Enviar a la papelera");
 
     expect(screen.queryByRole("menu")).toBeNull();
     // No dialog asks first: only the window of the entry is there, and it closes once the entry is in the bin.
@@ -981,7 +984,7 @@ describe("P5 Entrada — cabecera y menú de la entrada", () => {
   it("RF-14: en solo lectura no hay «Editar» ni menú de la entrada, y lo dice", async () => {
     await setup({ status: { ...OPEN, read_only: true } });
     await openGroup("Trabajo");
-    fireEvent.click(within(screen.getByRole("table")).getByRole("button", { name: "GitHub" }));
+    await openRow("GitHub");
 
     const detail = detailZone();
     expect(await within(detail).findByText(/Solo lectura: esta entrada no se puede editar, mover ni borrar/)).toBeDefined();
