@@ -103,6 +103,13 @@ muestra "(protegido)".
     key_file_exists}`: sin `chosen_path`, `Documentos\AlmarioKS\<archivo>.kdbx` (la regla del nombre de archivo vive
     en `almarioks_core::location`); con él, esa misma ruta; siempre con el archivo llave al lado. `ErrorInterno` si el
     sistema no da Documentos. `vault_create` crea la carpeta solo si la ruta es exactamente la propuesta.
+21. `unlock_key_suggestion{path}` (RF-110): solo lectura. Responde `{key_file_path, key_file}` si junto a `X.kdbx`
+    existe el archivo `X.keyx`, o `null`. Solo contesta si `path` es la bóveda bloqueada de la sesión, una reciente
+    de ajustes o la última ruta que devolvió `pick_vault_to_open` en esta ejecución; para cualquier otra responde
+    `null` sin mirar el disco (no es un oráculo de rutas). No abre el archivo ni sigue enlaces. `null` no significa
+    que la bóveda no use llave.
+22. El resumen de una entrada (`entry_list`, `search`, y dentro del detalle) lleva `has_password` (RF-105): si el
+    campo de contraseña existe y no está vacío. Nunca el valor ni su longitud.
 
 ## Concurrencia y bloqueo (RF-30, RF-33, RF-88 a RF-90)
 - Un solo dueño del estado: todas las operaciones de la bóveda, la copia al portapapeles y el bloqueo pasan por el
