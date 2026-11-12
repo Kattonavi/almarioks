@@ -244,3 +244,7 @@ function Screen-Now {
     if (Has-El -Id 'welcome-title' -Timeout 0.4) { return 'bienvenida' }
     return 'otra'
 }
+
+# ---------- Variante ----------
+# RF_VARIANT=<archivo sin extension>: carga encima otro juego de canarios, carpetas y ayudas (p. ej. vc-lib).
+if ($env:RF_VARIANT) { . ([scriptblock]::Create([IO.File]::ReadAllText((Join-Path $QaDir "$($env:RF_VARIANT).ps1"), [Text.Encoding]::UTF8))) }

@@ -41,3 +41,10 @@ Lo que no cabe en la fase va aquí, un renglón por ítem: `- [origen] qué · s
 - [QA 0.1] Arranque en frío con perfil nuevo de WebView2: 7 a 8 s la primera vez (130 a 190 ms las siguientes); sin medir en release · Medio
 - [QA 0.1] `ArchivoExiste` no dice si el archivo que ya existe es la bóveda o el archivo llave · Bajo
 - [diseño 0.1] Densidad compacta sin control ni verificación visual; fortaleza no visible en el detalle (el núcleo no la da sin revelar); fechas relativas; verde de confirmación y verde de línea comparten matiz · Bajo
+- [QA 0.1, D-9] Sin menú contextual no hay "Pegar" con clic derecho en los campos (Ctrl+V sí): evaluar un menú propio mínimo (cortar, copiar, pegar) · Medio
+- [0.1, D-9] Si la app no logra cerrar la superficie de navegador al arrancar, termina con un pánico sin mensaje visible (Tauri 2.12 no devuelve el error del gancho de arranque): pasar a `run_return` o mostrar un diálogo nativo · Medio
+- [0.1, D-9] En `pnpm tauri dev` ya no se pueden abrir las herramientas de desarrollo (menú y teclas apagados): decidir una excepción solo para depuración · Bajo
+- [QA 0.1] AltGr sin ejercitar en la ventana real (teclado en-US en el PC de pruebas); arrastrar y soltar un archivo sobre la ventana y zoom con Ctrl+rueda sin probar · Medio
+- [QA 0.1] Primer arranque con perfil nuevo de WebView2 en release: 3,7 a 4,9 s (meta 2 s; los siguientes 0,6 s) · Medio
+- [diseño 0.1] Tres puntos abiertos de la revisión final: lista en modo estrecho en la ventana por defecto, valores partidos a mitad de palabra a 800 × 600, riel a 480 × 360 (`docs/revisiones/0.1-diseno.md`) · Medio / Bajo / Bajo
+- [herramientas] El detector de Impeccable marca los bocetos de decisión (`.impeccable/mocks/decision/`, `docs/diseno/mocks/`) como fuera de `DESIGN.md`: excluir esas carpetas o borrar los no escogidos, a decisión del dueño · Bajo

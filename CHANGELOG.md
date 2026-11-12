@@ -24,6 +24,8 @@ Primera versión que guarda contraseñas. Sigue siendo de desarrollo: no la uses
 ### Changed
 - La ventana corre en modo privado y con el autocompletado apagado: WebView2 no guarda en disco lo que se escribe.
 - Antes de instalar una actualización, la app cierra la bóveda y vacía el portapapeles.
+- Sin menú contextual ni teclas de navegador (guardar página, imprimir, recargar, buscar en la página): no hay forma
+  de sacar por ahí lo que se ve en la ventana. Para pegar en un campo se usa Ctrl+V.
 
 ### Known issues
 - Guardar un cambio tarda uno o dos segundos en una bóveda con la protección recomendada.

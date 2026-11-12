@@ -562,3 +562,111 @@ Instalada y cerrada la compilación de **release 0.1.0** (`almarioks.exe` de 18 
 borrada, sin restos en `%TEMP%`. La reciente de prueba quitada desde la app ("Quitar rf-uno.kdbx de la lista").
 Ajustes en 5 minutos y 20 s. Portapapeles vacío. Nada nuevo en Descargas. `EBWebView` existe, recreada por esta
 compilación, sin datos de formularios.
+
+## Verificación del cierre de la superficie de navegador (D-9 a D-12)
+
+> 2026-11-12, madrugada · Instalador de release nuevo `AlmarioKS_0.1.0_x64-setup.exe` (5 087 980 bytes, de las
+> 00:17:01; `HEAD` era `d862c23`, de las 00:14:27, sin cambios de producto sin commit). Trae dos capas: la nativa
+> (WebView2 sin menú contextual por defecto ni teclas de acelerador, renovada antes de la recarga del bloqueo) y la de
+> la página (`src/ui/browserSurface.ts`), más la ventana centrada.
+> Scripts: `vc-lib.ps1` (variante de `rf-lib.ps1`, se carga con `RF_VARIANT=vc-lib`), `vc1-antes.ps1`,
+> `vc2-despues.ps1`, `vc3-funciona.ps1`, `vc4-limpieza.ps1` y `rf3-inspeccion.ps1`. Capturas: `.impeccable/review/qa3/`,
+> fuera de git. Carpeta de trabajo `%TEMP%\almarioks-qa3-20261112`; canarios nuevos (`VIGIA-VC-…`).
+> El perfil de WebView2 **no se borró** esta vez: es el camino de quien actualiza sobre la 0.1.0 anterior.
+
+### Veredicto
+| Defecto | Estado | En una línea |
+|---|---|---|
+| **D-9** "Guardar como" e "Imprimir" | **corregido** | Ningún clic derecho abre menú y Ctrl+P, Ctrl+Shift+P y Ctrl+S no hacen nada, con una contraseña mostrada en pantalla, antes y después del bloqueo |
+| **D-10** recarga | **corregido** | F5, Ctrl+R, Ctrl+Shift+R y Ctrl+F5 dejan intacto el estado de la página y el mismo documento, en las cuatro pantallas |
+| **D-11** piezas del navegador | **corregido** | F3, Ctrl+G, Ctrl+J y Ctrl+F con la bóveda bloqueada ya no abren nada; sin menú no hay "Importar contraseñas" ni "Compartir" |
+| **D-12** ventana bajo la barra de tareas | **corregido** | Abre de (259, 41) a (1661, 980) físicos, dentro del área útil (hasta y = 1020) y con desvío 0, 0 px de su centro, en dos arranques |
+
+124 filas de gestos anotadas: 119 "nada" y 5 que son lo esperado (Ctrl+K y Ctrl+F llevan a la búsqueda propia, y la
+maestra tecleada con `@` abre). **Ninguna señal, ningún menú, ninguna recarga.** La hipótesis "ya no hay forma de
+guardar, imprimir, recargar ni buscar en la página desde el navegador" se sostiene para los gestos de la tabla de
+abajo; lo que queda fuera está en "No probado".
+
+### Instalación y arranque
+| Paso | Resultado | Evidencia |
+|---|---|---|
+| Instalar `/S` sobre la 0.1.0 anterior, con su perfil | pasa | Código 0. El exe instalado (18 865 152 bytes) es el de `target\release` salvo la marca NSIS y ya no es el de la corrida anterior (18 851 840 bytes) |
+| **La app arranca** con las dos capas | pasa | "Bienvenida" legible a los 3 743 ms del primer arranque (ventana a los 3 214 ms) y a los 645 ms del segundo · `VC01-bienvenida-centrada.png` |
+| D-12 | pasa | Dos arranques, sin tocar la ventana: 1120 × 720 lógicos, centrada y dentro del área útil |
+
+### Control positivo del detector (en esta misma corrida)
+| Qué detecta | Control | Resultado |
+|---|---|---|
+| Diálogo nativo | "Abrir una bóveda…" en la bienvenida | El detector de señales da "primer plano fuera de la app: clase #32770" y "diálogo nativo #32770 x1"; al cerrar con Escape, sin señal · `VC02-control-dialogo-nativo.png` |
+| Menú emergente, por ventanas (sin UIA) | Clic derecho en la barra de título | Ventana nueva de clase `#32768` del proceso de la app · `VC12-control-menu-del-sistema-win32.png` |
+| Menú emergente, por captura | El mismo | La captura tomada con el menú abierto lo muestra (Restaurar, Mover, Tamaño, Minimizar, Maximizar, Cerrar) · `VC03-control-menu-del-sistema.png` |
+| Menú de WebView2, por UIA (`Probe-RightClick`, sin cambios) | Histórico | La misma función leyó anoche los menús de 4, 5 y 10 elementos de la compilación anterior. En vivo vio la ventana `#32768` del menú del sistema pero no sus elementos: por eso se añadieron los otros dos detectores |
+| Recarga, por identidad del documento | Bloquear (recarga la webview) | El `RuntimeId` del documento cambia al bloquear, las dos veces; navegar dentro de la app (bienvenida → Crear → bienvenida) no lo cambia |
+| Recarga, por estado de la página | Histórico | El texto de la búsqueda es el marcador que F5 borró anoche; hoy sigue tras cada tecla |
+| Las teclas llegan a la página | Tab y Ctrl+K al empezar cada tanda | Tab mueve el foco; Ctrl+K lo lleva a `vault-search` |
+| Vista de impresión, "Buscar en la página", "Descargas" | Histórico | Anoche se vieron por el foco (`Imprimir`, `Buscar en la página`, `Descargas`) y por la ventana en primer plano; hoy esas mismas señales no aparecen |
+
+Qué control respalda qué detector: la **captura** sí ve el menú de WebView2 (la de anoche, `qa2/RF31-menu-contextual.png`,
+hecha con el mismo código, muestra el menú de 5 elementos) y el del sistema (hoy); **UIA** lo leyó anoche; el detector
+**por ventanas** solo se ha visto atrapar el menú del sistema, nunca uno de WebView2. En las 73 teclas enviadas el
+foco de partida estaba dentro de la página (48 en un botón, 24 en un campo, 1 en el documento), nunca en el marco.
+
+Dos tropiezos del script, no de la app, que verá quien repita `vc1-antes.ps1`: el control del diálogo quedó marcado
+`FALLA` porque contaba dos veces el texto "#32770" (la señal estaba, como muestra su propia línea; ya corregido), y el
+control "Probe-RightClick lee un menú…" **sigue dando `FALLA`**: exige elementos de menú por UIA y del menú del
+sistema UIA solo da la ventana `#32768`, sin elementos. Ese control lo cubren la captura y el detector por ventanas.
+Sobre AltGr: `src/ui/browserSurface.test.ts` trae casos "AltGr+E (€)" y "AltGr+P" (leídos, no ejecutados en esta ronda).
+
+### Gestos, por pantalla
+"nada" = sin menú (UIA, y desde `vc2` también por ventanas y captura), sin diálogo, primer plano y foco en la app,
+sin nombres del navegador en el árbol, misma pantalla; en las recargas, además, marcador intacto y mismo documento.
+
+| Pantalla | Clic derecho | Teclas | Recarga |
+|---|---|---|---|
+| **Bienvenida**, arranque en frío, antes de cualquier bloqueo | título, fondo y un botón: nada · `VC04` | Ctrl+P, Ctrl+Shift+P, Ctrl+S, F3, Ctrl+G, Ctrl+F, Ctrl+J, Ctrl+U, F12, Ctrl+Shift+I, Ctrl+Shift+S, Alt+Izquierda, Shift+F10, tecla Menú: nada | F5, Ctrl+R: mismo documento (la bienvenida no tiene estado propio que sirva de marcador) |
+| **Crear**, antes de cualquier bloqueo | campo de la contraseña maestra: nada · `VC06` | Ctrl+P (foco en un campo), Ctrl+S, F3, Ctrl+F, Ctrl+J, Shift+F10, tecla Menú: nada | F5, Ctrl+R, Ctrl+Shift+R, Ctrl+F5: el error "no coinciden" sigue en pantalla, mismo documento |
+| **Bóveda abierta, contraseña mostrada**, antes de cualquier bloqueo | notas, la propia contraseña mostrada, palabra seleccionada, campo de búsqueda, fondo: nada · `VC10-clic-derecho-notas`, `VC10-clic-derecho-seleccion`, `VC13`, `VC14` (estas dos con el detector por ventanas) | Ctrl+P (foco en botón y en campo), Ctrl+Shift+P, Ctrl+S, Shift+F10, tecla Menú, F3, Ctrl+G, Ctrl+J, Ctrl+U, F12, Ctrl+Shift+I/J/C, Ctrl+Shift+S, Alt+Izquierda: nada · `VC10-ctrl-p`. Ctrl+F: a la búsqueda propia | F5 (foco en la búsqueda y en "Bloquear"), Ctrl+R, Ctrl+Shift+R, Ctrl+F5: el texto de la búsqueda sigue, mismo documento |
+| **Bóveda bloqueada** (tras la primera recarga) | título, campo de la maestra, fondo: nada · `VC15` | Ctrl+P, Ctrl+Shift+P, Ctrl+S, Ctrl+F, F3, Ctrl+G, Ctrl+J, Ctrl+U, F12, Shift+F10, tecla Menú: nada · `VC16` | F5, Ctrl+R, Ctrl+Shift+R, Ctrl+F5: el error de llave incorrecta sigue, mismo documento |
+| **Bóveda abierta, contraseña mostrada, DESPUÉS de bloquear y desbloquear** | los mismos cinco: nada · `VC20-clic-derecho-notas`, `VC20-clic-derecho-seleccion` | la misma lista completa: nada · `VC20-ctrl-p`. Ctrl+F: a la búsqueda propia | las mismas cinco: nada |
+| Tras un **segundo** bloqueo y desbloqueo | notas: nada · `VC31` | Ctrl+P: nada | F5: nada |
+| Tras **reiniciar la app** (bienvenida y bóveda abierta, proceso nuevo, sin bloqueo previo) | título y notas: nada · `VC32` | Ctrl+P: nada | F5: nada |
+
+Entre el arranque y el primer bloqueo el documento fue siempre el mismo (`RuntimeId` igual al del arranque): ninguna
+de las teclas anteriores lo recargó y no hubo un bloqueo automático de por medio. Revisé a ojo nueve capturas: las dos
+de control (`VC03`, `VC12`) muestran el menú del sistema; las siete de la app (`VC06`, `VC10-clic-derecho-notas`,
+`VC10-clic-derecho-seleccion`, `VC10-ctrl-p`, `VC15`, `VC20-clic-derecho-notas`, `VC32`) no muestran menú ni vista de
+impresión, y en las cinco de la bóveda abierta se lee "VIGIA-VC-Clave-73" en pantalla. Las demás capturas existen
+pero no las abrí: para esos gestos el veredicto sale de los detectores.
+
+### Lo que debe seguir funcionando
+| Qué | Resultado | Evidencia |
+|---|---|---|
+| Ctrl+K y Ctrl+F con la bóveda abierta | pasa | Foco en `vault-search` las dos |
+| Ctrl+V en el título de una entrada nueva, con texto copiado por otro proceso | pasa | El campo queda con "VIGIA-VC-Pegada" |
+| Ctrl+A + Ctrl+C en el campo | pasa | El portapapeles pasa de otro texto al contenido del campo |
+| Ctrl+Z | pasa | "VIGIA-VC-Pegada-x" → "VIGIA-VC-Pegada" |
+| Tab, Escape y flechas | pasa | Tab saca el foco de la búsqueda; flecha abajo va al primer resultado; Enter abre con el foco en "Copiar contraseña"; Escape limpia la búsqueda |
+| Copiar contraseña y su limpieza | pasa | Valor exacto en el portapapeles, con los formatos de exclusión; vacío a los 20,5 s |
+| Guardar una entrada | pasa | Dos veces; el aviso final llega con el archivo ya cambiado (2 096 y 2 405 ms) |
+| Bloquear y desbloquear | pasa | Dos ciclos (681 y 687 ms al bloquear) y un desbloqueo más tras reiniciar la app (1 190 ms) |
+| `@` en la contraseña maestra con teclas reales | pasa, **sin AltGr** | La distribución de teclado de este PC es inglés de EE. UU. (`0409`): `@` es Shift+2, enviado como teclas reales en Desbloquear, y la bóveda abre. `€` no tiene tecla en esa distribución (fue por Unicode). **AltGr no se pudo ejercitar** sin cambiar la distribución del dueño; queda cubierto solo por las pruebas de `isBrowserKey` |
+| Clic derecho → "Pegar" en un campo | ya no existe | Consecuencia aceptada y documentada en el código · `VC30-formulario-clic-derecho.png` |
+| KeePassLib 2.62 | pasa | Abre la bóveda creada por esta compilación con sus 2 entradas y su grupo |
+
+### Rastro en disco
+Pasada final del inspector con los canarios de esta corrida (y el prefijo de la anterior): **0 apariciones** en el
+perfil de WebView2 (250 archivos, 65,4 MB, 13 bases SQLite, 0 filas `autofill*`), en ajustes, en la carpeta de
+trabajo y en `%TEMP%`. Los tres controles positivos, en verde (archivo plantado, SQLite plantada con el SHA-1 de la
+maestra, archivo plantado en `%TEMP%`).
+
+### No probado
+AltGr (arriba) · arrastrar y soltar un archivo sobre la ventana (en un navegador eso navega) · Ctrl+rueda y gestos
+táctiles de zoom · Ctrl+O, Ctrl+N, Ctrl+H y F7 (anoche ya no hacían nada; hoy no se repitieron) · la capa nativa y la
+de la página por separado (solo se ve el efecto conjunto) · que la app se niegue a arrancar si la capa nativa falla
+(no hay forma de provocarlo desde fuera) · otras distribuciones de teclado, pantallas y escalas · Win+V a mano, que
+sigue pendiente. Ctrl+S, Ctrl+U y F12 tampoco hacían nada antes del arreglo: su "nada" de hoy no prueba el arreglo.
+
+### Estado en que quedó el PC
+Instalada y cerrada la compilación de release nueva (0.1.0, 18 865 152 bytes). Carpeta de trabajo borrada, sin restos
+en `%TEMP%`. Reciente de prueba quitada desde la app. Ajustes en 5 minutos y 20 s. Portapapeles vacío. El perfil
+`EBWebView` es el de antes, sin datos de formularios.

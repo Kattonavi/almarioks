@@ -10,9 +10,9 @@ contraseñas reales: no lleva firma de Windows ni revisión externa.
 ## De dónde sale cada prueba
 | Fuente | Qué cubre | Resultado |
 |---|---|---|
-| Pruebas del implementador (`rf_NN_*` en Rust, `it("RF-NN: …")` en la interfaz) | Los 95 requisitos, salvo los tres recortables no hechos | 408 pruebas Rust y 170 de interfaz en verde |
+| Pruebas del implementador (`rf_NN_*` en Rust, `it("RF-NN: …")` en la interfaz) | Los 95 requisitos, salvo los tres recortables no hechos | 420 pruebas Rust y 242 de interfaz en verde (incluye las independientes de la fila siguiente) |
 | Pruebas independientes desde la spec, sin ver la implementación (`spec_rf_NN_*`) — `validacion-nucleo.md` | Núcleo: bloqueo, guardado, secretos, entradas, grupos, búsqueda, abrir y crear, generador, ajustes | 83 pruebas; 1 defecto (RF-94), corregido |
-| Prueba en la ventana real con la app instalada — `validacion-app.md` | Flujo principal, matriz de completitud, portapapeles real, bloqueo automático, errores visibles, rastro en disco | Hito cumplido; 2 defectos de integración bloqueantes y 6 menores, todos corregidos; rastro en disco reverificado |
+| Prueba en la ventana real con la app instalada — `validacion-app.md` | Flujo principal, matriz de completitud, portapapeles real, bloqueo automático, errores visibles, rastro en disco, superficie de navegador | Hito cumplido. Cuatro corridas: la primera halló 2 defectos de integración bloqueantes y 6 menores; la de release, el menú contextual y las teclas de navegador de WebView2 (D-9 a D-12). Todos corregidos y reverificados en la app de release |
 | Revisión de código — `docs/revisiones/0.1-codigo.md` | Fidelidad a la spec, constitución regla por regla, preparación para producción | Apta con condiciones; 1 Alto (C-1), corregido |
 | Revisión de seguridad — `docs/revisiones/0.1-seguridad.md` | Requisitos [B] del modelo de amenazas, frontera ventana–núcleo, memoria, archivo, configuración, dependencias | Apta con condiciones; sin Críticos ni Altos; S-1 y S-3 corregidos, S-2 al backlog |
 | Revisión de diseño — `docs/revisiones/0.1-diseno.md` | Resultado contra el contrato de dirección | Ver ese archivo |
@@ -39,7 +39,7 @@ contraseñas reales: no lleva firma de Windows ni revisión externa.
 | Bloqueo que no falla abierto, con guardado colgado o fallido (W3) | Cumplido | `rf_30_*`, `rf_33_*`, `spec_rf_30_*`; en la ventana: bloquea en ~300 ms |
 | Portapapeles fuera de Win+V y la nube; limpieza a los N s y al bloquear (W4) | Cumplido, con una parte manual pendiente | `rf_71_*` a `rf_75_*`, `rf_90_*`; portapapeles real vacío a los 20,8 s; historial verificado por WinRT. Falta mirar Win+V a mano y la nube (sincronización apagada en el PC de pruebas) |
 | Fixture XSS sin ejecución; URL solo `http(s)` vía núcleo (W1) | Cumplido | `RF-78`, `rf_49_*`; la exportación no existe en la 0.1 |
-| Canario en disco: 0 apariciones, incluida la carpeta de WebView2 (F5, W2) | Cumplido en depuración; **release pendiente de la reverificación final** | Reverificación de D-1 y D-2 en `validacion-app.md`; `rf_77_*` fija la configuración |
+| Canario en disco: 0 apariciones, incluida la carpeta de WebView2 (F5, W2) | Cumplido, también con el instalador de release | Tres pasadas sobre la app de release con control positivo (`validacion-app.md`); `rf_77_*` fija la configuración |
 | Topes del KDF y cabecera mal formada (F2), subidos a [B] por el laboratorio | Cumplido | `rf_16_*`, `rf_94_*`, `spec_rf_16_*`, `spec_rf_94_*` |
 
 ## Pendientes declarados
@@ -50,6 +50,10 @@ contraseñas reales: no lleva firma de Windows ni revisión externa.
 3. **Actualización real 0.0.2 → 0.1.0** con la bóveda abierta (C-1 / S-1): solo se puede probar con el release
    publicado; está cubierta por pruebas de la app y de contrato, no ejecutada de punta a punta.
 4. **Usuario estándar de Windows:** sigue pendiente desde el H0.
+5. **Diseño:** la revisión final quedó en "corregir" con tres puntos abiertos (`docs/revisiones/0.1-diseno.md`).
+6. **Sin ejercitar en la ventana real:** AltGr (el teclado del PC de pruebas es en-US), guardado fallido, cambio
+   externo, bóvedas KDBX 3.x, suspensión del equipo, y que la app se niegue a arrancar si no logra cerrar la
+   superficie de navegador.
 
 ## Tiempos medidos (PC del dueño, compilación de depuración, bóveda calibrada)
 Crear una bóveda: 9,0 s (incluye calibrar el KDF) · desbloquear: 1,2 s · guardar una entrada hasta el disco: 2,45 s ·
