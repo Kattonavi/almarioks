@@ -22,12 +22,15 @@ pub use key::{KeyFile, MasterPassword, VaultKey};
 pub use open::{OpenedVault, open};
 
 // Operations on an opened vault (T5 to T7): methods of `OpenedVault` over the types of `crate::vault`.
+mod entries;
 mod read;
 pub use create::{
     DEFAULT_VAULT_NAME, NEW_VAULT_HISTORY_MAX_ITEMS, NEW_VAULT_HISTORY_MAX_SIZE,
     create_named_vault_file,
 };
 
+#[cfg(test)]
+mod tests_entries;
 #[cfg(test)]
 mod tests_read;
 
