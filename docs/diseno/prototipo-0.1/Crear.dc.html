@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>AlmarioKS: crear bóveda</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Overpass:wght@400;600;800&family=Overpass+Mono:wght@400;600&display=swap">
+<style>
+body{margin:0}
+a{color:#f2f2ee}a:hover{color:#a7adba}
+</style>
+</helmet>
+<div style="min-height: 100vh; display: flex; flex-wrap: wrap; align-items: stretch; background: #191b21; color: #f2f2ee; font-family: 'Overpass', 'Segoe UI', system-ui, sans-serif; font-size: 15px; line-height: 1.45">
+
+<aside style="flex: 1 0 240px; background: #0c0d10; color: #ffffff; display: flex; flex-direction: column; gap: 16px; padding: 32px 28px; box-sizing: border-box">
+<svg viewBox="0 0 1024 1024" width="56" height="56" aria-hidden="true"><path fill="#6aa5ff" d="M0 192h320v128H0zM704 192h320v128H704z"></path><path fill="#f26a1b" d="M0 448h320v128H0zM704 448h320v128H704z"></path><path fill="#f2b705" d="M0 704h320v128H0zM704 704h320v128H704z"></path><rect x="384" y="64" width="256" height="896" rx="128" fill="#ffffff"></rect></svg>
+<div style="font-size: 26px; font-weight: 800; line-height: 1.1">AlmarioKS</div>
+<p style="margin: 0; color: #c3cae0">Tus contraseñas en un archivo tuyo. Sin cuenta y sin nube.</p>
+</aside>
+
+<main style="flex: 999 1 480px; min-width: 0; display: flex; justify-content: center; padding: 32px 24px; box-sizing: border-box">
+<div style="width: 100%; max-width: 520px; display: flex; flex-direction: column; gap: 20px">
+<div>
+<h1 style="margin: 0; font-size: 28px; font-weight: 800; line-height: 1.15">Crear bóveda</h1>
+<p style="margin: 4px 0 0; color: #a7adba">Ponle nombre y protégela. Lo demás se puede cambiar después.</p>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 6px">
+<label for="c-nombre" style="font-weight: 600; font-size: 14px">Nombre de la bóveda</label>
+<input id="c-nombre" type="text" placeholder="Familia" value="{{ nombre }}" onChange="{{ onNombre }}" style="height: 44px; padding: 0 12px; border: 1px solid #6b7280; border-radius: 4px; font: inherit; color: #f2f2ee; background: #20232a; box-sizing: border-box; width: 100%">
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; font-size: 13px; color: #a7adba">
+<span style="display: flex; align-items: center; gap: 6px; min-width: 0">
+<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z"></path></svg>
+<span>Se guarda en Documentos › AlmarioKS ›</span>
+<span style="font-family: 'Overpass Mono', Consolas, monospace; color: #f2f2ee; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">{{ archivo }}</span>
+</span>
+<button type="button" style="min-height: 44px; padding: 0; background: transparent; border: 0; font: inherit; font-size: 13px; font-weight: 600; color: #f2f2ee; text-decoration: underline; cursor: pointer">Cambiar ubicación…</button>
+</div>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 6px">
+<label for="c-clave" style="font-weight: 600; font-size: 14px">Contraseña maestra</label>
+<div style="display: flex; align-items: center; border: 1px solid #6b7280; border-radius: 4px; background: #20232a">
+<input id="c-clave" type="{{ tipoClave }}" value="{{ clave }}" onChange="{{ onClave }}" style="flex: 1; min-width: 0; height: 44px; padding: 0 12px; border: 0; outline: 0; background: transparent; font: inherit; color: #f2f2ee">
+<button type="button" aria-label="{{ verLabel }}" onClick="{{ alternarVer }}" style="width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; background: transparent; color: #f2f2ee; border: 0; cursor: pointer">
+<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+</button>
+</div>
+<sc-if value="{{ hayClave }}" hint-placeholder-val="{{ false }}">
+<div style="display: flex; align-items: center; gap: 10px; font-size: 13px; color: #a7adba">
+<span aria-hidden="true" style="flex: 0 0 120px; height: 6px; border-radius: 3px; background: #343842; overflow: hidden; display: flex"><span style="height: 6px; background: #f2f2ee; width: {{ fuerzaAncho }}"></span></span>
+Fortaleza: {{ fuerza }}
+</div>
+</sc-if>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 6px">
+<label for="c-repite" style="font-weight: 600; font-size: 14px">Repite la contraseña maestra</label>
+<input id="c-repite" type="{{ tipoClave }}" value="{{ repite }}" onChange="{{ onRepite }}" style="height: 44px; padding: 0 12px; border: 1px solid #6b7280; border-radius: 4px; font: inherit; color: #f2f2ee; background: #20232a; box-sizing: border-box; width: 100%">
+<sc-if value="{{ noCoinciden }}" hint-placeholder-val="{{ false }}">
+<span style="font-size: 13px; color: #ff7a85">Las dos contraseñas no son iguales.</span>
+</sc-if>
+</div>
+
+<fieldset style="margin: 0; padding: 0; border: 0; display: flex; flex-direction: column; gap: 6px">
+<legend style="padding: 0; font-weight: 600; font-size: 14px">Archivo llave (opcional, recomendado)</legend>
+<div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px">
+<sc-for list="{{ llaves }}" as="k" hint-placeholder-count="3">
+<label style="display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 12px; border-radius: 4px; font-size: 14px; font-weight: 600; cursor: pointer; border: 1px solid {{ k.borde }}; background: {{ k.bg }}; color: {{ k.fg }}">
+<input type="radio" name="llave" checked="{{ k.activo }}" onChange="{{ k.pick }}" style="width: 16px; height: 16px; accent-color: #f26a1b">
+{{ k.texto }}
+</label>
+</sc-for>
+</div>
+<span style="font-size: 13px; color: #a7adba">{{ llaveAyuda }}</span>
+</fieldset>
+
+<div style="display: flex; gap: 12px; padding: 12px 14px; background: #20232a; border: 1px solid #343842; border-radius: 6px">
+<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#f2f2ee" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex: 0 0 18px; margin-top: 2px"><path d="M12 3l9.5 17h-19L12 3z"></path><path d="M12 10v4M12 17.5v.5"></path></svg>
+<span style="font-size: 14px">Si pierdes la contraseña maestra o el archivo llave, nadie puede abrir la bóveda. No hay recuperación.</span>
+</div>
+
+<div style="display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px">
+<button type="button" style="height: 44px; padding: 0 16px; background: #20232a; color: #f2f2ee; border: 1px solid #6b7280; border-radius: 4px; font: inherit; font-weight: 600; cursor: pointer">Cancelar</button>
+<button type="button" style="height: 44px; padding: 0 18px; background: #f2f2ee; color: #16181d; border: 0; border-radius: 4px; font: inherit; font-weight: 600; cursor: pointer">Crear bóveda</button>
+</div>
+</div>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+  constructor(...a) {
+    super(...a);
+    this.state = { nombre: 'Familia', clave: '', repite: '', ver: false, llave: 'nueva' };
+  }
+  fuerza(clave) {
+    let tipos = 0;
+    if (/[a-z]/.test(clave)) tipos++;
+    if (/[A-Z]/.test(clave)) tipos++;
+    if (/[0-9]/.test(clave)) tipos++;
+    if (/[^a-zA-Z0-9]/.test(clave)) tipos++;
+    const n = clave.length >= 16 && tipos >= 3 ? 4 : clave.length >= 12 && tipos >= 2 ? 3 : clave.length >= 8 ? 2 : 1;
+    return { texto: ['', 'débil', 'regular', 'buena', 'muy buena'][n], ancho: (n * 25) + '%' };
+  }
+  renderVals() {
+    const st = this.state;
+    const limpio = st.nombre.replace(/[\\/:*?"<>|]/g, '').trim() || 'bóveda';
+    const fz = this.fuerza(st.clave);
+    const opciones = [
+      { id: 'nueva', texto: 'Crear uno nuevo', ayuda: 'AlmarioKS crea el archivo llave junto a la bóveda. Guarda una copia en otro lugar.' },
+      { id: 'existente', texto: 'Usar uno mío', ayuda: 'Eliges un archivo llave que ya tienes.' },
+      { id: 'ninguno', texto: 'Sin archivo llave', ayuda: 'La bóveda se abre solo con la contraseña maestra.' }
+    ];
+    const actual = opciones.find((o) => o.id === st.llave) || opciones[0];
+    return {
+      nombre: st.nombre,
+      archivo: limpio + '.kdbx',
+      onNombre: (ev) => this.setState({ nombre: ev.target.value }),
+      clave: st.clave,
+      repite: st.repite,
+      tipoClave: st.ver ? 'text' : 'password',
+      verLabel: st.ver ? 'Ocultar contraseña' : 'Mostrar contraseña',
+      alternarVer: () => this.setState({ ver: !st.ver }),
+      onClave: (ev) => this.setState({ clave: ev.target.value }),
+      onRepite: (ev) => this.setState({ repite: ev.target.value }),
+      hayClave: st.clave.length > 0,
+      fuerza: fz.texto,
+      fuerzaAncho: fz.ancho,
+      noCoinciden: st.repite.length > 0 && st.repite !== st.clave,
+      llaves: opciones.map((o) => {
+        const activo = o.id === st.llave;
+        return { texto: o.texto, activo, borde: activo ? '#f2f2ee' : '#6b7280', bg: activo ? '#f2f2ee' : '#20232a', fg: activo ? '#16181d' : '#f2f2ee', pick: () => this.setState({ llave: o.id }) };
+      }),
+      llaveAyuda: actual.ayuda
+    };
+  }
+}
+</script>
+</body>
+</html>

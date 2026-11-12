@@ -439,6 +439,35 @@ Salieron al implementar; en cada una se eligió lo más conservador. Ninguna cam
   Sale solo por "Copiar". Consecuencia: con un valor mostrado, Ctrl+A y Ctrl+C no copian nada.
 - La ventana abre centrada.
 
+## Cambio 2026-11-12: pase de interacción (encargo del dueño)
+Origen: `docs/revisiones/0.1-ux-dueno.md` y el prototipo aprobado en `docs/diseno/prototipo-0.1/`. La distribución de
+las pantallas la fija ese prototipo; aquí solo va lo que cambia de comportamiento.
+
+- RF-96: CUANDO el dueño crea una bóveda, EL SISTEMA pedirá primero su nombre y lo guardará como nombre de la bóveda,
+  aunque el archivo se llame distinto.
+- RF-97: MIENTRAS el dueño no elija otra ubicación, EL SISTEMA propondrá `Documentos › AlmarioKS › <nombre>.kdbx`,
+  quitando del nombre de archivo los caracteres que Windows no admite (`\ / : * ? " < > |`) y usando `bóveda` si queda
+  vacío, y creará la carpeta `AlmarioKS` al crear la bóveda si no existe.
+- RF-98: SI en la ubicación propuesta ya existe un archivo con ese nombre, ENTONCES EL SISTEMA no creará la bóveda ni
+  tocará ese archivo (RF-4) y pedirá cambiar el nombre o la ubicación.
+- RF-99: DONDE el dueño elija "Crear uno nuevo" como archivo llave, EL SISTEMA lo creará junto a la bóveda, con su
+  mismo nombre y extensión `.keyx`, sin reemplazar un archivo existente. [por confirmar: que sea la opción marcada al
+  abrir, como en el prototipo; hasta hoy era "Sin archivo llave"]
+- RF-100: CUANDO el dueño crea o edita una entrada, EL SISTEMA mostrará el formulario en un diálogo modal sobre la
+  bóveda, con el foco en Título; al cancelar o pulsar Esc preguntará solo si hay cambios; al guardar cerrará el
+  diálogo y dejará esa entrada seleccionada.
+- RF-101: CUANDO el dueño pulsa "Generar" en el campo de contraseña, EL SISTEMA llenará el campo con una contraseña
+  generada con las opciones vigentes (RF-65 a RF-69) y la dejará a la vista.
+- RF-102: EL SISTEMA ofrecerá "Todas las entradas" como primer elemento del riel, con las entradas de todos los
+  grupos fuera de la papelera y su total; el grupo raíz no aparece como un grupo más, y una entrada creada desde ahí
+  queda en la raíz.
+- RF-103: EL SISTEMA usará siempre el tema oscuro. [por confirmar: ofrecer el claro en Ajustes queda en el backlog]
+- RF-104: La ventana no se podrá achicar por debajo de 1000 × 640. [por confirmar; antes 480 × 360]
+
+Sin cambio de comportamiento, solo de lugar: editar va junto al título de la entrada; mover y enviar a la papelera, en
+un menú de más acciones; las órdenes de grupo, en el menú de cada grupo; la ruta del archivo, en Ajustes.
+No entra (no existe en el núcleo): duplicar una entrada (`docs/BACKLOG.md`).
+
 ## Propuestas al dueño sobre la constitución (no se cambió nada)
 - Regla 4: nombrar como excepción el generador y validador de `.keyx` (hoy está en "Reglas específicas del proyecto").
 - Regla 6: decir "salvo `reveal_*` y la salida del generador", como ya dice el ADR-0002.
