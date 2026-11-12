@@ -622,9 +622,9 @@
 
 /*
  * Only a narrow detail shrinks the entry title: the 800 × 600 window (about 16rem) and the smallest one (480 × 360,
- * about 23.5rem, where "Copiar" must show without scrolling). The default window (1120 × 720, about 27rem) keeps 44 px.
+ * about 24.5rem, where "Copiar" must show without scrolling). The default window (1120 × 720, about 27rem) keeps 44 px.
  */
-@container detail (max-width: 24rem) {
+@container detail (max-width: 25rem) {
   .entry-title {
     font-size: var(--text-xl);
   }
