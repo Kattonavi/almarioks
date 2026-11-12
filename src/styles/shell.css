@@ -285,6 +285,15 @@
   padding-bottom: var(--space-1);
   overflow-y: auto;
   overscroll-behavior: contain;
+  /*
+   * Scroll hint: an inner shade at the edge where more groups wait. The two `local` covers in the rail's ground move
+   * with the list and hide the shade once that edge is reached; nothing shows while the whole list fits.
+   */
+  background:
+    linear-gradient(var(--ground) 40%, transparent) top / 100% 24px no-repeat local,
+    linear-gradient(transparent, var(--ground) 60%) bottom / 100% 24px no-repeat local,
+    linear-gradient(var(--control-border), transparent) top / 100% 10px no-repeat scroll,
+    linear-gradient(transparent, var(--control-border)) bottom / 100% 10px no-repeat scroll;
 }
 
 .rail-head h2 {
@@ -292,9 +301,14 @@
   font-size: var(--text-lg);
 }
 
+/* One line with an ellipsis; the whole path is in its `title`. */
 .rail-head .path {
   margin: 0;
+  overflow: hidden;
+  overflow-wrap: normal;
   font-size: var(--text-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .rail-nav > h3 {
@@ -373,10 +387,55 @@
   border-color: transparent;
 }
 
+/* On the rail the rarest action is the quietest: red only under the pointer, with focus, and in its dialog. */
 .group-actions > .actions > .btn-danger {
   justify-self: start;
   margin-top: var(--space-1);
+  color: var(--ink);
+}
+
+.group-actions > .actions > .btn-danger:hover:not(:disabled) {
+  color: var(--on-danger);
+}
+
+.group-actions > .actions > .btn-danger:focus-visible:not(:hover) {
+  color: var(--danger);
   border-color: var(--danger);
+}
+
+/*
+ * The default and short windows: the actions become one row of icon buttons (name and `title` kept), so the height
+ * goes to the list of groups. The smallest window (≤ 719 px) keeps its own column of badges-wide buttons.
+ */
+@media (min-width: 720px) and (max-width: 1099px), (min-width: 720px) and (max-height: 640px) {
+  .group-actions {
+    margin-top: var(--space-2);
+    padding-top: var(--space-2);
+  }
+
+  .group-actions > .actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-1);
+  }
+
+  .group-actions > .actions > button,
+  .group-actions > .actions > .btn-danger {
+    justify-content: center;
+    width: var(--control-h);
+    min-height: var(--control-h);
+    margin: 0;
+    padding: 0;
+  }
+
+  .group-actions > .actions .label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
 }
 
 /* Only the rail's own lines: the dialogs of a group are mounted in here and keep the standard look. */

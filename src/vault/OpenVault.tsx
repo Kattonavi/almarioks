@@ -4,7 +4,7 @@ import { assertNever } from "../assertNever";
 import type { Unlisten, VaultClient } from "../ipc/client";
 import { errorMessage, type AppError, type Result } from "../ipc/errors";
 import type { Recovery, SaveState, VaultStatus } from "../ipc/schemas";
-import { InfoIcon, LockIcon, WarningIcon } from "../ui/icons";
+import { InfoIcon, WarningIcon } from "../ui/icons";
 import { Dialog } from "./Dialog";
 import { RecoveryNotice } from "./RecoveryNotice";
 import type { SaveSignal } from "./saveSignal";
@@ -355,7 +355,6 @@ export function OpenVault(props: OpenVaultProps) {
               <LockCountdown key={props.lockDeadline} deadline={props.lockDeadline} />
             )}
             <button type="button" className="btn-primary" onClick={props.onLock}>
-              <LockIcon />
               Bloquear
             </button>
             {props.tools}
@@ -366,7 +365,9 @@ export function OpenVault(props: OpenVaultProps) {
             <h2 id="vault-title" ref={titleRef} tabIndex={-1}>
               {props.name === "" ? vault.fileName : props.name}
             </h2>
-            <p className="path mono">{vault.path}</p>
+            <p className="path mono" title={vault.path}>
+              {vault.path}
+            </p>
           </>
         }
         banner={notices}

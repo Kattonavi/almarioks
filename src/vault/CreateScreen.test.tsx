@@ -80,6 +80,15 @@ describe("P2 Crear bóveda", () => {
     expect(JSON.stringify(others)).not.toContain(SECRET);
   });
 
+  it("RF-7: con puntaje 2 avisa sin llamarla débil (no contradice «regular»)", async () => {
+    await openCreate({ picks: { pick_vault_to_create: [NEW_PATH] }, strength: () => 2 });
+
+    fireEvent.input(passwordField(), { target: { value: "abcdefgh1" } });
+    expect(await screen.findByText(/Fortaleza: regular \(2 de 4\)/)).toBeDefined();
+    expect(screen.getByText(/Todavía es fácil de adivinar\. Puedes continuar/)).toBeDefined();
+    expect(screen.queryByText(/débil/)).toBeNull();
+  });
+
   it("RF-7: mientras escribe muestra la fortaleza y avisa si es débil, sin impedir continuar", async () => {
     const backend = await openCreate({ picks: { pick_vault_to_create: [NEW_PATH] } });
 

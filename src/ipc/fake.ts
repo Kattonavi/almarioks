@@ -1002,6 +1002,11 @@ export function createFakeBackend(options: FakeOptions = {}): FakeBackend {
         return search(optionalString(args.query) ?? "");
       case "activity":
         return null;
+      case "app_prepare_update":
+        // Like closing on exit: the vault is dropped and our clipboard content is cleared.
+        status = { state: "closed" };
+        clipboard = null;
+        return null;
       default:
         throw new Error(`fake core: ${command} is not faked`);
     }

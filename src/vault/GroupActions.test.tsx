@@ -157,6 +157,7 @@ describe("P7 Grupo", () => {
     await groupButton("Cuentas");
     const root = toolbar("Cuentas");
     expect(within(root).queryByRole("button", { name: "Mover grupo…" })).toBeNull();
+    expect(within(root).queryByRole("button", { name: "Enviar grupo a la papelera…" })).toBeNull();
     expect(within(root).queryByRole("button", { name: "Borrar grupo…" })).toBeNull();
 
     await selectGroup("Papelera");
@@ -164,7 +165,7 @@ describe("P7 Grupo", () => {
     expect(within(bin).getAllByRole("button").map((button) => button.textContent)).toEqual(["Vaciar papelera…"]);
 
     await selectGroup("Viejo");
-    fireEvent.click(within(toolbar("Viejo")).getByRole("button", { name: "Borrar grupo…" }));
+    fireEvent.click(within(toolbar("Viejo")).getByRole("button", { name: "Enviar grupo a la papelera…" }));
     expect(await screen.findByText(ERROR_MESSAGES.GrupoProtegido)).toBeDefined();
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(backend.count("group_delete")).toBe(0);
@@ -198,13 +199,13 @@ describe("P7 Grupo", () => {
     const { backend } = await setup({ entries });
     await selectGroup("Trabajo");
 
-    fireEvent.click(within(toolbar("Trabajo")).getByRole("button", { name: "Borrar grupo…" }));
-    const dialog = await screen.findByRole("dialog", { name: "Borrar «Trabajo»" });
+    fireEvent.click(within(toolbar("Trabajo")).getByRole("button", { name: "Enviar grupo a la papelera…" }));
+    const dialog = await screen.findByRole("dialog", { name: "Enviar «Trabajo» a la papelera" });
     expect(within(dialog).getByText(/contiene 5 entradas y 1 subgrupo/)).toBeDefined();
     expect(lastArgs(backend, "group_delete_preview")).toEqual({ id: "group-work" });
     expect(backend.count("group_delete")).toBe(0);
 
-    fireEvent.click(within(dialog).getByRole("button", { name: "Mover a la papelera" }));
+    fireEvent.click(within(dialog).getByRole("button", { name: "Enviar a la papelera" }));
 
     expect(await screen.findByText("«Trabajo» se movió a la papelera.")).toBeDefined();
     expect(backend.groupTrail("group-work")).toEqual(["Cuentas", "Papelera de reciclaje", "Trabajo"]);
@@ -273,9 +274,9 @@ describe("P7 Grupo", () => {
     await selectGroup("Archivo");
     backend.rejectOnce("group_delete", { code: "GuardadoFallido", message: "core text" });
 
-    fireEvent.click(within(toolbar("Archivo")).getByRole("button", { name: "Borrar grupo…" }));
-    const dialog = await screen.findByRole("dialog", { name: "Borrar «Archivo»" });
-    fireEvent.click(within(dialog).getByRole("button", { name: "Mover a la papelera" }));
+    fireEvent.click(within(toolbar("Archivo")).getByRole("button", { name: "Enviar grupo a la papelera…" }));
+    const dialog = await screen.findByRole("dialog", { name: "Enviar «Archivo» a la papelera" });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Enviar a la papelera" }));
 
     expect(await within(dialog).findByText(ERROR_MESSAGES.GuardadoFallido)).toBeDefined();
     expect(backend.groupTrail("group-archive")).toEqual(["Cuentas", "Archivo"]);

@@ -169,6 +169,12 @@
   flex: 1 1 12rem;
 }
 
+/* Its hint takes a line of its own under the path and the button. */
+.gate-form .field[role="group"] > .field-hint {
+  flex: 0 0 100%;
+  margin: 0;
+}
+
 .choices > .field > .actions {
   margin-top: var(--space-1);
 }

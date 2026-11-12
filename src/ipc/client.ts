@@ -143,6 +143,11 @@ export interface VaultClient {
   settingsSet(settings: SettingsInput): Promise<Result<Settings>>;
   /** RF-29: resets the inactivity timer in the core. */
   activity(): Promise<Result<undefined>>;
+  /**
+   * RF-75 + RF-36 (C-1): right before installing an update, the core closes the vault as on exit, clears the
+   * clipboard if it is ours and stays in "exiting" mode. The window is not reloaded.
+   */
+  prepareUpdate(): Promise<Result<undefined>>;
 
   /** RF-32: the core locked the vault; the window must drop every vault datum. */
   onVaultLocked(handler: () => void): Promise<Unlisten>;
@@ -250,6 +255,7 @@ export function createClient(transport: Transport): VaultClient {
         clipboard_seconds: clipboardSeconds,
       }),
     activity: () => call("activity", unitSchema),
+    prepareUpdate: () => call("app_prepare_update", unitSchema),
 
     // The payload of `vault-locked` carries nothing the window needs: the event alone means "drop everything".
     onVaultLocked: (handler) => transport.listen("vault-locked", () => { handler(); }),

@@ -193,7 +193,7 @@ async function stageOpen(backend: FakeBackend) {
   await click(".rail-item", /^Trabajo/);
   switch (state) {
     case "dialogo-borrar":
-      await click("button", "Borrar grupo…");
+      await click("button", "Enviar grupo a la papelera…");
       return;
     case "dialogo-renombrar":
       await click("button", "Renombrar grupo…");
