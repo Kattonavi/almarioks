@@ -22,7 +22,7 @@ real) → commit → marcar. Las pruebas citan el RF (`rf_NN_…`, `it("RF-NN: �
       Hecho cuando: esas `rf_*` en verde, incluidos los ejemplos 8 y 9.
 - [x] T7. Mover y borrar entradas y grupos; papelera y objetos borrados. (RF-46 a RF-48, RF-51 a RF-58)
       Hecho cuando: esas `rf_*` en verde, incluidos los ejemplos 3 y 4.
-- [ ] T8. Guardado: cifrar a bytes, temporal, relectura, reemplazo atómico, `.bak`, cambio externo, disco de prueba
+- [x] T8. Guardado: cifrar a bytes, temporal, relectura, reemplazo atómico, `.bak`, cambio externo, disco de prueba
       que falla o corta en cada paso, cola de guardados; ida y vuelta sin pérdida tras editar. (RF-21 a RF-25, RF-27, RF-89)
       Hecho cuando: esas `rf_*` en verde, incluido el ejemplo 6; las pruebas `roundtrip_*` siguen en verde.
       Avance (2026-11-11): `storage` listo (disco como trait, `read_vault`, `save_vault`, `save_vault_as`,
@@ -92,17 +92,17 @@ real) → commit → marcar. Las pruebas citan el RF (`rf_NN_…`, `it("RF-NN: �
       Hecho cuando: pruebas de P8 y de los avisos en verde.
 
 ## Recortables (solo si el corte de 8 h no se disparó)
-- [ ] T23. Historial de una entrada (RF-85).
-- [ ] T24. Bloqueo inmediato con la sesión de Windows (RF-37).
-- [ ] T25. Adjuntos: agregar, quitar, guardar en disco (RF-86).
+- [ ] T23. Historial de una entrada (RF-85). **Recortado** (no hecho en la 0.1): el historial se conserva y lo muestra KeePass.
+- [ ] T24. Bloqueo inmediato con la sesión de Windows (RF-37). **Recortado**: el bloqueo por tiempo real (RF-29) cubre la suspensión.
+- [ ] T25. Adjuntos: agregar, quitar, guardar en disco (RF-86). **Recortado**: los adjuntos se conservan y se ven sus nombres.
 
 ## Cierre
-- [ ] T26. Compatibilidad: una bóveda creada y editada por la app abre en KeePassLib 2.62 y `keepassxc-cli` sin pérdida.
+- [ ] T26. (**parcial**: KeePassLib 2.62 pasa en `validacion-app.md`; `keepassxc-cli` queda para el dueño, ver `validacion.md`) Compatibilidad: una bóveda creada y editada por la app abre en KeePassLib 2.62 y `keepassxc-cli` sin pérdida.
       Hecho cuando: el script de `docs/lab/` lo muestra con salida real.
-- [ ] T27. Validación: `/especificar validar` → `validacion.md` con cada RF y su prueba, más pruebas escritas desde
+- [x] T27. Validación: `/especificar validar` → `validacion.md` con cada RF y su prueba, más pruebas escritas desde
       la spec por un agente que no vio la implementación (bloqueo, portapapeles, guardado, secretos fuera de la ventana). (Todos)
       Hecho cuando: ningún RF no recortado sin prueba o verificación declarada.
-- [ ] T28. Entrega: instalador de depuración; en la ventana real, crear → abrir → entrada con contraseña generada →
+- [x] T28. Entrega: instalador de depuración; en la ventana real, crear → abrir → entrada con contraseña generada →
       buscar → copiar → bloquear → desbloquear, y la matriz de completitud (crear, ver, editar, mover, borrar × entradas y grupos).
       Hecho cuando: el recorrido corre sobre la app instalada y su salida queda en `docs/specs/001-boveda/validacion.md`.
 
