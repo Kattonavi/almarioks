@@ -584,8 +584,18 @@
   padding: var(--space-4) var(--space-6);
 }
 
-/* ---- Window sizes. Wide: the approved composition. ---- */
-@media (min-width: 1100px) {
+/*
+ * ---- Window sizes. ----
+ * From 1100 px to just under 1290 px (the app opens at 1120 × 720) the list and the detail share the width, so the
+ * detail keeps room for the 44 px title and fields in rows. Wide: the approved composition, list fixed at 456 px.
+ */
+@media (min-width: 1100px) and (max-width: 1289px) {
+  .vault-zones {
+    grid-template-columns: minmax(18rem, 2fr) minmax(0, 3fr);
+  }
+}
+
+@media (min-width: 1290px) {
   .vault-zones {
     grid-template-columns: 456px minmax(0, 1fr);
   }

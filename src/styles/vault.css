@@ -605,11 +605,17 @@
   box-shadow: inset 0 0 0 1px var(--ink);
 }
 
-@container detail (max-width: 30rem) {
+/*
+ * Only a narrow detail shrinks the entry title: the 800 × 600 window (about 16rem) and the smallest one (480 × 360,
+ * about 23.5rem, where "Copiar" must show without scrolling). The default window (1120 × 720, about 27rem) keeps 44 px.
+ */
+@container detail (max-width: 24rem) {
   .entry-title {
     font-size: var(--text-xl);
   }
+}
 
+@container detail (max-width: 30rem) {
   .entry-form > h4 {
     font-size: 1.5rem;
   }
@@ -632,21 +638,33 @@
     column-gap: var(--space-2);
   }
 
+  /*
+   * A value is never cut: it breaks into lines inside its column, and the actions stay at the top right. The top
+   * padding centres a one-line value on the actions.
+   */
   .entry-fields dd:has(> .field-actions) {
     flex-wrap: nowrap;
+    align-items: flex-start;
     gap: var(--space-2);
+  }
+
+  .entry-fields dd:has(> .field-actions) > :first-child:not(.secret[data-masked]) {
+    min-width: 0;
+    padding-top: calc((var(--control-h) - 1lh) / 2);
+    overflow-wrap: anywhere;
+  }
+
+  .entry-fields dd:has(> .field-actions) > :first-child:not(.secret) {
+    flex: 1 1 0;
+  }
+
+  .entry-fields dd:has(> .field-actions) > .secret[data-masked] {
+    margin-top: calc((var(--control-h) - 14px) / 2);
   }
 
   /* A revealed secret wraps under its actions instead of being cut. */
   .entry-fields dd:has(> .secret:not([data-masked])) {
     flex-wrap: wrap;
-  }
-
-  .entry-fields dd:has(> .field-actions) > :first-child:not(.secret) {
-    overflow: hidden;
-    overflow-wrap: normal;
-    text-overflow: ellipsis;
-    white-space: nowrap;
   }
 
   .secret[data-masked] {
