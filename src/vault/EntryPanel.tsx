@@ -174,10 +174,17 @@ export function EntryPanel({
 
   async function copy(field: FieldName) {
     setActionError(null);
+    setStatus("");
     const result = await client.entryCopy(entryId, field);
     if (!mounted.current) return;
     if (!result.ok) {
       setActionError(result.error);
+      return;
+    }
+    if (result.value.clearsInSeconds === null) {
+      // A field that is not protected: no countdown, and the person knows it stays on the clipboard.
+      setCopied(null);
+      setStatus(`${labelOf(field)}: copiado. No es un dato protegido, así que el portapapeles no se limpia solo.`);
       return;
     }
     const at = Date.now();

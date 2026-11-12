@@ -78,6 +78,8 @@ describe("P4 Bóveda — guardado", () => {
     expect(await screen.findByText("Guardado.")).toBeDefined();
     expect(backend.count("vault_retry_save")).toBe(1);
     expect(screen.queryByRole("heading", { name: failureTitle })).toBeNull();
+    // The button that had focus went away with the notice: focus is on the vault title, not lost.
+    expect(document.activeElement).toBe(screen.getByRole("heading", { name: "Cuentas", level: 2 }));
   });
 
   it("RF-23: error — si el reintento vuelve a fallar lo dice y el aviso sigue", async () => {

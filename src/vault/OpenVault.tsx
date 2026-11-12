@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { assertNever } from "../assertNever";
 import type { Unlisten, VaultClient } from "../ipc/client";
@@ -94,6 +94,15 @@ export function OpenVault(props: OpenVaultProps) {
   const [busy, setBusy] = useState(false);
   const [confirmReload, setConfirmReload] = useState(false);
   const [convertError, setConvertError] = useState<AppError | null>(null);
+  /** The notice whose button had focus goes away: focus moves to the vault title instead of being lost. */
+  const titleRef = useRef<HTMLHeadingElement>(null);
+  const focusTitle = useRef(false);
+
+  useEffect(() => {
+    if (!focusTitle.current) return;
+    focusTitle.current = false;
+    titleRef.current?.focus();
+  });
 
   useEffect(() => {
     let disposed = false;
@@ -134,6 +143,7 @@ export function OpenVault(props: OpenVaultProps) {
         return;
       }
       case "applied":
+        focusTitle.current = true;
         setNotice("");
         setSave(
           outcome.status.state === "open" && outcome.status.savePending ? { kind: "failed", error: null } : after,
@@ -189,6 +199,7 @@ export function OpenVault(props: OpenVaultProps) {
     setBusy(false);
     if (outcome.kind === "failed") setConvertError(outcome.error);
     if (outcome.kind === "applied") {
+      focusTitle.current = true;
       setNotice(
         `Se creó ${fileNameOf(path)} en formato KDBX 4 y ya puedes editarla. El archivo original quedó igual.`,
       );
@@ -199,7 +210,9 @@ export function OpenVault(props: OpenVaultProps) {
 
   return (
     <section aria-labelledby="vault-title">
-      <h2 id="vault-title">{props.name === "" ? vault.fileName : props.name}</h2>
+      <h2 id="vault-title" ref={titleRef} tabIndex={-1}>
+        {props.name === "" ? vault.fileName : props.name}
+      </h2>
       <p className="path">{vault.path}</p>
       {props.recovery !== null && <RecoveryNotice recovery={props.recovery} />}
 
@@ -286,7 +299,13 @@ export function OpenVault(props: OpenVaultProps) {
             más. Esta versión de AlmarioKS todavía no lo hace.
           </p>
           <div className="actions">
-            <button type="button" onClick={props.onDismissWeak}>
+            <button
+              type="button"
+              onClick={() => {
+                focusTitle.current = true;
+                props.onDismissWeak();
+              }}
+            >
               Cerrar este aviso por esta sesión
             </button>
           </div>

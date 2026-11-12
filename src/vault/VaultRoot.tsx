@@ -4,7 +4,9 @@ import { assertNever } from "../assertNever";
 import type { Unlisten, VaultClient } from "../ipc/client";
 import { errorMessage } from "../ipc/errors";
 import type { VaultStatus } from "../ipc/schemas";
+import { SettingsPanel } from "../settings/SettingsPanel";
 import { CreateScreen } from "./CreateScreen";
+import { Dialog } from "./Dialog";
 import { OpenVault, type Guard } from "./OpenVault";
 import { initialState, reducer, type AppState } from "./state";
 import { UnlockScreen, type UnlockKey } from "./UnlockScreen";
@@ -74,8 +76,13 @@ export function VaultRoot({ client }: { readonly client: VaultClient }) {
     };
   }, [applyStatus]);
 
+  /** P8: one dialog, reachable from every screen (it shows nothing of the vault). */
+  const [settingsOpen, setSettingsOpen] = useState(false);
+
   const dropVault = useCallback(() => {
     epoch.current += 1;
+    // RF-32: every open dialog goes with the rest.
+    setSettingsOpen(false);
     dispatch({ type: "vault-locked" });
   }, []);
 
@@ -144,7 +151,41 @@ export function VaultRoot({ client }: { readonly client: VaultClient }) {
 
   // A render function, not a nested component: a nested component would be a new type on every render and
   // remount the screen (and its form) each time.
-  return renderScreen(state);
+  return (
+    <>
+      <div className="actions">
+        <button
+          type="button"
+          onClick={() => {
+            setSettingsOpen(true);
+          }}
+        >
+          Ajustes y Acerca de
+        </button>
+      </div>
+      {renderScreen(state)}
+      {settingsOpen && (
+        <Dialog
+          title="Ajustes y Acerca de"
+          onClose={() => {
+            setSettingsOpen(false);
+          }}
+        >
+          <SettingsPanel client={client} />
+          <div className="actions">
+            <button
+              type="button"
+              onClick={() => {
+                setSettingsOpen(false);
+              }}
+            >
+              Cerrar
+            </button>
+          </div>
+        </Dialog>
+      )}
+    </>
+  );
 
   function renderScreen(current: AppState) {
     switch (current.kind) {

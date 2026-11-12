@@ -39,26 +39,58 @@ export const ERROR_CODES = [
 
 export type ErrorCode = (typeof ERROR_CODES)[number];
 
+/** plan.md, precision 15: which field broke the rule, and its limit, so the window does not have to guess (RF-40). */
+interface FieldInfo {
+  readonly field?: string;
+}
+interface LimitInfo {
+  readonly limit?: number;
+}
+type ExtraOf<C extends ErrorCode> = C extends "CampoMuyLargo"
+  ? FieldInfo & LimitInfo
+  : C extends "CaracterNoPermitido" | "EtiquetaInvalida"
+    ? FieldInfo
+    : unknown;
+
 /** One variant per code, so a `switch (error.code)` is checked for exhaustiveness. */
-export type AppError = { [C in ErrorCode]: { readonly code: C } }[ErrorCode];
+export type AppError = { [C in ErrorCode]: { readonly code: C } & ExtraOf<C> }[ErrorCode];
 
 export type Result<T> =
   | { readonly ok: true; readonly value: T }
   | { readonly ok: false; readonly error: AppError };
 
-const coreErrorSchema = z.object({ code: z.enum(ERROR_CODES), message: z.string() });
+const coreErrorSchema = z.object({
+  code: z.enum(ERROR_CODES),
+  message: z.string(),
+  field: z.string().min(1).nullish(),
+  limit: z.int().min(0).nullish(),
+});
 
 /**
  * Turns whatever `invoke` rejected with into an `AppError`. The core's `message` is dropped on purpose: the window
- * shows its own text for each code (RF-83) and never echoes text it did not write.
+ * shows its own text for each code (RF-83) and never echoes text it did not write. `field` and `limit` are kept only
+ * on the codes that carry them, and only when present.
  */
 export function toAppError(rejection: unknown): AppError {
   const parsed = coreErrorSchema.safeParse(rejection);
   if (!parsed.success) return { code: "Inesperado" };
   const { code } = parsed.data;
-  // The window-only codes cannot come from the core.
-  if (code === "RespuestaInvalida" || code === "Inesperado") return { code: "Inesperado" };
-  return { code };
+  const field = parsed.data.field ?? undefined;
+  const limit = parsed.data.limit ?? undefined;
+  const withField = field === undefined ? {} : { field };
+  switch (code) {
+    // The window-only codes cannot come from the core.
+    case "RespuestaInvalida":
+    case "Inesperado":
+      return { code: "Inesperado" };
+    case "CampoMuyLargo":
+      return { code, ...withField, ...(limit === undefined ? {} : { limit }) };
+    case "CaracterNoPermitido":
+    case "EtiquetaInvalida":
+      return { code, ...withField };
+    default:
+      return { code };
+  }
 }
 
 const RETRY = "Vuelve a intentarlo; si se repite, cierra y abre AlmarioKS.";

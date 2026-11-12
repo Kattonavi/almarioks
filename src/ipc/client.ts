@@ -132,7 +132,8 @@ export interface VaultClient {
   entryMove(id: string, groupId: string): Promise<Result<undefined>>;
   entryDelete(id: string): Promise<Result<undefined>>;
   entryReveal(id: string, field: FieldName): Promise<Result<string>>;
-  entryCopy(id: string, field: FieldName): Promise<Result<{ readonly clearsInSeconds: number }>>;
+  /** `clearsInSeconds` is `null` for a field that is not protected: the clipboard is not cleared on its own. */
+  entryCopy(id: string, field: FieldName): Promise<Result<{ readonly clearsInSeconds: number | null }>>;
   entryOpenUrl(id: string): Promise<Result<undefined>>;
   entryHistory(id: string): Promise<Result<EntryVersion[]>>;
 
