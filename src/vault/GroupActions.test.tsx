@@ -211,7 +211,9 @@ describe("P7 Grupo", () => {
     expect(backend.groupTrail("group-clients")).toEqual(["Cuentas", "Papelera de reciclaje", "Trabajo", "Clientes"]);
     expect(await nestedIn("Trabajo", "Papelera de reciclaje")).toBe(true);
     expect(screen.getByRole("heading", { name: "Entradas de Cuentas" })).toBeDefined();
-    expect(document.activeElement).toBe(screen.getByRole("heading", { name: "Grupos" }));
+    await waitFor(() => {
+      expect(document.activeElement).toBe(screen.getByRole("heading", { name: "Grupos" }));
+    });
   });
 
   it("RF-58: borrar un grupo que ya está en la papelera avisa que es definitivo y lo elimina", async () => {

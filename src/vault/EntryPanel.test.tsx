@@ -545,7 +545,9 @@ describe("P5 Entrada — mover y borrar", () => {
     expect(await screen.findByText(/«GitHub» se movió a la papelera/)).toBeDefined();
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(backend.entry("entry-github")?.groupId).toBe("group-bin");
-    expect(document.activeElement).toBe(screen.getByRole("heading", { name: "Detalle" }));
+    await waitFor(() => {
+      expect(document.activeElement).toBe(screen.getByRole("heading", { name: "Detalle" }));
+    });
     expect(await screen.findByRole("button", { name: "Papelera de reciclaje (papelera) · 2 entradas" })).toBeDefined();
   });
 
@@ -580,7 +582,9 @@ describe("P5 Entrada — mover y borrar", () => {
     expect(await screen.findByText("Se borró «Canción borrada» de forma definitiva.")).toBeDefined();
     expect(backend.entry("entry-old")).toBeUndefined();
     expect(screen.queryByRole("dialog")).toBeNull();
-    expect(document.activeElement).toBe(screen.getByRole("heading", { name: "Detalle" }));
+    await waitFor(() => {
+      expect(document.activeElement).toBe(screen.getByRole("heading", { name: "Detalle" }));
+    });
     expect(await screen.findByText("La papelera está vacía.")).toBeDefined();
   });
 });
