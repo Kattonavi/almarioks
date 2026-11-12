@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-11-12T07:06:57Z",
+  "generatedAt": "2026-11-12T17:54:28Z",
   "title": "Design System: AlmarioKS",
   "extensions": {
     "colorMeta": {
@@ -456,7 +456,7 @@
       },
       "dark-work-ground": {
         "role": "neutral",
-        "displayName": "Tema oscuro: work-ground",
+        "displayName": "Fondo de trabajo (tema oscuro)",
         "canonical": "#191b21",
         "tonalRamp": [
           "#232529",
@@ -471,7 +471,7 @@
       },
       "dark-surface": {
         "role": "neutral",
-        "displayName": "Tema oscuro: surface",
+        "displayName": "Superficie (tema oscuro)",
         "canonical": "#20232a",
         "tonalRamp": [
           "#232529",
@@ -590,8 +590,8 @@
         ]
       },
       "dark-panel": {
-        "role": "neutral",
-        "displayName": "Tema oscuro: panel",
+        "role": "primary",
+        "displayName": "Placa de señal (tema oscuro: panel)",
         "canonical": "#f2f2ee",
         "tonalRamp": [
           "#292923",
@@ -650,7 +650,7 @@
         ]
       },
       "dark-danger": {
-        "role": "neutral",
+        "role": "tertiary",
         "displayName": "Tema oscuro: danger",
         "canonical": "#ff7a85",
         "tonalRamp": [
@@ -680,7 +680,7 @@
         ]
       },
       "dark-confirmation": {
-        "role": "neutral",
+        "role": "tertiary",
         "displayName": "Tema oscuro: confirmation",
         "canonical": "#4cc38a",
         "tonalRamp": [
@@ -693,16 +693,61 @@
           "#c2ebd7",
           "#eef6f2"
         ]
+      },
+      "dark-signal-panel": {
+        "role": "primary",
+        "displayName": "Tema oscuro: placa del riel (signal-panel)",
+        "canonical": "#f2f2ee",
+        "tonalRamp": [
+          "#292923",
+          "#484837",
+          "#65654d",
+          "#828263",
+          "#a7a78b",
+          "#c1c1ae",
+          "#dcdcd1",
+          "#f3f3f1"
+        ]
+      },
+      "on-panel-ok": {
+        "role": "tertiary",
+        "displayName": "Confirmación sobre placa (claro)",
+        "canonical": "#4cc38a",
+        "tonalRamp": [
+          "#1b3227",
+          "#205f41",
+          "#2d865b",
+          "#3aac75",
+          "#66cc9b",
+          "#94dbb9",
+          "#c2ebd7",
+          "#eef6f2"
+        ]
+      },
+      "dark-on-panel-ok": {
+        "role": "tertiary",
+        "displayName": "Tema oscuro: on-panel-ok (marca verde del aviso de copiado)",
+        "canonical": "#157a52",
+        "tonalRamp": [
+          "#16362a",
+          "#136d49",
+          "#1a9866",
+          "#22c484",
+          "#51e1a8",
+          "#85eac2",
+          "#b9f3dc",
+          "#edf8f3"
+        ]
       }
     },
     "typographyMeta": {
       "entry-title": {
         "displayName": "Título de entrada",
-        "purpose": "Título de la entrada en el detalle, 44 px."
+        "purpose": "Título de la entrada en el detalle, 28 px; también títulos de pantallas de acceso y crear."
       },
       "list-title": {
         "displayName": "Título de lista",
-        "purpose": "Encabezado del grupo y de las pantallas de acceso."
+        "purpose": "Encabezado del grupo en la lista, título de diálogos de formulario, 20 px."
       },
       "heading": {
         "displayName": "Encabezado",
@@ -726,22 +771,18 @@
       },
       "caption": {
         "displayName": "Pie",
-        "purpose": "Estado, pie del riel."
+        "purpose": "Pie de estado, atajo Ctrl K, etiquetas."
       },
       "data": {
         "displayName": "Dato",
         "purpose": "Monoespaciada para fechas, conteos, secretos, rutas."
-      },
-      "stamp": {
-        "displayName": "Sello",
-        "purpose": "Estado 'copiado · N s' estampado en la fila."
       }
     },
     "shadows": [
       {
-        "name": "modal",
-        "value": "0 12px 32px rgb(22 24 29 / 22%)",
-        "purpose": "Única sombra: diálogo nativo abierto (oscuro: 0 12px 32px rgb(0 0 0 / 50%))."
+        "name": "floating",
+        "value": "0 12px 32px rgb(0 0 0 / 50%)",
+        "purpose": "Única sombra: diálogo nativo abierto y menús desplegados (claro: 0 12px 32px rgb(22 24 29 / 22%))."
       },
       {
         "name": "error-ring",
@@ -750,11 +791,6 @@
       }
     ],
     "motion": [
-      {
-        "name": "stamp-in",
-        "value": "180ms cubic-bezier(0.16, 1, 0.3, 1)",
-        "purpose": "El sello copiado entra con opacity y scale."
-      },
       {
         "name": "progress-march",
         "value": "700ms linear infinite",
@@ -768,44 +804,24 @@
     ],
     "breakpoints": [
       {
-        "name": "narrow-window",
-        "value": "max-width 719px (una zona a la vez, riel de 56px)"
-      },
-      {
-        "name": "default-window-and-below",
-        "value": "max-width 1099px (riel de 208px)"
-      },
-      {
-        "name": "mid-window",
-        "value": "1100px a 1289px (lista 2fr / detalle 3fr)"
-      },
-      {
-        "name": "wide-window",
-        "value": "min-width 1290px (lista fija de 456px)"
-      },
-      {
-        "name": "short-window",
-        "value": "max-height 480px (barra 48px, filas 32px)"
-      },
-      {
-        "name": "container-list",
-        "value": "max-width 22rem"
-      },
-      {
-        "name": "container-detail-title",
-        "value": "max-width 25rem"
-      },
-      {
-        "name": "container-detail-fields",
-        "value": "max-width 30rem"
-      },
-      {
-        "name": "container-banner",
-        "value": "max-width 46rem"
-      },
-      {
         "name": "window-default",
-        "value": "1120 x 720 (minimo 480 x 360)"
+        "value": "1120 x 720"
+      },
+      {
+        "name": "window-minimum",
+        "value": "1000 x 640 (una sola composición: riel 232 | lista 340 | detalle min 420)"
+      },
+      {
+        "name": "container-detail-mask",
+        "value": "max-width 25rem (barra de oculto de 5 periodos)"
+      },
+      {
+        "name": "create-short",
+        "value": "max-height 760px (crear baja un paso de espaciado)"
+      },
+      {
+        "name": "unreachable-legacy",
+        "value": "max-width 719px y 1099px en gate.css: reglas que la ventana mínima ya no alcanza"
       }
     ]
   },
@@ -814,17 +830,17 @@
       "name": "Primary Button",
       "kind": "custom",
       "refersTo": "button-primary",
-      "description": "Acción principal del trabajo: Copiar.",
-      "html": "<button class=\"ds-btn-primary\">Copiar contraseña</button>",
-      "css": ".ds-btn-primary{font-family:'Overpass Variable','Segoe UI',system-ui,sans-serif;font-weight:600;font-size:.875rem;min-height:36px;padding:0 12px;color:#fff;background:#16181d;border:1px solid #16181d;border-radius:4px;cursor:pointer}.ds-btn-primary:hover{background:#2a2d35;border-color:#2a2d35}.ds-btn-primary:focus-visible{outline:3px solid #16181d;outline-offset:2px}.ds-btn-primary:active{transform:translateY(1px)}"
+      "description": "Acción principal: placa clara con texto de señal (Copiar contraseña, Guardar entrada).",
+      "html": "<button class=\"ds-btn-primary\">Guardar entrada</button>",
+      "css": ".ds-btn-primary{font-family:'Overpass Variable','Segoe UI',system-ui,sans-serif;font-weight:600;font-size:.9375rem;min-height:44px;padding:0 16px;border-radius:4px;cursor:pointer;color:#16181d;background:#f2f2ee;border:1px solid #f2f2ee}.ds-btn-primary:hover{background:#dcdcd6;border-color:#dcdcd6}.ds-btn-primary:focus-visible{outline:3px solid #f2f2ee;outline-offset:2px}.ds-btn-primary:active{transform:translateY(1px)}"
     },
     {
-      "name": "Neutral Button",
+      "name": "Secondary Button",
       "kind": "custom",
       "refersTo": "button-neutral",
-      "description": "Botón por defecto, silencioso.",
-      "html": "<button class=\"ds-btn\">Editar</button>",
-      "css": ".ds-btn{font-family:'Overpass Variable','Segoe UI',system-ui,sans-serif;font-weight:600;font-size:.875rem;min-height:36px;padding:0 12px;color:#16181d;background:transparent;border:1px solid #868b95;border-radius:4px;cursor:pointer}.ds-btn:hover{background:rgb(22 24 29 / 7%)}.ds-btn:focus-visible{outline:3px solid #16181d;outline-offset:2px}.ds-btn:active{transform:translateY(1px)}"
+      "description": "Botón secundario: superficie, texto de tinta, borde de control.",
+      "html": "<button class=\"ds-btn\">Cancelar</button>",
+      "css": ".ds-btn{font-family:'Overpass Variable','Segoe UI',system-ui,sans-serif;font-weight:600;font-size:.9375rem;min-height:44px;padding:0 16px;border-radius:4px;cursor:pointer;color:#f2f2ee;background:#20232a;border:1px solid #6b7280}.ds-btn:hover{background:linear-gradient(rgb(242 242 238 / 9%),rgb(242 242 238 / 9%)) #20232a}.ds-btn:focus-visible{outline:3px solid #f2f2ee;outline-offset:2px}.ds-btn:active{transform:translateY(1px)}"
     },
     {
       "name": "Danger Button",
@@ -832,84 +848,100 @@
       "refersTo": "button-danger",
       "description": "Solo dentro de la papelera: Borrar definitivamente.",
       "html": "<button class=\"ds-btn-danger\">Borrar definitivamente…</button>",
-      "css": ".ds-btn-danger{font-family:'Overpass Variable','Segoe UI',system-ui,sans-serif;font-weight:600;font-size:.875rem;min-height:36px;padding:0 12px;color:#d7263d;background:transparent;border:1px solid #d7263d;border-radius:4px;cursor:pointer}.ds-btn-danger:hover{color:#fff;background:#d7263d}.ds-btn-danger:focus-visible{outline:3px solid #16181d;outline-offset:2px}"
+      "css": ".ds-btn-danger{font-family:'Overpass Variable','Segoe UI',system-ui,sans-serif;font-weight:600;font-size:.9375rem;min-height:44px;padding:0 16px;border-radius:4px;cursor:pointer;color:#ff7a85;background:transparent;border:1px solid #ff7a85}.ds-btn-danger:hover{color:#16181d;background:#ff7a85}.ds-btn-danger:focus-visible{outline:3px solid #f2f2ee;outline-offset:2px}"
     },
     {
       "name": "Text Input",
       "kind": "input",
       "refersTo": "input",
-      "description": "Campo de formulario sobre superficie.",
-      "html": "<input class=\"ds-input\" placeholder=\"Buscar\">",
-      "css": ".ds-input{font-family:'Overpass Variable','Segoe UI',system-ui,sans-serif;font-size:.9375rem;min-height:36px;padding:4px 12px;color:#16181d;background:#fff;border:1px solid #868b95;border-radius:4px}.ds-input:hover{border-color:#16181d}.ds-input:focus-visible{outline:3px solid #16181d;outline-offset:2px}"
+      "description": "Campo de formulario de 44 px; en el diálogo de entrada va sobre el fondo de trabajo.",
+      "html": "<input class=\"ds-input\" placeholder=\"Buscar en la bóveda\">",
+      "css": ".ds-input{font-family:'Overpass Variable','Segoe UI',system-ui,sans-serif;font-size:.9375rem;min-height:44px;padding:4px 12px;color:#f2f2ee;background:#20232a;border:1px solid #6b7280;border-radius:4px}.ds-input:hover{border-color:#f2f2ee}.ds-input:focus-visible{outline:3px solid #f2f2ee;outline-offset:2px}.ds-input::placeholder{color:#a7adba}"
     },
     {
       "name": "Group Badge",
       "kind": "chip",
       "refersTo": "group-badge",
-      "description": "Distintivo redondo con la inicial del grupo en el color de su línea.",
-      "html": "<span class=\"ds-badge\">F</span> <span class=\"ds-badge ds-l2\">T</span> <span class=\"ds-badge ds-l3\">C</span> <span class=\"ds-badge ds-l4\">P</span>",
-      "css": ".ds-badge{display:inline-grid;place-items:center;width:26px;height:26px;border-radius:50%;font:800 .8125rem/1 'Overpass Variable',system-ui,sans-serif;color:#16181d;background:#6aa5ff}.ds-l2{background:#f26a1b}.ds-l3{background:#1e9e6a}.ds-l4{background:#f2b705}"
+      "description": "Distintivo redondo con la inicial en el color de la línea de su grupo.",
+      "html": "<span class=\"ds-badge\">G</span> <span class=\"ds-badge ds-l2\">F</span> <span class=\"ds-badge ds-l3\">B</span> <span class=\"ds-badge ds-l4\">C</span>",
+      "css": ".ds-badge{display:inline-grid;place-items:center;width:32px;height:32px;border-radius:50%;font:800 .875rem/1 'Overpass Variable',system-ui,sans-serif;color:#16181d;background:#6aa5ff}.ds-l2{background:#f26a1b}.ds-l3{background:#1e9e6a}.ds-l4{background:#f2b705}"
+    },
+    {
+      "name": "Rail Group (open)",
+      "kind": "nav",
+      "refersTo": "rail-item-selected",
+      "description": "Grupo abierto del riel: placa clara con punto de línea, nombre y conteo en mono.",
+      "html": "<div class=\"ds-rail\"><div class=\"ds-ri ds-open\"><i class=\"ds-dot\"></i><span>Trabajo</span><b>8</b></div><div class=\"ds-ri\"><i class=\"ds-dot ds-d1\"></i><span>Personal</span><b>2</b></div></div>",
+      "css": ".ds-rail{width:216px;padding:8px;background:#0c0d10;color:#fff;font-family:'Overpass Variable','Segoe UI',system-ui,sans-serif;}.ds-ri{display:flex;align-items:center;gap:10px;min-height:44px;padding:0 12px;border-radius:4px;font-size:.9375rem}.ds-ri b{margin-left:auto;font:600 .8125rem 'Overpass Mono Variable',Consolas,monospace}.ds-dot{width:12px;height:12px;border-radius:50%;background:#f26a1b}.ds-d1{background:#6aa5ff}.ds-open{color:#16181d;background:#f2f2ee}"
     },
     {
       "name": "Entry Row (selected)",
       "kind": "card",
       "refersTo": "entry-row-selected",
-      "description": "Fila de lista seleccionada como panel de señal, con el sello de copiado.",
-      "html": "<div class=\"ds-row\"><span class=\"ds-b\">F</span><div><strong>Correo personal</strong><div class=\"ds-sub\">ana@example.com</div></div><span class=\"ds-stamp\"><span class=\"ds-w\">copiado</span> · 14 s</span></div>",
-      "css": ".ds-row{font-family:'Overpass Variable','Segoe UI',system-ui,sans-serif;position:relative;display:grid;grid-template-columns:1fr auto;align-items:center;gap:0 12px;padding:8px 24px 8px 62px;min-height:60px;color:#fff;background:#16181d}.ds-b{position:absolute;left:24px;top:50%;transform:translateY(-50%);display:grid;place-items:center;width:26px;height:26px;border-radius:50%;background:#6aa5ff;color:#16181d;font:800 .8125rem/1 sans-serif}.ds-sub{font-size:.8125rem;color:#c3cae0}.ds-stamp{font:600 .75rem/1.3 'Overpass Mono Variable',Consolas,monospace;letter-spacing:.04em;padding:2px 7px;color:#fff;border:1.5px solid currentColor;border-radius:3px;transform:rotate(-2deg)}.ds-w{text-transform:uppercase}"
+      "description": "Fila de lista seleccionada como placa clara; distintivo con la inicial del título.",
+      "html": "<div class=\"ds-row\"><span class=\"ds-b\">G</span><div><strong>GitHub</strong><div class=\"ds-sub\">ana@example.com · github.com</div></div><span class=\"ds-date\">12 nov</span></div>",
+      "css": ".ds-row{font-family:'Overpass Variable','Segoe UI',system-ui,sans-serif;position:relative;display:grid;grid-template-columns:1fr auto;align-items:center;gap:0 12px;padding:8px 16px 8px 60px;min-height:60px;color:#16181d;background:#f2f2ee}.ds-b{position:absolute;left:16px;top:50%;transform:translateY(-50%);display:grid;place-items:center;width:32px;height:32px;border-radius:50%;background:#f26a1b;color:#16181d;font:800 .875rem/1 sans-serif}.ds-sub{font-size:.8125rem;color:#4a4f59}.ds-date{font-size:.8125rem;color:#4a4f59}"
     },
     {
-      "name": "Hidden Secret Field Row",
+      "name": "Detail Card Row",
       "kind": "custom",
-      "refersTo": "field-row",
-      "description": "Etiqueta | valor | acciones; el secreto oculto es una barra de ancho fijo.",
-      "html": "<div class=\"ds-field\"><span class=\"ds-dt\">Contraseña</span><span class=\"ds-mask\"></span><button class=\"ds-fbtn\">Copiar</button></div>",
-      "css": ".ds-field{font-family:'Overpass Variable','Segoe UI',system-ui,sans-serif;display:grid;grid-template-columns:7.5rem 1fr auto;column-gap:12px;align-items:center;min-height:56px;padding:8px 0;border-bottom:1px solid #ddddd6;color:#16181d}.ds-dt{font-size:.8125rem;font-weight:600;color:#565b66}.ds-mask{display:inline-block;width:156px;height:14px;border-radius:2px;background:repeating-linear-gradient(90deg,#16181d 0 9px,transparent 9px 13px)}.ds-fbtn{font:600 .875rem/1.2 sans-serif;min-height:36px;padding:0 12px;border:1px solid #868b95;border-radius:4px;background:transparent;color:#16181d}"
+      "refersTo": "card-row",
+      "description": "Etiqueta | valor | botones de icono de 44; el secreto oculto es una barra de ancho fijo.",
+      "html": "<div class=\"ds-field\"><span class=\"ds-dt\">Contraseña</span><span class=\"ds-mask\"></span><button class=\"ds-ic\" aria-label=\"Copiar contraseña\"></button></div>",
+      "css": ".ds-field{font-family:'Overpass Variable','Segoe UI',system-ui,sans-serif;display:grid;grid-template-columns:104px 1fr auto;column-gap:12px;align-items:center;min-height:56px;padding:4px 8px 4px 16px;background:#20232a;border:1px solid #343842;border-radius:6px;color:#f2f2ee}.ds-dt{font-size:.8125rem;color:#a7adba}.ds-mask{display:inline-block;width:156px;height:14px;border-radius:2px;background:repeating-linear-gradient(90deg,#f2f2ee 0 9px,transparent 9px 13px)}.ds-ic{width:44px;height:44px;border-radius:4px;border:1px solid transparent;background:#f2f2ee}"
     },
     {
-      "name": "Strength Meter",
+      "name": "Copy Toast",
       "kind": "custom",
-      "refersTo": "notice",
-      "description": "Tres tramas (alta, media, baja) siempre junto a su texto.",
-      "html": "<p class=\"ds-s\"><span class=\"ds-m ds-ok\"></span> Fortaleza: alta</p><p class=\"ds-s\"><span class=\"ds-m ds-mid\"></span> Fortaleza: media</p><p class=\"ds-s\"><span class=\"ds-m ds-low\"></span> Fortaleza: baja</p>",
-      "css": ".ds-s{font:.8125rem sans-serif;display:flex;gap:12px;align-items:center;margin:0 0 6px;color:#16181d}.ds-m{display:inline-block;width:9rem;height:12px;border:1px solid #868b95}.ds-ok{background:repeating-linear-gradient(135deg,#157a52 0 5px,transparent 5px 7px)}.ds-mid{background:repeating-linear-gradient(135deg,#16181d 0 2px,transparent 2px 7px)}.ds-low{background:repeating-linear-gradient(90deg,#d7263d 0 2px,transparent 2px 7px)}"
+      "refersTo": "toast",
+      "description": "Aviso de copiado: placa clara con marca verde y palabras.",
+      "html": "<div class=\"ds-toast\"><span class=\"ds-ck\">&#10003;</span> Contraseña copiada</div>",
+      "css": ".ds-toast{font-family:'Overpass Variable','Segoe UI',system-ui,sans-serif;display:inline-flex;gap:10px;align-items:center;padding:10px 16px;font-weight:600;color:#16181d;background:#f2f2ee;border-radius:4px}.ds-ck{color:#157a52;font-weight:800}"
     },
     {
-      "name": "Notice Strip",
+      "name": "Strength Bar",
       "kind": "custom",
-      "refersTo": "notice",
-      "description": "Franja de aviso con regla de peligro cuando informa un problema.",
-      "html": "<div class=\"ds-n\"><strong>No se pudo guardar</strong><p>El archivo no está disponible. Reintenta.</p></div>",
-      "css": ".ds-n{font-family:'Overpass Variable','Segoe UI',system-ui,sans-serif;padding:12px 16px;color:#16181d;background:#fff;border:1px solid #ddddd6;border-bottom:2px solid #d7263d}.ds-n p{margin:4px 0 0;font-size:.8125rem}"
+      "refersTo": "input",
+      "description": "Barra de 120 x 6 con relleno proporcional, siempre junto a su texto.",
+      "html": "<p class=\"ds-s\"><span class=\"ds-bar\"><span></span></span> Fortaleza: muy buena (4 de 4)</p>",
+      "css": ".ds-s{font-family:'Overpass Variable','Segoe UI',system-ui,sans-serif;display:flex;gap:10px;align-items:center;margin:0;font-size:.8125rem;color:#a7adba}.ds-bar{display:flex;flex:0 0 120px;height:6px;overflow:hidden;background:#343842;border-radius:3px}.ds-bar>span{width:100%;background:#4cc38a}"
     },
     {
-      "name": "Route as Stops",
-      "kind": "nav",
-      "refersTo": "group-badge",
-      "description": "Ruta del grupo dibujada como paradas unidas por un tramo del color de la línea.",
-      "html": "<ol class=\"ds-route\"><li>Bóveda</li><li>Trabajo</li></ol>",
-      "css": ".ds-route{display:flex;align-items:center;margin:0;padding:0;list-style:none;font:600 .8125rem sans-serif;color:#565b66}.ds-route li{display:flex;align-items:center}.ds-route li::before{content:'';width:14px;height:14px;margin-right:8px;background:#f26a1b;border:2px solid #16181d;border-radius:50%;box-sizing:border-box}.ds-route li:not(:last-child)::after{content:'';width:56px;height:4px;margin:0 8px;background:#f26a1b}.ds-route li:last-child{color:#16181d}"
+      "name": "Menu",
+      "kind": "custom",
+      "refersTo": "menu",
+      "description": "Superficie flotante con sombra, radio 6 y opciones de 44.",
+      "html": "<div class=\"ds-menu\"><button>Renombrar</button><button class=\"ds-mdanger\">Enviar a la papelera</button></div>",
+      "css": ".ds-menu{font-family:'Overpass Variable','Segoe UI',system-ui,sans-serif;display:flex;flex-direction:column;min-width:208px;padding:4px;background:#20232a;border:1px solid #343842;border-radius:6px;box-shadow:0 12px 32px rgb(0 0 0 / 50%)}.ds-menu button{min-height:44px;padding:0 12px;font:400 .9375rem/1.2 sans-serif;text-align:left;color:#f2f2ee;background:transparent;border:0}.ds-menu button:hover{background:rgb(242 242 238 / 9%)}.ds-mdanger{color:#ff7a85!important}"
+    },
+    {
+      "name": "Entry Dialog",
+      "kind": "custom",
+      "refersTo": "entry-dialog",
+      "description": "Diálogo modal de 560 px: cabecera, campos sobre el fondo de trabajo y pie con acciones.",
+      "html": "<div class=\"ds-dlg\"><div class=\"ds-dh\">Nueva entrada</div><div class=\"ds-db\"><label>Título</label><input class=\"ds-di\" value=\"GitHub\"></div><div class=\"ds-df\"><button class=\"ds-bs\">Cancelar</button><button class=\"ds-bp\">Guardar entrada</button></div></div>",
+      "css": ".ds-dlg{font-family:'Overpass Variable','Segoe UI',system-ui,sans-serif;width:480px;background:#20232a;color:#f2f2ee;border-radius:8px;box-shadow:0 12px 32px rgb(0 0 0 / 50%)}.ds-dh{padding:16px 12px 12px 24px;border-bottom:1px solid #343842;font-size:1.25rem;font-weight:800}.ds-db{display:flex;flex-direction:column;gap:6px;padding:20px 24px}.ds-db label{font-size:.875rem;font-weight:600}.ds-di{min-height:44px;padding:0 12px;color:#f2f2ee;background:#191b21;border:1px solid #6b7280;border-radius:4px;font:inherit}.ds-df{display:flex;gap:8px;justify-content:flex-end;padding:12px 24px 20px}.ds-df button{min-height:44px;padding:0 16px;font:600 .9375rem sans-serif;border-radius:4px;cursor:pointer}.ds-bs{color:#f2f2ee;background:#20232a;border:1px solid #6b7280}.ds-bp{color:#16181d;background:#f2f2ee;border:1px solid #f2f2ee}"
     }
   ],
   "narrative": {
     "northStar": "La señalética del andén",
-    "overview": "**Creative North Star: \"La señalética del andén\"**\n\nAlmarioKS se dibuja como la señalización de una estación de transporte: un armazón negro de señal (barra superior y riel de grupos) que orienta, y un fondo de trabajo claro y neutro donde se lee. Cada grupo de la bóveda es una línea con su color; una cuenta se encuentra como se encuentra un andén. El mundo rechaza el arreglo por defecto de la categoría (barra lateral gris, un acento azul, candados).\n\nLa densidad es de herramienta de uso diario: filas de 44 px, tipografía de señalización (Overpass) con su monoespaciada solo para datos, bordes de 1 px y una sola regla gruesa (2 px, tinta) bajo los títulos de formularios y sobre la lista de campos. No hay sombras en reposo; la profundidad la da el contraste entre el panel de señal y el fondo. El gesto propio es el estado estampado en la fila (\"COPIADO · 14 s\"), que se queda mientras el portapapeles conserva el valor.\n\nEl sistema se verificó en la ventana por defecto (1120 × 720) y en 800 × 600 y 480 × 360 según las capturas de revisión; los huecos conocidos están al final.",
+    "overview": "**Creative North Star: \"La señalética del andén\"**\n\nAlmarioKS se dibuja como la señalización de una estación de transporte: un armazón de señal casi negro (barra superior y riel de grupos) que orienta, y un fondo de trabajo oscuro donde se lee. Cada grupo de la bóveda es una línea con su color; una cuenta se encuentra como se encuentra un andén. La app es siempre oscura (`styles.css` importa `theme-dark.css` sin condición); los valores claros siguen en `tokens.css` sin uso en pantalla. Lo único claro es lo seleccionado y la acción principal: una placa de señal. El mundo rechaza el arreglo por defecto de la categoría (barra lateral gris, un acento azul, escudos y llaves).\n\nLa composición es de herramienta de uso diario y única (la ventana no baja de 1000 × 640): una barra de 56 px arriba y, debajo, tres columnas a toda la altura: riel que solo navega | lista de entradas | detalle en tarjeta. Crear y editar una entrada es un diálogo modal con el generador dentro del campo de contraseña; el detalle nunca aloja formularios. Tipografía de señalización (Overpass) con su monoespaciada solo para datos, controles de 44 px, bordes de 1 px y una sola regla gruesa (2 px, tinta) bajo los títulos de los formularios de acceso y de los diálogos nativos. La profundidad es tonal; la sombra solo la llevan las superficies flotantes (diálogos y menús).\n\nEl sistema se verificó con las capturas de la app instalada a 1120 × 720 (bóveda, crear bóveda, nueva entrada); los huecos conocidos están al final. El contrato de dirección de `.impeccable/surfaces/` quedó desactualizado en composición (describe la distribución anterior); esta página manda.",
     "keyCharacteristics": [
-      "Panel negro de señal para el armazón; panel de señal también dentro del trabajo (fila seleccionada, acción principal).",
-      "Cuatro colores de línea que solo nombran grupos; rojo solo para peligro; verde oscuro solo para confirmar.",
-      "Distintivo redondo con la inicial del grupo, texto oscuro sobre el color.",
-      "Datos (fechas, conteos, secretos, rutas de archivo) en monoespaciada; todo lo demás en Overpass.",
-      "Estado leído por palabras, trama o forma, nunca por color solo."
+      "Armazón de señal negro; placa clara de señal solo para lo seleccionado y la acción principal (fila de entrada, grupo del riel, \"Copiar\", \"Guardar entrada\", aviso de copiado).",
+      "Cuatro colores de línea que nombran grupos; rojo solo para peligro; verde solo para confirmar.",
+      "Distintivo redondo con la inicial (del título de la entrada en la lista y el detalle) sobre el color de su grupo; el riel marca cada grupo con un punto de ese color.",
+      "Datos (fechas, conteos, secretos, atajos, nombres de archivo) en monoespaciada; todo lo demás en Overpass.",
+      "Estado leído por palabras, forma o trama, nunca por color solo."
     ],
     "rules": [
       {
         "name": "The Line-Names-Groups Rule",
-        "body": "Un color de línea nombra un grupo y nada más: no es acento, ni estado, ni decoración. La asignación es determinista: los grupos de primer nivel toman las líneas 1 a 4 en orden de posición y vuelven a empezar al pasar de cuatro (el distintivo los distingue por su inicial); los subgrupos heredan la línea de su grupo de primer nivel y se dibujan con aro en lugar de relleno; la papelera es siempre neutra y no ocupa posición.",
+        "body": "Un color de línea nombra un grupo y nada más: no es acento, ni estado, ni decoración. La asignación es determinista: los grupos de primer nivel toman las líneas 1 a 4 en orden de posición y vuelven a empezar al pasar de cuatro; los subgrupos heredan la línea de su grupo de primer nivel y su distintivo se dibuja con aro en lugar de relleno; la papelera es siempre neutra y no ocupa posición.",
         "section": "colors"
       },
       {
         "name": "The Red-Is-Danger Rule",
-        "body": "El rojo significa peligro y solo peligro; nunca es una línea. En reposo, enviar a la papelera y las acciones raras del riel se leen como acciones normales: se pintan rojas bajo el puntero, con foco y en su diálogo. El botón de peligro con borde rojo solo vive dentro de la papelera (\"Borrar definitivamente\").",
+        "body": "El rojo significa peligro y solo peligro; nunca es una línea. En reposo, enviar a la papelera y las acciones raras de los menús se leen como acciones normales: se pintan rojas solo en su opción de menú de peligro, bajo el puntero, con foco y en su diálogo. El botón de peligro con borde rojo solo vive dentro de la papelera (\"Borrar definitivamente\").",
         "section": "colors"
       },
       {
@@ -918,8 +950,13 @@
         "section": "colors"
       },
       {
+        "name": "The Light-Plate Rule",
+        "body": "Lo único claro en pantalla es lo seleccionado y la acción principal (la placa). Todo lo demás es oscuro; una placa clara nueva debe significar \"esto está elegido\" o \"esto es lo principal\".",
+        "section": "colors"
+      },
+      {
         "name": "The Dual-Theme AA Rule",
-        "body": "Cada par texto/fondo cumple contraste AA en claro y en oscuro (comprobado por cálculo al definir los tokens); un token nuevo se añade a los dos temas.",
+        "body": "Cada par texto/fondo cumple contraste AA (comprobado por cálculo al definir los tokens); un rol nuevo se añade a `tokens.css` y a `theme-dark.css`, aunque hoy solo se vea el oscuro.",
         "section": "colors"
       },
       {
@@ -933,26 +970,28 @@
         "section": "typography"
       },
       {
-        "name": "The Flat-Until-Modal Rule",
-        "body": "Nada proyecta sombra salvo un diálogo nativo abierto. Sin sombras duras desplazadas ni brillos.",
+        "name": "The Flat-Until-Floating Rule",
+        "body": "Nada proyecta sombra salvo un diálogo nativo abierto o un menú desplegado. Sin sombras duras desplazadas ni brillos.",
         "section": "elevation"
       }
     ],
     "dos": [
-      "**Do** nombrar cada grupo con su línea (distintivo, ruta) y tomar el color de `--line-N`; texto siempre `on-line`.",
-      "**Do** añadir cada rol nuevo a `tokens.css` y a `theme-dark.css`, y comprobar AA en ambos.",
-      "**Do** leer todo estado por palabra, trama o forma además de color (fortaleza, sello, avisos).",
-      "**Do** usar Overpass Mono solo para datos; iconos propios de un trazo (1.8) en `currentColor`.",
+      "**Do** nombrar cada grupo con su línea (punto, distintivo) y tomar el color de `--line-N`; texto siempre `on-line`.",
+      "**Do** añadir cada rol nuevo a `tokens.css` y a `theme-dark.css`, y comprobar AA.",
+      "**Do** reservar la placa clara para lo seleccionado y la acción principal.",
+      "**Do** leer todo estado por palabra, forma o trama además de color (fortaleza, aviso de copiado, avisos).",
+      "**Do** usar Overpass Mono solo para datos; iconos propios de un solo trazo (1.8) en `currentColor`.",
       "**Do** mantener el CSS sin estilos en línea (CSP `style-src 'self'`): todo valor dinámico viaja por clases o atributos `data-*`.",
-      "**Do** mantener los destinos táctiles de 32 px como mínimo."
+      "**Do** dar a todo destino táctil 44 px (36 px solo para el botón dentro de un campo, cuyo destino llega a 44 con su marco).",
+      "**Do** llevar crear y editar una entrada a un diálogo modal, nunca al panel de detalle."
     ],
     "donts": [
       "**Don't** usar un color de línea como acento, estado o decoración.",
       "**Don't** usar rojo para nada que no sea peligro, ni dejar un botón rojo en reposo fuera de la papelera.",
-      "**Don't** dibujar candados, escudos ni llaves, ni escribir promesas como \"seguro\" o \"auditado\".",
+      "**Don't** dibujar escudos ni llaves, ni escribir promesas como \"seguro\" o \"auditado\"; el candado existe una sola vez, en \"Bloquear\", donde nombra la acción.",
       "**Don't** partir el nombre de la marca en varios colores.",
       "**Don't** usar la monoespaciada para títulos o etiquetas.",
-      "**Don't** dar sombra a nada fuera de un diálogo abierto.",
+      "**Don't** dar sombra a nada que no flote (diálogo o menú).",
       "**Don't** hacer de la acción destructiva la predeterminada de un diálogo."
     ]
   }

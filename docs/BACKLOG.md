@@ -72,3 +72,10 @@ Lo que no cabe en la fase va aquí, un renglón por ítem: `- [origen] qué · s
 - [seguridad pase, P-4] Una ruta `archivo-existente:flujo.kdbx` pasa la comprobación de existencia y crea un flujo alterno sobre ese archivo (solo con un script en la ventana; anterior al pase): rechazar `:` fuera de la unidad · Bajo
 - [seguridad pase, P-5] Si `Documentos\AlmarioKS` existe como archivo, crear falla sin un mensaje que lo explique · Bajo
 - [seguridad pase, P-6 a P-8] Unión de carpetas seguida al crear, dos ventanas de milisegundos entre consultar la ubicación y crear, y rutas completas en pantalla y `title` · Info
+- [recorrido del pase] Desbloquear una bóveda con archivo llave obliga a buscar el `.keyx` en el diálogo de Windows cada vez, aunque esté junto a la bóveda, y con solo la contraseña el error no dice que esa bóveda usa archivo llave: proponerlo solo o recordarlo por bóveda · Medio (pesa más si "Crear uno nuevo" queda como opción marcada)
+- [recorrido del pase] El diálogo de entrada desplaza su cuerpo a 1120 × 720 incluso vacío ("Más campos" queda bajo el pie); a 1280 × 800 cabe · Medio
+- [recorrido del pase] Al fallar "Crear bóveda" por cualquier motivo se vacían las dos contraseñas y hay que escribirlas otra vez · Medio
+- [recorrido del pase] "Papelera" no aparece en el riel hasta el primer uso (el prototipo la muestra siempre); "Nueva entrada" sigue activa dentro de la Papelera; el foco se pierde tras mover un grupo, "Ir a la bóveda" y desbloquear; los avisos «X se movió a Y» no caducan; no hay "Cerrar bóveda" desde la bóveda abierta · Bajo
+- [recorrido del pase] Una entrada creada con contraseña tecleada quedó una vez sin su sitio; al repetir, lo guardó. Sin explicar (¿app o guion de prueba?): reproducir a mano · por verificar
+- [diseño del pase] Tres medidas del prototipo están como número suelto y el detector las marca: 26 px (marca en crear), 17 px (nombre de la bóveda en el riel), radio de 2 px (barra de oculto): pasarlas a tokens · Bajo
+- [diseño del pase] El contrato de dirección de `.impeccable/surfaces/` quedó desactualizado en composición; manda `DESIGN.md` y `docs/revisiones/0.1-ux-dueno.md` · Info
