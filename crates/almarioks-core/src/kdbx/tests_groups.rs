@@ -144,7 +144,7 @@ fn rf_48_rf_58_permanent_deletes_are_written_down_with_the_injected_time() {
 }
 
 #[test]
-fn rf_57_a_group_that_holds_the_bin_cannot_be_moved_renamed_or_deleted() {
+fn rf_57_a_group_that_holds_the_bin_cannot_be_deleted_but_can_be_renamed_and_moved() {
     let mut vault = vault();
     let root = vault.root_id();
     let archivo = vault.create_group(root, "Archivo", at(0)).unwrap();
@@ -153,20 +153,41 @@ fn rf_57_a_group_that_holds_the_bin_cannot_be_moved_renamed_or_deleted() {
     let bin = vault.create_group(archivo, "Papelera", at(0)).unwrap();
     vault.db.meta.recyclebin_uuid = Some(bin.uuid());
     vault.db.meta.recyclebin_enabled = Some(true);
-    assert_eq!(
-        vault.move_group(archivo, otro, at(1)).unwrap_err(),
-        CoreError::GrupoProtegido
-    );
-    assert_eq!(
-        vault.rename_group(archivo, "Viejo", at(1)).unwrap_err(),
-        CoreError::GrupoProtegido
-    );
+    // It cannot be deleted, and the preview says so (plan "Precisiones" 17).
     assert_eq!(
         vault.delete_group(archivo, at(1)).unwrap_err(),
         CoreError::GrupoProtegido
     );
     assert_eq!(
         vault.delete_preview(archivo).unwrap_err(),
+        CoreError::GrupoProtegido
+    );
+    // Moving it inside its own bin is still a move into a descendant (RF-55).
+    assert_eq!(
+        vault.move_group(archivo, bin, at(1)).unwrap_err(),
+        CoreError::MovimientoInvalido
+    );
+    // Renaming and moving it are allowed; the bin goes along and stays the bin.
+    vault.rename_group(archivo, "Viejo", at(1)).unwrap();
+    vault.move_group(archivo, otro, at(1)).unwrap();
+    let moved = vault.db.group(super::read::kp_group(archivo)).unwrap();
+    assert_eq!(moved.name, "Viejo");
+    assert_eq!(
+        moved.parent().map(|p| p.id()),
+        Some(super::read::kp_group(otro))
+    );
+    assert_eq!(vault.recycle_bin_id(), Some(bin));
+    // The bin itself still cannot be moved, renamed or deleted.
+    assert_eq!(
+        vault.move_group(bin, root, at(1)).unwrap_err(),
+        CoreError::GrupoProtegido
+    );
+    assert_eq!(
+        vault.rename_group(bin, "Basura", at(1)).unwrap_err(),
+        CoreError::GrupoProtegido
+    );
+    assert_eq!(
+        vault.delete_group(bin, at(1)).unwrap_err(),
         CoreError::GrupoProtegido
     );
     // Deleting an entry uses that bin; no second bin is created.

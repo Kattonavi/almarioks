@@ -142,11 +142,114 @@ impl CoreError {
 /// Result type of the core.
 pub type CoreResult<T> = Result<T, CoreError>;
 
+/// The field a validation error is about (plan "Precisiones" 15, RF-40). The names are KeePass' keys, plus `Tags`
+/// for the tag list and `Name` for a group's (or a new vault's) name.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Field {
+    /// `Title`.
+    Title,
+    /// `UserName`.
+    UserName,
+    /// `Password`.
+    Password,
+    /// `URL`.
+    Url,
+    /// `Notes`.
+    Notes,
+    /// `Tags`: the number of tags or one tag.
+    Tags,
+    /// `Name`: a group's name.
+    Name,
+}
+
+impl Field {
+    /// The name the window receives (`field` of `AppError`).
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::Title => "Title",
+            Self::UserName => "UserName",
+            Self::Password => "Password",
+            Self::Url => "URL",
+            Self::Notes => "Notes",
+            Self::Tags => "Tags",
+            Self::Name => "Name",
+        }
+    }
+}
+
+/// A rejected value with its data (RF-40, plan "Precisiones" 15): the stable code, the field and, for
+/// [`CoreError::CampoMuyLargo`], the limit in characters (or in tags, for the tag count).
+///
+/// [`CoreError`] stays a plain code; this type carries the data and converts into it, so `code()` and `message()`
+/// are the same as the code's.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Error)]
+#[error("{error}")]
+pub struct FieldError {
+    error: CoreError,
+    field: Field,
+    limit: Option<usize>,
+}
+
+impl FieldError {
+    pub(crate) const fn new(error: CoreError, field: Field) -> Self {
+        Self {
+            error,
+            field,
+            limit: None,
+        }
+    }
+
+    pub(crate) const fn too_long(field: Field, limit: usize) -> Self {
+        Self {
+            error: CoreError::CampoMuyLargo,
+            field,
+            limit: Some(limit),
+        }
+    }
+
+    /// The code: `TituloVacio`, `NombreVacio`, `CampoMuyLargo`, `CaracterNoPermitido` or `EtiquetaInvalida`.
+    #[must_use]
+    pub const fn error(self) -> CoreError {
+        self.error
+    }
+
+    /// The field that broke the rule.
+    #[must_use]
+    pub const fn field(self) -> Field {
+        self.field
+    }
+
+    /// The limit that was passed; only for [`CoreError::CampoMuyLargo`].
+    #[must_use]
+    pub const fn limit(self) -> Option<usize> {
+        self.limit
+    }
+
+    /// Same as [`CoreError::code`] of [`Self::error`].
+    #[must_use]
+    pub const fn code(self) -> &'static str {
+        self.error.code()
+    }
+
+    /// Same as [`CoreError::message`] of [`Self::error`].
+    #[must_use]
+    pub fn message(self) -> String {
+        self.error.message()
+    }
+}
+
+impl From<FieldError> for CoreError {
+    fn from(error: FieldError) -> Self {
+        error.error
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use super::CoreError;
+    use super::{CoreError, Field, FieldError};
 
-    const ALL: [CoreError; 23] = [
+    const ALL: [CoreError; 25] = [
         CoreError::Bloqueada,
         CoreError::Ocupada,
         CoreError::ArgumentoInvalido,
@@ -170,7 +273,20 @@ mod tests {
         CoreError::ReglasImposibles,
         CoreError::GuardadoFallido,
         CoreError::CambioExterno,
+        CoreError::ArchivoNoEncontrado,
+        CoreError::ArchivoLlaveNoEncontrado,
     ];
+
+    #[test]
+    fn rf_40_a_field_error_keeps_the_code_and_message_of_its_code() {
+        let error = FieldError::too_long(Field::Url, 2_048);
+        assert_eq!(error.code(), "CampoMuyLargo");
+        assert_eq!(error.message(), CoreError::CampoMuyLargo.message());
+        assert_eq!(CoreError::from(error), CoreError::CampoMuyLargo);
+        assert_eq!((error.field().name(), error.limit()), ("URL", Some(2_048)));
+        let tag = FieldError::new(CoreError::EtiquetaInvalida, Field::Tags);
+        assert_eq!((tag.field().name(), tag.limit()), ("Tags", None));
+    }
 
     #[test]
     fn rf_83_every_code_has_a_spanish_message_without_the_code() {

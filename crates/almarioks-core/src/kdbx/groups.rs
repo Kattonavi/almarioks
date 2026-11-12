@@ -189,16 +189,19 @@ impl OpenedVault {
 
     /// Renames a group; the name is stored trimmed (RF-52, RF-53).
     ///
+    /// The root may be renamed even though it holds the recycle bin, and so may any other group that holds it
+    /// (RF-57); only the bin itself keeps its name.
+    ///
     /// # Errors
     /// [`CoreError::SoloLectura`], [`CoreError::NoEncontrado`], [`CoreError::GrupoProtegido`] for the recycle bin
-    /// or a group that holds it (RF-57), then the name's rules of [`Self::create_group`].
+    /// (RF-57), then the name's rules of [`Self::create_group`].
     pub fn rename_group(&mut self, id: GroupId, name: &str, now: Timestamp) -> CoreResult<()> {
         self.ensure_writable()?;
         let group = kp_group(id);
         if self.db.group(group).is_none() {
             return Err(CoreError::NoEncontrado);
         }
-        if self.holds_bin(group) {
+        if self.bin() == Some(group) {
             return Err(CoreError::GrupoProtegido);
         }
         let name = check_group_name(name)?;
@@ -213,16 +216,16 @@ impl OpenedVault {
     /// Moves a group with all its content into `parent` (RF-54). Moving it to its current parent does nothing.
     ///
     /// # Errors
-    /// [`CoreError::SoloLectura`], [`CoreError::NoEncontrado`], [`CoreError::GrupoProtegido`] for the root, the
-    /// recycle bin or a group that holds it (RF-57), [`CoreError::MovimientoInvalido`] into itself or a descendant
-    /// (RF-55).
+    /// [`CoreError::SoloLectura`], [`CoreError::NoEncontrado`], [`CoreError::GrupoProtegido`] for the root or the
+    /// recycle bin (RF-57), [`CoreError::MovimientoInvalido`] into itself or a descendant (RF-55). A group that
+    /// holds the bin moves with it, like any other content.
     pub fn move_group(&mut self, id: GroupId, parent: GroupId, now: Timestamp) -> CoreResult<()> {
         self.ensure_writable()?;
         let (group, parent) = (kp_group(id), kp_group(parent));
         if self.db.group(group).is_none() || self.db.group(parent).is_none() {
             return Err(CoreError::NoEncontrado);
         }
-        if group == self.db.root().id() || self.holds_bin(group) {
+        if group == self.db.root().id() || self.bin() == Some(group) {
             return Err(CoreError::GrupoProtegido);
         }
         if self.is_within(parent, group) {
