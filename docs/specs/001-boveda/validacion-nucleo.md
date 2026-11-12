@@ -147,3 +147,6 @@ mitad), el archivo llave XML versión 1 (RF-87) ni las bóvedas de KeePassXC.
 - De las pruebas existentes: las líneas 1 a 30 de `tests/rf_save.rs` (imports, su constante de contraseña y el inicio
   de su `TempDir`), para ver el estilo de cabecera de un archivo de pruebas. Nada más de `tests/rf_*.rs` ni de
   `src/**/tests*.rs`.
+
+## Estado de los defectos
+- **D-1 (RF-94): corregido el 2026-11-11.** El lector propio de la cabecera valida el tamaño del identificador de cifrado (16), de la semilla maestra y la de transformación (32) y del vector de inicialización según el cifrado (12 para ChaCha20, 16 para AES y Twofish). La prueba `spec_rf_94_a_master_seed_or_iv_of_the_wrong_size_is_archivo_danado` dejó de estar ignorada y pasa. Sigue valiendo el límite del formato: una cabecera con tamaños correctos y parámetros cambiados, con su suma recalculada, da `LlaveIncorrecta`.

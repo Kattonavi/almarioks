@@ -268,7 +268,6 @@ fn spec_rf_94_a_header_field_of_the_wrong_size_is_archivo_danado_and_the_process
 /// error). With the header sum recomputed, the core answers `LlaveIncorrecta`: the person is told the key is wrong
 /// when the file is damaged. No crash and no derivation of a hostile KDF, so the impact is the message.
 #[test]
-#[ignore = "DEFECTO: RF-94 MasterSeed de 31 bytes o IV de 11 con la suma recalculada da LlaveIncorrecta, no ArchivoDanado"]
 fn spec_rf_94_a_master_seed_or_iv_of_the_wrong_size_is_archivo_danado() {
     let base = made_here();
     let mut seed = split(&base);

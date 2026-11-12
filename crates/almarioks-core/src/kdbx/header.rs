@@ -32,6 +32,25 @@ const SIGNATURE_2_KDBX_PRERELEASE: u32 = 0xb54b_fb66;
 const SIGNATURE_2_KDBX: u32 = 0xb54b_fb67;
 const VERSION_HEADER_LEN: usize = 12;
 
+// Outer header fields of a fixed size (same numbers in KDBX 3 and 4) and the sizes the format gives them.
+const FIELD_CIPHER_ID: u8 = 2;
+const FIELD_MASTER_SEED: u8 = 4;
+const FIELD_TRANSFORM_SEED: u8 = 5;
+const FIELD_ENCRYPTION_IV: u8 = 7;
+const CIPHER_ID_LEN: usize = 16;
+const SEED_LEN: usize = 32;
+const CHACHA20_IV_LEN: usize = 12;
+const BLOCK_CIPHER_IV_LEN: usize = 16;
+const CIPHER_AES256: [u8; 16] = [
+    0x31, 0xc1, 0xf2, 0xe6, 0xbf, 0x71, 0x43, 0x50, 0xbe, 0x58, 0x05, 0x21, 0x6a, 0xfc, 0x5a, 0xff,
+];
+const CIPHER_TWOFISH: [u8; 16] = [
+    0xad, 0x68, 0xf2, 0x9f, 0x57, 0x6f, 0x4b, 0xb9, 0xa3, 0x6a, 0xd4, 0x7a, 0xf9, 0x65, 0x34, 0x6c,
+];
+const CIPHER_CHACHA20: [u8; 16] = [
+    0xd6, 0x03, 0x8a, 0x2b, 0x8b, 0x6f, 0x4c, 0xb5, 0xa5, 0x24, 0x33, 0x9a, 0x31, 0xdb, 0xb5, 0x9a,
+];
+
 pub(crate) const KDF_ARGON2D: [u8; 16] = [
     0xef, 0x63, 0x6d, 0xdf, 0x8c, 0x29, 0x44, 0x4b, 0x91, 0xf7, 0xa9, 0xa4, 0x03, 0xe3, 0x0a, 0x0c,
 ];
@@ -200,6 +219,8 @@ pub(crate) fn parse(data: &[u8]) -> CoreResult<ParsedHeader> {
     let mut pos = VERSION_HEADER_LEN;
     let mut kdfs = Vec::new();
     let mut kdf_item_offsets = HashMap::new();
+    let mut cipher: Option<&[u8]> = None;
+    let mut iv_len: Option<usize> = None;
     loop {
         let field = *data.get(pos).ok_or(CoreError::ArchivoDanado)?;
         let (len, value_pos) = if major == 4 {
@@ -212,6 +233,18 @@ pub(crate) fn parse(data: &[u8]) -> CoreResult<ParsedHeader> {
         match (major, field) {
             (_, 0) => break,
             (_, 3) | (3, 10) if len != 4 => return Err(CoreError::ArchivoDanado),
+            // RF-94: fields of a fixed size. The library does not panic on these, but with a seed or an IV of
+            // the wrong size it derives anyway and answers "wrong key" for a file that is simply damaged.
+            (_, FIELD_CIPHER_ID) => {
+                if len != CIPHER_ID_LEN {
+                    return Err(CoreError::ArchivoDanado);
+                }
+                cipher = Some(value);
+            }
+            (_, FIELD_MASTER_SEED) | (3, FIELD_TRANSFORM_SEED) if len != SEED_LEN => {
+                return Err(CoreError::ArchivoDanado);
+            }
+            (_, FIELD_ENCRYPTION_IV) => iv_len = Some(len),
             (3, 6) => kdfs.push(KdfParams::AesKdf {
                 rounds: u64_of(value)?,
             }),
@@ -224,6 +257,19 @@ pub(crate) fn parse(data: &[u8]) -> CoreResult<ParsedHeader> {
                 walk_dictionary(value, value_pos, &mut HashMap::new())?;
             }
             _ => {}
+        }
+    }
+    // The IV must have the size its cipher needs; an unknown cipher is the library's to reject.
+    if let (Some(cipher), Some(iv_len)) = (cipher, iv_len) {
+        let expected = if cipher == CIPHER_CHACHA20 {
+            Some(CHACHA20_IV_LEN)
+        } else if cipher == CIPHER_AES256 || cipher == CIPHER_TWOFISH {
+            Some(BLOCK_CIPHER_IV_LEN)
+        } else {
+            None
+        };
+        if expected.is_some_and(|expected| expected != iv_len) {
+            return Err(CoreError::ArchivoDanado);
         }
     }
     // Every occurrence is checked: the library keeps the last one if the field repeats.
