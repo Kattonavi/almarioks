@@ -187,8 +187,8 @@ Las pruebas citan el número: `rf_NN_…` en Rust, `it("RF-NN: …")` en TypeScr
   rechazará (`MovimientoInvalido`).
 - RF-56: CUANDO el dueño pide borrar un grupo que no está en la papelera, EL SISTEMA dirá cuántas entradas y
   subgrupos contiene, contando todos los niveles, y al confirmar lo moverá con su contenido a la papelera.
-- RF-57: SI el dueño intenta mover o borrar el grupo raíz, o mover, renombrar o borrar la papelera o un grupo que la
-  contiene, ENTONCES EL SISTEMA lo rechazará (`GrupoProtegido`).
+- RF-57: SI el dueño intenta mover o borrar el grupo raíz, mover, renombrar o borrar la papelera, o borrar un grupo
+  que la contiene, ENTONCES EL SISTEMA lo rechazará (`GrupoProtegido`); renombrar la raíz está permitido.
 - RF-58: CUANDO el dueño confirma vaciar la papelera, o borrar un grupo que ya está en ella, EL SISTEMA eliminará de
   forma definitiva ese contenido y anotará cada entrada y grupo en los objetos borrados.
 

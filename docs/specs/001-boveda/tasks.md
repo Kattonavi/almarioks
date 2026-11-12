@@ -56,9 +56,9 @@ real) → commit → marcar. Las pruebas citan el RF (`rf_NN_…`, `it("RF-NN: �
       Hecho cuando: pruebas de P2 en verde (vacío, derivando, errores, éxito).
 - [x] T19. Bóveda (P4): árbol, lista, búsqueda, estados vacíos. (RF-42, RF-50, RF-59, RF-64, RF-78, RF-92)
       Hecho cuando: pruebas de P4 en verde, incluida la fixture XSS. (Los estados de guardado de P4 pasan a T22.)
-- [ ] T20. Entrada (P5) y generador (P6): ver, mostrar, copiar, crear, editar, mover, borrar. (RF-38, RF-43 a RF-49, RF-65 a RF-70, RF-74)
+- [x] T20. Entrada (P5) y generador (P6): ver, mostrar, copiar, crear, editar, mover, borrar. (RF-38, RF-43 a RF-49, RF-65 a RF-70, RF-74)
       Hecho cuando: pruebas de P5 y P6 en verde.
-- [ ] T21. Grupos (P7) y papelera. (RF-51 a RF-58)
+- [x] T21. Grupos (P7) y papelera. (RF-51 a RF-58)
       Hecho cuando: pruebas de P7 en verde.
 - [ ] T22. Ajustes (P8), avisos de guardado (`GuardadoFallido`, `CambioExterno`), solo lectura y conversión. (RF-14, RF-15, RF-17, RF-23, RF-24, RF-29, RF-73, RF-82)
       Hecho cuando: pruebas de P8 y de los avisos en verde.

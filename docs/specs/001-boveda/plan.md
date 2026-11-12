@@ -85,6 +85,14 @@ muestra "(protegido)".
     escritura (RF-7), además del `vault_create` final. El ADR-0002 dice "un solo `invoke`". El valor ya está en el
     campo de la ventana y el núcleo lo envuelve y lo borra; la alternativa descartada era un estimador en JavaScript.
     Que `security-engineer` diga si se acepta o se mide solo al salir del campo.
+15. `AppError` lleva datos opcionales: `field` (en `CampoMuyLargo`, `CaracterNoPermitido`, `EtiquetaInvalida`) y
+    `limit` (en `CampoMuyLargo`), para que la ventana diga cuál campo y cuál límite sin deducirlo (RF-40).
+16. Los nombres de campo de `protected_fields`, `entry_reveal` y `entry_copy` son las claves de KeePass: `Title`,
+    `UserName`, `Password`, `URL`, `Notes`, o el nombre del campo propio. `entry_copy` acepta también un campo no
+    protegido (copiar el usuario); en ese caso no hay limpieza automática y `clears_in_seconds` es `null`.
+17. `group_delete_preview` responde `GrupoProtegido` si el grupo no se puede borrar.
+18. Formulario de entrada: las etiquetas se escriben una por línea; desde el formulario no se puede dejar vacía una
+    contraseña existente (campo vacío = no cambiar). Vaciarla a propósito queda fuera de la 0.1.
 
 ## Concurrencia y bloqueo (RF-30, RF-33, RF-88 a RF-90)
 - Un solo dueño del estado: todas las operaciones de la bóveda, la copia al portapapeles y el bloqueo pasan por el
