@@ -4,8 +4,9 @@
  *
  *   ?tema=oscuro|claro      forces a theme (dark is the same file production loads by media query)
  *   ?estado=…               the screen and state to show (default: copiado):
- *       without a vault     bienvenida · bienvenida-vacia · crear · crear-llave · crear-error · creando · creada ·
- *                           desbloquear · derivando · error-llave · bloqueada · ajustes
+ *       without a vault     bienvenida · bienvenida-vacia · crear · crear-vacia · crear-existe · crear-ubicacion ·
+ *                           crear-llave · crear-error · creando · creada · desbloquear · derivando · error-llave ·
+ *                           bloqueada · ajustes
  *       open vault          copiado · detalle · ninguna · formulario · generador · editar · dialogo-mover ·
  *                           dialogo-borrar · dialogo-papelera · dialogo-renombrar · dialogo-recarga ·
  *                           aviso-guardado · cambio-externo · solo-lectura · ajustes-abierta
@@ -21,7 +22,13 @@ import "@fontsource-variable/overpass/index.css";
 import "@fontsource-variable/overpass-mono/index.css";
 import { App } from "./App";
 import { createClient } from "./ipc/client";
-import { createFakeBackend, type FakeBackend, type FakeEntry, type FakeGroup } from "./ipc/fake";
+import {
+  createFakeBackend,
+  FAKE_DEFAULT_FOLDER,
+  type FakeBackend,
+  type FakeEntry,
+  type FakeGroup,
+} from "./ipc/fake";
 import "./styles.css";
 import lightTokens from "./styles/tokens.css?inline";
 import { VaultRoot } from "./vault/VaultRoot";
@@ -43,6 +50,9 @@ const CLOSED = new Set([
   "bienvenida",
   "bienvenida-vacia",
   "crear",
+  "crear-vacia",
+  "crear-existe",
+  "crear-ubicacion",
   "crear-llave",
   "crear-error",
   "creando",
@@ -145,31 +155,45 @@ async function stageClosed(backend: FakeBackend) {
       await find(state === "derivando" ? "progress" : "#unlock-error", state === "derivando" ? /^/ : /./);
       return;
     case "crear":
+    case "crear-vacia":
+    case "crear-existe":
+    case "crear-ubicacion":
     case "crear-llave":
     case "crear-error":
     case "creando":
     case "creada":
       await click("button", "Crear bóveda nueva");
       await find("h2", "Crear bóveda");
-      if (state === "crear-error") {
-        await click("button", "Elegir dónde guardarla…");
-        await find(".path", NEW_PATH);
-        await fill("create-password", "una-clave");
-        await fill("create-confirm", "otra-clave");
-        await click("button", "Crear bóveda");
-        await find("#create-error", /./);
+      await find(".create-file", /\.kdbx$/);
+      if (state === "crear-vacia") return;
+      // "Cuentas" is the file the fake disk already has in the proposed folder.
+      await fill("create-name", state === "crear-existe" ? "Cuentas" : "Familia");
+      await find(".create-file", state === "crear-existe" ? "Cuentas.kdbx" : "Familia.kdbx");
+      if (state === "crear-existe") {
+        await find("#create-name-error", /./);
         return;
       }
-      await click("button", "Elegir dónde guardarla…");
-      await find(".path", NEW_PATH);
+      if (state === "crear-ubicacion") {
+        await click("button", "Cambiar ubicación…");
+        await find(".create-file", NEW_PATH);
+        return;
+      }
+      if (state === "crear-error") {
+        await fill("create-password", "una-clave");
+        await fill("create-confirm", "otra-clave");
+        await find("#create-confirm-error", /./);
+        return;
+      }
       if (state === "crear") {
         await fill("create-password", "abcdefgh1");
         await find("meter", /^/);
         return;
       }
-      await click("label", "Generar un archivo llave nuevo");
-      await click("button", "Elegir dónde guardar el archivo llave…");
-      await find(".path", KEY_PATH);
+      if (state === "crear-llave") {
+        await click("label", "Usar uno mío");
+        await click("button", "Elegir archivo llave…");
+        await find(".create-file", "familia.keyx");
+      }
       await fill("create-password", "Mucho-Mejor-2026");
       await fill("create-confirm", "Mucho-Mejor-2026");
       await find("meter", /^/);
@@ -291,6 +315,8 @@ async function boot() {
             recovery: null,
           },
     vaults: [{ path: VAULT_PATH, name: "Cuentas", password: "demo-clave" }],
+    // "Crear bóveda" proposes this folder: a file already there is the "ya existe" state (`crear-existe`).
+    files: [`${FAKE_DEFAULT_FOLDER}/Cuentas.kdbx`],
     recent:
       state === "bienvenida-vacia"
         ? []
