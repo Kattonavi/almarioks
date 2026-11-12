@@ -131,19 +131,6 @@
   display: none;
 }
 
-.app-status-note {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  margin-inline-start: auto;
-  color: var(--ink);
-}
-
-.app-status-note .icon {
-  width: 14px;
-  height: 14px;
-}
-
 /* ---- Group badge: a round sign in the line colour of its group, with dark text on it. ---- */
 [data-line="1"] {
   --line: var(--line-1);

@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="utf-8">
-<title>AlmarioKS: nueva entrada</title>
+<title>AlmarioKS: la entrada en una ventana</title>
 <script src="./support.js"></script>
 </head>
 <body>
@@ -11,17 +11,16 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Overpass:wght@400;600;800&family=Overpass+Mono:wght@400;600&display=swap">
 <style>
 body{margin:0}
-a{color:#f2f2ee}a:hover{color:#a7adba}
 </style>
 </helmet>
-<div style="min-height: 100vh; background: #191b21; color: #f2f2ee; font-family: 'Overpass', 'Segoe UI', system-ui, sans-serif">
-<dc-import name="Main" dialogo-inicial="{{ abierto }}" hint-size="100%,800px"></dc-import>
+<div style="min-height: 100vh; background: #20232a; color: #f2f2ee; font-family: 'Overpass', 'Segoe UI', system-ui, sans-serif">
+<dc-import name="Lista" ventana-inicial="{{ abierta }}" hint-size="100%,800px"></dc-import>
 </div>
 </x-dc>
 <script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":800}}'>
 class Component extends DCLogic {
   renderVals() {
-    return { abierto: true };
+    return { abierta: true };
   }
 }
 </script>

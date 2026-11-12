@@ -1,7 +1,7 @@
 /*
  * The entry dialog, "Nueva entrada" and "Editar entrada" (RF-100, RF-101): a sheet whose head and foot stay still
  * while its body scrolls. Colours are the roles and measures the tokens; the approved drawing is
- * docs/diseno/prototipo-0.1/Main.dc.html.
+ * docs/diseno/prototipo-0.1/Lista.dc.html.
  */
 dialog[data-layout="form"] {
   width: min(var(--dialog-w), calc(100vw - var(--space-6) * 2));

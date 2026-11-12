@@ -67,7 +67,7 @@ Fortaleza: {{ fuerza }}
 </div>
 
 <fieldset style="margin: 0; padding: 0; border: 0; display: flex; flex-direction: column; gap: 6px">
-<legend style="padding: 0; font-weight: 600; font-size: 14px">Archivo llave (opcional, recomendado)</legend>
+<legend style="padding: 0; font-weight: 600; font-size: 14px">Archivo llave (opcional)</legend>
 <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px">
 <sc-for list="{{ llaves }}" as="k" hint-placeholder-count="3">
 <label style="display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 12px; border-radius: 4px; font-size: 14px; font-weight: 600; cursor: pointer; border: 1px solid {{ k.borde }}; background: {{ k.bg }}; color: {{ k.fg }}">
@@ -96,7 +96,7 @@ Fortaleza: {{ fuerza }}
 class Component extends DCLogic {
   constructor(...a) {
     super(...a);
-    this.state = { nombre: 'Familia', clave: '', repite: '', ver: false, llave: 'nueva' };
+    this.state = { nombre: 'Familia', clave: '', repite: '', ver: false, llave: 'ninguno' };
   }
   fuerza(clave) {
     let tipos = 0;
@@ -112,9 +112,9 @@ class Component extends DCLogic {
     const limpio = st.nombre.replace(/[\\/:*?"<>|]/g, '').trim() || 'bóveda';
     const fz = this.fuerza(st.clave);
     const opciones = [
-      { id: 'nueva', texto: 'Crear uno nuevo', ayuda: 'AlmarioKS crea el archivo llave junto a la bóveda. Guarda una copia en otro lugar.' },
-      { id: 'existente', texto: 'Usar uno mío', ayuda: 'Eliges un archivo llave que ya tienes.' },
-      { id: 'ninguno', texto: 'Sin archivo llave', ayuda: 'La bóveda se abre solo con la contraseña maestra.' }
+      { id: 'ninguno', texto: 'Sin archivo llave', ayuda: 'La bóveda se abre solo con la contraseña maestra.' },
+      { id: 'nueva', texto: 'Crear uno nuevo', ayuda: 'Se guarda junto a la bóveda: Documentos › AlmarioKS › ' + limpio + '.keyx. Guarda una copia en otro lugar.' },
+      { id: 'existente', texto: 'Usar uno mío', ayuda: 'Eliges un archivo llave que ya tienes.' }
     ];
     const actual = opciones.find((o) => o.id === st.llave) || opciones[0];
     return {

@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="utf-8">
-<title>AlmarioKS: bóveda</title>
+<title>AlmarioKS: propuesta de lista ancha</title>
 <script src="./support.js"></script>
 </head>
 <body>
@@ -11,7 +11,6 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Overpass:wght@400;600;800&family=Overpass+Mono:wght@400;600&display=swap">
 <style>
 body{margin:0}
-a{color:#f2f2ee}a:hover{color:#a7adba}
 </style>
 </helmet>
 <div style="min-height: 100vh; display: flex; flex-direction: column; background: #191b21; color: #f2f2ee; font-family: 'Overpass', 'Segoe UI', system-ui, sans-serif; font-size: 15px; line-height: 1.45">
@@ -86,9 +85,9 @@ Guardado hace 2 min
 </div>
 </nav>
 
-<section aria-label="Entradas" style="flex: 1 0 340px; background: #20232a; border-right: 1px solid #343842; display: flex; flex-direction: column; min-width: 0">
-<div style="display: flex; align-items: center; gap: 12px; padding: 14px 16px; border-bottom: 1px solid #343842">
-<div style="flex: 1; min-width: 0">
+<main style="flex: 999 1 560px; min-width: 0; background: #20232a; display: flex; flex-direction: column">
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 14px 24px; border-bottom: 1px solid #343842">
+<div style="flex: 1 1 200px; min-width: 0">
 <h1 style="margin: 0; font-size: 20px; font-weight: 800; line-height: 1.2; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">{{ tituloLista }}</h1>
 <div style="font-size: 13px; color: #a7adba">{{ cuentaLista }}</div>
 </div>
@@ -97,67 +96,120 @@ Guardado hace 2 min
 Nueva entrada
 </button>
 </div>
+
+<div style="overflow-x: auto">
+<div style="min-width: 756px; display: flex; flex-direction: column">
+<div style="display: flex; align-items: center; gap: 8px; height: 36px; padding: 0 16px; border-bottom: 1px solid #343842; font-size: 12px; letter-spacing: 0.04em; color: #a7adba">
+<span style="flex: 1.6 1 160px; min-width: 0; padding: 0 8px; box-sizing: border-box">TÍTULO</span>
+<span style="flex: 1.2 1 120px; min-width: 0; padding: 0 8px; box-sizing: border-box">USUARIO</span>
+<span style="flex: 0 0 112px; padding: 0 8px; box-sizing: border-box">CONTRASEÑA</span>
+<span style="flex: 1.2 1 120px; min-width: 0; padding: 0 8px; box-sizing: border-box">SITIO</span>
+<span style="flex: 0 0 80px; padding: 0 8px; box-sizing: border-box">MODIFICADA</span>
+<span style="flex: 0 0 92px"></span>
+</div>
 <sc-if value="{{ listaVacia }}" hint-placeholder-val="{{ false }}">
-<p style="margin: 0; padding: 24px 16px; color: #a7adba">No hay entradas aquí. Crea la primera con «Nueva entrada».</p>
+<p style="margin: 0; padding: 24px; color: #a7adba">No hay entradas aquí. Crea la primera con «Nueva entrada».</p>
 </sc-if>
-<div style="display: flex; flex-direction: column">
 <sc-for list="{{ filas }}" as="e" hint-placeholder-count="8">
-<button type="button" onClick="{{ e.pick }}" style="display: flex; align-items: center; gap: 12px; width: 100%; min-height: 60px; padding: 8px 16px; border: 0; border-bottom: 1px solid #343842; font: inherit; text-align: left; cursor: pointer; background: {{ e.bg }}; color: {{ e.fg }}">
+<div style="display: flex; align-items: center; gap: 8px; min-height: 52px; padding: 0 16px; border-bottom: 1px solid #343842; background: {{ e.bg }}; color: {{ e.fg }}">
+<button type="button" title="Doble clic para abrir la entrada" onClick="{{ e.pick }}" onDoubleClick="{{ e.abrir }}" style="flex: 1.6 1 160px; min-width: 0; box-sizing: border-box; display: flex; align-items: center; gap: 12px; height: 52px; padding: 0 8px; background: transparent; color: inherit; border: 0; font: inherit; text-align: left; cursor: default">
 <span aria-hidden="true" style="flex: 0 0 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 14px; color: #16181d; background: {{ e.color }}">{{ e.inicial }}</span>
-<span style="flex: 1; min-width: 0; display: flex; flex-direction: column">
-<span style="font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">{{ e.titulo }}</span>
-<span style="font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: {{ e.fgSuave }}">{{ e.sub }}</span>
-</span>
-<span style="flex: 0 0 auto; font-size: 13px; color: {{ e.fgSuave }}">{{ e.cuando }}</span>
+<span style="min-width: 0; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">{{ e.titulo }}</span>
 </button>
+<button type="button" title="Doble clic para copiar el usuario" onClick="{{ e.pick }}" onDoubleClick="{{ e.copiarUsuario }}" style="flex: 1.2 1 120px; min-width: 0; box-sizing: border-box; display: flex; align-items: center; height: 52px; padding: 0 8px; background: transparent; color: inherit; border: 0; font: inherit; text-align: left; cursor: default">
+<span style="min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">{{ e.usuario }}</span>
+</button>
+<button type="button" title="Doble clic para copiar la contraseña" onClick="{{ e.pick }}" onDoubleClick="{{ e.copiarClave }}" style="flex: 0 0 112px; box-sizing: border-box; display: flex; align-items: center; height: 52px; padding: 0 8px; background: transparent; border: 0; font-family: 'Overpass Mono', Consolas, monospace; font-size: 14px; letter-spacing: 0.08em; text-align: left; cursor: default; color: {{ e.fgSuave }}">
+<span>••••••••</span>
+</button>
+<button type="button" title="Doble clic para abrir el sitio en el navegador" onClick="{{ e.pick }}" onDoubleClick="{{ e.abrirSitio }}" style="flex: 1.2 1 120px; min-width: 0; box-sizing: border-box; display: flex; align-items: center; height: 52px; padding: 0 8px; background: transparent; color: inherit; border: 0; font: inherit; text-align: left; cursor: default">
+<span style="min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">{{ e.sitio }}</span>
+</button>
+<button type="button" title="Doble clic para abrir la entrada" onClick="{{ e.pick }}" onDoubleClick="{{ e.abrir }}" style="flex: 0 0 80px; box-sizing: border-box; display: flex; align-items: center; height: 52px; padding: 0 8px; background: transparent; border: 0; font: inherit; font-size: 13px; text-align: left; cursor: default; color: {{ e.fgSuave }}">
+<span style="white-space: nowrap">{{ e.cuando }}</span>
+</button>
+<span style="flex: 0 0 92px; display: flex; justify-content: flex-end">
+<sc-if value="{{ e.activo }}" hint-placeholder-val="{{ false }}">
+<span style="display: flex; gap: 4px">
+<button type="button" aria-label="{{ e.copiarLabel }}" title="Copiar contraseña" onClick="{{ e.copiarClave }}" style="width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; background: #16181d; color: #f2f2ee; border: 0; border-radius: 4px; cursor: pointer">
+<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"></rect><path d="M5 15V6a2 2 0 0 1 2-2h9"></path></svg>
+</button>
+<button type="button" aria-label="{{ e.abrirLabel }}" title="Abrir la entrada" onClick="{{ e.abrir }}" style="width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; background: transparent; color: #16181d; border: 0; border-radius: 4px; cursor: pointer">
+<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"></rect><path d="M3 10h18"></path></svg>
+</button>
+</span>
+</sc-if>
+</span>
+</div>
 </sc-for>
 </div>
-</section>
+</div>
 
-<main style="flex: 999 1 420px; min-width: 0; display: flex; flex-direction: column; padding: 24px 32px; box-sizing: border-box; gap: 20px">
-<sc-if value="{{ sinSeleccion }}" hint-placeholder-val="{{ false }}">
-<p style="margin: 48px 0 0; color: #a7adba">Elige una entrada para ver su detalle.</p>
+<div style="flex: 1; min-height: 16px"></div>
+<sc-if value="{{ avisoPagina }}" hint-placeholder-val="{{ false }}">
+<div style="display: flex; justify-content: center; padding: 0 16px 12px">
+<div role="status" style="display: flex; align-items: center; gap: 10px; background: #f2f2ee; color: #16181d; border-radius: 4px; padding: 10px 16px; font-weight: 600">
+<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#157a52" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5 9-10"></path></svg>
+{{ aviso }}
+</div>
+</div>
 </sc-if>
-<sc-if value="{{ haySeleccion }}" hint-placeholder-val="{{ true }}">
-<div style="display: flex; flex-direction: column; gap: 20px">
-<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 14px">
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 4px 20px; padding: 10px 24px; border-top: 1px solid #343842; font-size: 13px; color: #a7adba">
+<span style="display: flex; align-items: center; gap: 8px; font-weight: 600; color: #f2f2ee">
+<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="7" y="3" width="10" height="18" rx="5"></rect><path d="M12 7v4"></path></svg>
+Doble clic
+</span>
+<span>en el título: abre la entrada</span>
+<span>en usuario o contraseña: copia</span>
+<span>en el sitio: lo abre en el navegador</span>
+</div>
+</main>
+</div>
+
+<sc-if value="{{ ventanaVer }}" hint-placeholder-val="{{ false }}">
+<div style="position: fixed; inset: 0; z-index: 20; background: rgb(0 0 0 / 62%); display: flex; align-items: center; justify-content: center; padding: 24px; box-sizing: border-box">
+<section role="dialog" aria-modal="true" aria-labelledby="ver-titulo" style="width: 100%; max-width: 600px; max-height: 100%; overflow: auto; background: #20232a; color: #f2f2ee; border-radius: 8px; box-shadow: 0 12px 32px rgb(0 0 0 / 50%); display: flex; flex-direction: column">
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 14px; padding: 20px 12px 16px 24px">
 <span aria-hidden="true" style="flex: 0 0 48px; height: 48px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 20px; color: #16181d; background: {{ d.color }}">{{ d.inicial }}</span>
-<div style="flex: 1 1 200px; min-width: 0">
-<h2 style="margin: 0; font-size: 28px; font-weight: 800; line-height: 1.15">{{ d.titulo }}</h2>
+<div style="flex: 1 1 180px; min-width: 0">
+<h2 id="ver-titulo" style="margin: 0; font-size: 24px; font-weight: 800; line-height: 1.15">{{ d.titulo }}</h2>
 <div style="display: flex; align-items: center; gap: 6px; font-size: 13px; color: #a7adba">
 <span aria-hidden="true" style="width: 8px; height: 8px; border-radius: 50%; background: {{ d.color }}"></span>
 {{ d.grupo }}
 </div>
 </div>
-<div style="position: relative; display: flex; gap: 8px">
-<button type="button" style="display: flex; align-items: center; gap: 8px; height: 44px; padding: 0 14px; background: #20232a; color: #f2f2ee; border: 1px solid #6b7280; border-radius: 4px; font: inherit; font-weight: 600; cursor: pointer">
+<div style="position: relative; display: flex; gap: 4px">
+<button type="button" onClick="{{ editar }}" style="display: flex; align-items: center; gap: 8px; height: 44px; padding: 0 14px; background: #20232a; color: #f2f2ee; border: 1px solid #6b7280; border-radius: 4px; font: inherit; font-weight: 600; cursor: pointer">
 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4z"></path></svg>
 Editar
 </button>
 <button type="button" aria-label="Más acciones de la entrada" onClick="{{ menuEntrada }}" style="width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; background: #20232a; color: #f2f2ee; border: 1px solid #6b7280; border-radius: 4px; cursor: pointer">
 <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.8"></circle><circle cx="12" cy="12" r="1.8"></circle><circle cx="19" cy="12" r="1.8"></circle></svg>
 </button>
+<button type="button" aria-label="Cerrar" onClick="{{ cerrarVentana }}" style="width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; background: transparent; color: #f2f2ee; border: 0; border-radius: 4px; cursor: pointer">
+<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg>
+</button>
 <sc-if value="{{ menuEntradaAbierto }}" hint-placeholder-val="{{ false }}">
-<div style="position: absolute; top: 48px; right: 0; z-index: 5; min-width: 224px; background: #20232a; border: 1px solid #343842; border-radius: 6px; box-shadow: 0 12px 32px rgb(0 0 0 / 50%); padding: 4px; display: flex; flex-direction: column">
+<div style="position: absolute; top: 48px; right: 48px; z-index: 5; min-width: 224px; background: #191b21; border: 1px solid #343842; border-radius: 6px; box-shadow: 0 12px 32px rgb(0 0 0 / 50%); padding: 4px; display: flex; flex-direction: column">
 <button type="button" onClick="{{ cerrarMenus }}" style="min-height: 44px; padding: 0 12px; background: transparent; border: 0; border-radius: 4px; font: inherit; text-align: left; cursor: pointer; color: #f2f2ee">Mover a otro grupo…</button>
-<button type="button" onClick="{{ cerrarMenus }}" style="min-height: 44px; padding: 0 12px; background: transparent; border: 0; border-radius: 4px; font: inherit; text-align: left; cursor: pointer; color: #f2f2ee">Duplicar</button>
-<button type="button" onClick="{{ cerrarMenus }}" style="min-height: 44px; padding: 0 12px; background: transparent; border: 0; border-radius: 4px; font: inherit; text-align: left; cursor: pointer; color: #ff7a85">Enviar a la papelera…</button>
+<button type="button" onClick="{{ cerrarMenus }}" style="min-height: 44px; padding: 0 12px; background: transparent; border: 0; border-radius: 4px; font: inherit; text-align: left; cursor: pointer; color: #ff7a85">Enviar a la papelera</button>
 </div>
 </sc-if>
 </div>
 </div>
 
-<div style="background: #20232a; border: 1px solid #343842; border-radius: 6px">
+<div style="padding: 0 24px">
+<div style="background: #191b21; border: 1px solid #343842; border-radius: 6px">
 <div style="display: grid; grid-template-columns: 104px minmax(0, 1fr) auto; align-items: center; gap: 12px; min-height: 56px; padding: 4px 8px 4px 16px; border-bottom: 1px solid #343842">
 <span style="font-size: 13px; color: #a7adba">Usuario</span>
-<span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap">{{ d.usuario }}</span>
+<button type="button" title="Doble clic para copiar" onDoubleClick="{{ copiarUsuario }}" style="display: block; width: 100%; min-height: 44px; padding: 0; background: transparent; color: inherit; border: 0; font: inherit; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: default">{{ d.usuario }}</button>
 <button type="button" aria-label="Copiar usuario" onClick="{{ copiarUsuario }}" style="width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; background: transparent; color: #f2f2ee; border: 0; border-radius: 4px; cursor: pointer">
 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"></rect><path d="M5 15V6a2 2 0 0 1 2-2h9"></path></svg>
 </button>
 </div>
 <div style="display: grid; grid-template-columns: 104px minmax(0, 1fr) auto; align-items: center; gap: 12px; min-height: 56px; padding: 4px 8px 4px 16px; border-bottom: 1px solid #343842">
 <span style="font-size: 13px; color: #a7adba">Contraseña</span>
-<span style="font-family: 'Overpass Mono', Consolas, monospace; letter-spacing: 0.06em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">{{ d.claveVista }}</span>
+<button type="button" title="Doble clic para copiar" onDoubleClick="{{ copiarClave }}" style="display: block; width: 100%; min-height: 44px; padding: 0; background: transparent; color: inherit; border: 0; font-family: 'Overpass Mono', Consolas, monospace; font-size: 15px; letter-spacing: 0.06em; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: default">{{ d.claveVista }}</button>
 <span style="display: flex">
 <button type="button" aria-label="{{ verLabel }}" onClick="{{ alternarVer }}" style="width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; background: transparent; color: #f2f2ee; border: 0; border-radius: 4px; cursor: pointer">
 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"></path><circle cx="12" cy="12" r="3"></circle></svg>
@@ -169,9 +221,9 @@ Editar
 </div>
 <div style="display: grid; grid-template-columns: 104px minmax(0, 1fr) auto; align-items: center; gap: 12px; min-height: 56px; padding: 4px 8px 4px 16px; border-bottom: 1px solid #343842">
 <span style="font-size: 13px; color: #a7adba">Sitio</span>
-<span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap">{{ d.url }}</span>
+<button type="button" title="Doble clic para abrir el sitio en el navegador" onDoubleClick="{{ abrirSitio }}" style="display: block; width: 100%; min-height: 44px; padding: 0; background: transparent; color: inherit; border: 0; font: inherit; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: default">{{ d.url }}</button>
 <span style="display: flex">
-<button type="button" aria-label="Abrir el sitio en el navegador" onClick="{{ cerrarMenus }}" style="width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; background: transparent; color: #f2f2ee; border: 0; border-radius: 4px; cursor: pointer">
+<button type="button" aria-label="Abrir el sitio en el navegador" onClick="{{ abrirSitio }}" style="width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; background: transparent; color: #f2f2ee; border: 0; border-radius: 4px; cursor: pointer">
 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"></path></svg>
 </button>
 <button type="button" aria-label="Copiar dirección del sitio" onClick="{{ copiarUrl }}" style="width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; background: transparent; color: #f2f2ee; border: 0; border-radius: 4px; cursor: pointer">
@@ -184,31 +236,39 @@ Editar
 <span style="white-space: pre-line">{{ d.notas }}</span>
 </div>
 </div>
-<div style="font-size: 13px; color: #a7adba">{{ d.fechas }}</div>
 </div>
-</sc-if>
-<div style="flex: 1"></div>
-<sc-if value="{{ hayAviso }}" hint-placeholder-val="{{ false }}">
-<div role="status" style="align-self: center; display: flex; align-items: center; gap: 10px; background: #f2f2ee; color: #16181d; border-radius: 4px; padding: 10px 16px; font-weight: 600">
+
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 4px 24px; padding: 16px 24px 20px; font-size: 13px; color: #a7adba">
+<span>Creada el {{ d.creada }}</span>
+<span>Modificada el {{ d.modificada }}</span>
+</div>
+<sc-if value="{{ avisoVentana }}" hint-placeholder-val="{{ false }}">
+<div style="display: flex; justify-content: center; padding: 0 24px 20px">
+<div role="status" style="display: flex; align-items: center; gap: 10px; background: #f2f2ee; color: #16181d; border-radius: 4px; padding: 10px 16px; font-weight: 600">
 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#157a52" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5 9-10"></path></svg>
 {{ aviso }}
 </div>
-</sc-if>
-</main>
 </div>
+</sc-if>
+</section>
+</div>
+</sc-if>
 
-<sc-if value="{{ dialogo }}" hint-placeholder-val="{{ false }}">
+<sc-if value="{{ ventanaForm }}" hint-placeholder-val="{{ false }}">
 <div style="position: fixed; inset: 0; z-index: 20; background: rgb(0 0 0 / 62%); display: flex; align-items: center; justify-content: center; padding: 24px; box-sizing: border-box">
 <section role="dialog" aria-modal="true" aria-labelledby="dlg-titulo" style="width: 100%; max-width: 560px; max-height: 100%; overflow: auto; background: #20232a; color: #f2f2ee; border-radius: 8px; box-shadow: 0 12px 32px rgb(0 0 0 / 50%); display: flex; flex-direction: column">
 <div style="display: flex; align-items: center; gap: 12px; padding: 16px 12px 12px 24px; border-bottom: 1px solid #343842">
 <div style="flex: 1; min-width: 0">
-<h2 id="dlg-titulo" style="margin: 0; font-size: 20px; font-weight: 800">Nueva entrada</h2>
+<h2 id="dlg-titulo" style="margin: 0; font-size: 20px; font-weight: 800">
+<sc-if value="{{ f.esNueva }}" hint-placeholder-val="{{ true }}">Nueva entrada</sc-if>
+<sc-if value="{{ f.esEdicion }}" hint-placeholder-val="{{ false }}">Editar entrada</sc-if>
+</h2>
 <div style="display: flex; align-items: center; gap: 6px; font-size: 13px; color: #a7adba">
 <span aria-hidden="true" style="width: 8px; height: 8px; border-radius: 50%; background: {{ f.color }}"></span>
 En el grupo {{ f.grupo }}
 </div>
 </div>
-<button type="button" aria-label="Cerrar" onClick="{{ cerrar }}" style="width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; background: transparent; color: #f2f2ee; border: 0; border-radius: 4px; cursor: pointer">
+<button type="button" aria-label="Cerrar" onClick="{{ cerrarForm }}" style="width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; background: transparent; color: #f2f2ee; border: 0; border-radius: 4px; cursor: pointer">
 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg>
 </button>
 </div>
@@ -244,12 +304,13 @@ Fortaleza: {{ f.fuerza }}
 </sc-if>
 <button type="button" aria-expanded="{{ f.opciones }}" onClick="{{ alternarOpciones }}" style="align-self: flex-start; min-height: 44px; padding: 0; background: transparent; border: 0; font: inherit; font-size: 14px; font-weight: 600; color: #f2f2ee; text-decoration: underline; cursor: pointer">{{ f.opcionesLabel }}</button>
 <sc-if value="{{ f.opciones }}" hint-placeholder-val="{{ false }}">
-<div style="display: flex; flex-direction: column; gap: 12px; padding: 14px 16px; background: #191b21; border-radius: 6px">
+<div style="display: flex; flex-direction: column; gap: 8px; padding: 14px 16px; background: #191b21; border-radius: 6px">
 <div style="display: flex; align-items: center; gap: 12px">
 <label for="f-largo" style="font-size: 14px; flex: 0 0 auto">Longitud</label>
-<input id="f-largo" type="range" min="8" max="64" value="{{ f.largo }}" onChange="{{ onLargo }}" style="flex: 1; min-width: 0; accent-color: #f2f2ee">
-<span style="font-family: 'Overpass Mono', Consolas, monospace; font-size: 14px; flex: 0 0 24px; text-align: right">{{ f.largo }}</span>
+<input id="f-largo" type="range" min="8" max="64" value="{{ f.largoDesliz }}" onChange="{{ onLargo }}" style="flex: 1; min-width: 0; accent-color: #f2f2ee">
+<input type="number" aria-label="Longitud exacta, hasta 500" min="8" max="500" value="{{ f.largo }}" onChange="{{ onLargoNum }}" style="flex: 0 0 80px; height: 44px; padding: 0 8px; border: 1px solid #6b7280; border-radius: 4px; font-family: 'Overpass Mono', Consolas, monospace; font-size: 14px; color: #f2f2ee; background: #20232a; box-sizing: border-box; text-align: right">
 </div>
+<span style="font-size: 13px; color: #a7adba">El deslizante llega a 64. En la casilla puedes escribir hasta 500.</span>
 <div style="display: flex; flex-wrap: wrap; gap: 4px 20px">
 <label style="display: flex; align-items: center; gap: 8px; min-height: 44px; font-size: 14px"><input type="checkbox" checked="{{ f.minus }}" onChange="{{ onMinus }}" style="width: 18px; height: 18px; accent-color: #f2f2ee"> Minúsculas</label>
 <label style="display: flex; align-items: center; gap: 8px; min-height: 44px; font-size: 14px"><input type="checkbox" checked="{{ f.mayus }}" onChange="{{ onMayus }}" style="width: 18px; height: 18px; accent-color: #f2f2ee"> Mayúsculas</label>
@@ -269,7 +330,7 @@ Fortaleza: {{ f.fuerza }}
 </div>
 </div>
 <div style="display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; padding: 12px 24px 20px">
-<button type="button" onClick="{{ cerrar }}" style="height: 44px; padding: 0 16px; background: #20232a; color: #f2f2ee; border: 1px solid #6b7280; border-radius: 4px; font: inherit; font-weight: 600; cursor: pointer">Cancelar</button>
+<button type="button" onClick="{{ cerrarForm }}" style="height: 44px; padding: 0 16px; background: #20232a; color: #f2f2ee; border: 1px solid #6b7280; border-radius: 4px; font: inherit; font-weight: 600; cursor: pointer">Cancelar</button>
 <button type="button" onClick="{{ guardar }}" style="height: 44px; padding: 0 18px; background: #f2f2ee; color: #16181d; border: 0; border-radius: 4px; font: inherit; font-weight: 600; cursor: pointer">Guardar entrada</button>
 </div>
 </section>
@@ -278,14 +339,14 @@ Fortaleza: {{ f.fuerza }}
 
 </div>
 </x-dc>
-<script type="text/x-dc" data-dc-script data-props='{"dialogoInicial":{"editor":"boolean","default":false},"$preview":{"width":1280,"height":800}}'>
+<script type="text/x-dc" data-dc-script data-props='{"ventanaInicial":{"editor":"boolean","default":false},"$preview":{"width":1280,"height":800}}'>
 class Component extends DCLogic {
   constructor(...a) {
     super(...a);
-    this.state = { grupo: 'trabajo', sel: 'github', q: '', menu: null, ver: false, aviso: '', dialogo: undefined, extra: [], form: this.formVacio() };
+    this.state = { grupo: 'trabajo', sel: 'github', q: '', menu: null, ver: false, aviso: '', ventana: undefined, extra: [], cambios: {}, form: this.formVacio() };
   }
   formVacio() {
-    return { titulo: '', usuario: '', clave: '', url: '', notas: '', largo: 20, minus: true, mayus: true, digitos: true, simbolos: true, ver: true, opciones: false, error: false };
+    return { id: null, titulo: '', usuario: '', clave: '', url: '', notas: '', largo: 20, minus: true, mayus: true, digitos: true, simbolos: true, ver: true, opciones: false, error: false };
   }
   listaGrupos() {
     return [
@@ -297,22 +358,25 @@ class Component extends DCLogic {
     ];
   }
   base() {
-    const e = (id, g, titulo, usuario, url, cuando, notas) => ({ id, g, titulo, usuario, url, cuando, notas, clave: 'k7#Vq2-mT9xLr4!Zp8wN', fechas: 'Creada el 2 mar 2026 · Modificada el ' + cuando + ' 2026' });
+    const e = (id, g, titulo, usuario, url, cuando, hora, notas) => ({ id, g, titulo, usuario, url, cuando, notas, clave: 'k7#Vq2-mT9xLr4!Zp8wN', creada: '2 mar 2026, 9:14 a. m.', modificada: cuando + ' 2026, ' + hora });
     return [
-      e('correo', 'trabajo', 'Correo de la oficina', 'ana@example.com', 'https://correo.example', '10 nov', ''),
-      e('figma', 'trabajo', 'Figma', 'ana@example.com', 'https://figma.example', '12 oct', ''),
-      e('github', 'trabajo', 'GitHub', 'ana@example.com', 'https://github.com', '8 nov', 'Cuenta de la organización. Renovar el token de acceso en enero.'),
-      e('jira', 'trabajo', 'Jira', 'ana.g', 'https://jira.example', '3 sept', ''),
-      e('nomina', 'trabajo', 'Nómina', '1032456789', 'https://nomina.example', '30 ago', ''),
-      e('railway', 'trabajo', 'Railway', 'ana@example.com', 'https://railway.example', '28 ago', ''),
-      e('slack', 'trabajo', 'Slack', 'ana@example.com', 'https://slack.example', '15 ago', ''),
-      e('vpn', 'trabajo', 'VPN de la oficina', 'agomez', '', '2 jul', 'Se conecta solo desde el portátil de la empresa.'),
-      e('portal', 'clientes', 'Portal de clientes', 'soporte@example.com', 'https://clientes.example', '20 jun', ''),
-      e('netflix', 'personal', 'Netflix', 'ana.casa@example.com', 'https://netflix.example', '5 may', ''),
-      e('gimnasio', 'personal', 'Gimnasio', 'ana.casa@example.com', 'https://gimnasio.example', '11 abr', ''),
-      e('banco', 'bancos', 'Banco de la esquina', '1032456789', 'https://banco.example', '1 nov', ''),
-      e('tienda', 'compras', 'Tienda en línea', 'ana.casa@example.com', 'https://tienda.example', '22 oct', '')
+      e('correo', 'trabajo', 'Correo de la oficina', 'ana@example.com', 'https://correo.example', '10 nov', '8:05 a. m.', ''),
+      e('figma', 'trabajo', 'Figma', 'ana@example.com', 'https://figma.example', '12 oct', '3:40 p. m.', ''),
+      e('github', 'trabajo', 'GitHub', 'ana@example.com', 'https://github.com', '8 nov', '4:32 p. m.', 'Cuenta de la organización. Renovar el token de acceso en enero.'),
+      e('jira', 'trabajo', 'Jira', 'ana.g', 'https://jira.example', '3 sept', '11:17 a. m.', ''),
+      e('nomina', 'trabajo', 'Nómina', 'agomez', 'https://nomina.example', '30 ago', '9:02 a. m.', ''),
+      e('railway', 'trabajo', 'Railway', 'ana@example.com', 'https://railway.example', '28 ago', '6:48 p. m.', ''),
+      e('slack', 'trabajo', 'Slack', 'ana@example.com', 'https://slack.example', '15 ago', '10:26 a. m.', ''),
+      e('vpn', 'trabajo', 'VPN de la oficina', 'agomez', '', '2 jul', '2:15 p. m.', 'Se conecta solo desde el portátil de la empresa.'),
+      e('portal', 'clientes', 'Portal de clientes', 'soporte@example.com', 'https://clientes.example', '20 jun', '7:55 a. m.', ''),
+      e('netflix', 'personal', 'Netflix', 'ana.casa@example.com', 'https://netflix.example', '5 may', '9:30 p. m.', ''),
+      e('gimnasio', 'personal', 'Gimnasio', 'ana.casa@example.com', 'https://gimnasio.example', '11 abr', '6:12 a. m.', ''),
+      e('banco', 'bancos', 'Banco de la esquina', 'ana.gomez', 'https://banco.example', '1 nov', '12:44 p. m.', ''),
+      e('tienda', 'compras', 'Tienda en línea', 'ana.casa@example.com', 'https://tienda.example', '22 oct', '5:21 p. m.', '')
     ];
+  }
+  largoValido(valor) {
+    return Math.min(500, Math.max(8, Math.floor(Number(valor)) || 8));
   }
   generarClave(f) {
     let alfabeto = '';
@@ -321,8 +385,9 @@ class Component extends DCLogic {
     if (f.digitos) alfabeto += '23456789';
     if (f.simbolos) alfabeto += '!#$%&*+-=?@';
     if (!alfabeto) alfabeto = 'abcdefghijkmnpqrstuvwxyz';
+    const largo = this.largoValido(f.largo);
     let s = '';
-    for (let i = 0; i < f.largo; i++) s += alfabeto[Math.floor(Math.random() * alfabeto.length)];
+    for (let i = 0; i < largo; i++) s += alfabeto[Math.floor(Math.random() * alfabeto.length)];
     return s;
   }
   fuerza(clave) {
@@ -337,10 +402,11 @@ class Component extends DCLogic {
   renderVals() {
     const st = this.state;
     const grupos = this.listaGrupos();
-    const entradas = this.base().concat(st.extra);
-    const dialogo = st.dialogo === undefined ? !!this.props.dialogoInicial : st.dialogo;
+    const entradas = this.base().concat(st.extra).map((e) => (st.cambios[e.id] ? Object.assign({}, e, st.cambios[e.id]) : e));
+    const ventana = st.ventana === undefined ? (this.props.ventanaInicial ? 'ver' : null) : st.ventana;
     const colorDe = (g) => (grupos.find((x) => x.id === g) || { color: '#c9cedb' }).color;
     const nombreDe = (g) => (grupos.find((x) => x.id === g) || { nombre: 'Cuentas' }).nombre;
+    const sitioDe = (url) => url.replace('https://', '');
     const q = st.q.trim().toLowerCase();
     const visibles = entradas.filter((e) => q ? (e.titulo + ' ' + e.usuario + ' ' + e.url).toLowerCase().includes(q) : (st.grupo === 'todas' || e.g === st.grupo));
     const sel = entradas.find((e) => e.id === st.sel) || null;
@@ -348,7 +414,11 @@ class Component extends DCLogic {
     const grupoNuevo = st.grupo === 'todas' ? 'personal' : st.grupo;
     const f = st.form;
     const fz = this.fuerza(f.clave);
-    const copiar = (texto) => () => this.setState({ aviso: texto, menu: null });
+    const editada = f.id ? (entradas.find((e) => e.id === f.id) || null) : null;
+    const grupoForm = editada ? editada.g : grupoNuevo;
+    const nada = () => {};
+    const avisar = (texto) => () => this.setState({ aviso: texto, menu: null });
+    const claveCopiada = 'Contraseña copiada. Se borra del portapapeles en 20 s';
     return {
       q: st.q,
       onBuscar: (ev) => this.setState({ q: ev.target.value, menu: null }),
@@ -374,35 +444,49 @@ class Component extends DCLogic {
       filas: visibles.map((e) => {
         const activo = e.id === st.sel;
         return {
-          titulo: e.titulo, inicial: e.titulo.charAt(0).toUpperCase(), color: colorDe(e.g), cuando: e.cuando,
-          sub: e.url ? e.usuario + ' · ' + e.url.replace('https://', '') : e.usuario,
+          titulo: e.titulo, inicial: e.titulo.charAt(0).toUpperCase(), color: colorDe(e.g),
+          usuario: e.usuario || '—', sitio: e.url ? sitioDe(e.url) : '—', cuando: e.cuando,
+          activo: activo,
           bg: activo ? '#f2f2ee' : '#20232a', fg: activo ? '#16181d' : '#f2f2ee', fgSuave: activo ? '#4a4f59' : '#a7adba',
-          pick: () => this.setState({ sel: e.id, ver: false, aviso: '', menu: null })
+          copiarLabel: 'Copiar la contraseña de ' + e.titulo, abrirLabel: 'Abrir ' + e.titulo,
+          pick: () => this.setState(activo ? { menu: null } : { sel: e.id, menu: null, aviso: '' }),
+          abrir: () => this.setState({ sel: e.id, ventana: 'ver', ver: false, menu: null, aviso: '' }),
+          copiarUsuario: e.usuario ? () => this.setState({ sel: e.id, aviso: 'Usuario copiado', menu: null }) : nada,
+          copiarClave: () => this.setState({ sel: e.id, aviso: claveCopiada, menu: null }),
+          abrirSitio: e.url ? () => this.setState({ sel: e.id, aviso: 'Se abrió ' + sitioDe(e.url) + ' en el navegador', menu: null }) : nada
         };
       }),
-      sinSeleccion: !sel,
-      haySeleccion: !!sel,
       d: sel ? {
         titulo: sel.titulo, inicial: sel.titulo.charAt(0).toUpperCase(), color: colorDe(sel.g), grupo: nombreDe(sel.g),
         usuario: sel.usuario || 'Sin usuario', url: sel.url || 'Sin sitio', notas: sel.notas || 'Sin notas',
-        claveVista: st.ver ? sel.clave : '••••••••••••••••', fechas: sel.fechas
-      } : { titulo: '', inicial: '', color: '#c9cedb', grupo: '', usuario: '', url: '', notas: '', claveVista: '', fechas: '' },
+        claveVista: st.ver ? sel.clave : '••••••••••••••••', creada: sel.creada, modificada: sel.modificada
+      } : { titulo: '', inicial: '', color: '#c9cedb', grupo: '', usuario: '', url: '', notas: '', claveVista: '', creada: '', modificada: '' },
+      ventanaVer: ventana === 'ver' && !!sel,
+      ventanaForm: ventana === 'form',
+      cerrarVentana: () => this.setState({ ventana: null, ver: false, menu: null, aviso: '' }),
       verLabel: st.ver ? 'Ocultar contraseña' : 'Mostrar contraseña',
       alternarVer: () => this.setState({ ver: !st.ver, menu: null }),
-      copiarUsuario: copiar('Usuario copiado'),
-      copiarClave: copiar('Contraseña copiada. Se borra del portapapeles en 20 s'),
-      copiarUrl: copiar('Dirección copiada'),
+      copiarUsuario: sel && sel.usuario ? avisar('Usuario copiado') : nada,
+      copiarClave: avisar(claveCopiada),
+      copiarUrl: sel && sel.url ? avisar('Dirección copiada') : nada,
+      abrirSitio: sel && sel.url ? avisar('Se abrió ' + sitioDe(sel.url) + ' en el navegador') : nada,
       menuEntrada: () => this.setState({ menu: st.menu === 'entrada' ? null : 'entrada' }),
       menuEntradaAbierto: st.menu === 'entrada',
-      hayAviso: !!st.aviso,
+      editar: () => {
+        if (!sel) return;
+        this.setState({ ventana: 'form', menu: null, aviso: '', form: Object.assign(this.formVacio(), { id: sel.id, titulo: sel.titulo, usuario: sel.usuario, clave: sel.clave, url: sel.url, notas: sel.notas, ver: false }) });
+      },
+      avisoPagina: !!st.aviso && !ventana,
+      avisoVentana: !!st.aviso && ventana === 'ver',
       aviso: st.aviso,
-      dialogo: dialogo,
-      nueva: () => this.setState({ dialogo: true, form: this.formVacio(), menu: null, aviso: '' }),
-      cerrar: () => this.setState({ dialogo: false }),
+      nueva: () => this.setState({ ventana: 'form', form: this.formVacio(), menu: null, aviso: '' }),
+      cerrarForm: () => this.setState({ ventana: f.id ? 'ver' : null }),
       f: {
-        titulo: f.titulo, usuario: f.usuario, clave: f.clave, url: f.url, notas: f.notas, largo: f.largo,
+        esNueva: !f.id, esEdicion: !!f.id,
+        titulo: f.titulo, usuario: f.usuario, clave: f.clave, url: f.url, notas: f.notas,
+        largo: f.largo, largoDesliz: Math.min(64, this.largoValido(f.largo)),
         minus: f.minus, mayus: f.mayus, digitos: f.digitos, simbolos: f.simbolos,
-        grupo: nombreDe(grupoNuevo), color: colorDe(grupoNuevo), hayError: f.error,
+        grupo: nombreDe(grupoForm), color: colorDe(grupoForm), hayError: f.error,
         tipoClave: f.ver ? 'text' : 'password', verLabel: f.ver ? 'Ocultar contraseña' : 'Mostrar contraseña',
         hayClave: f.clave.length > 0, fuerza: fz.texto, fuerzaAncho: fz.ancho,
         opciones: f.opciones, opcionesLabel: f.opciones ? 'Ocultar opciones del generador' : 'Opciones del generador'
@@ -416,15 +500,23 @@ class Component extends DCLogic {
       alternarOpciones: () => setForm({ opciones: !f.opciones }),
       generar: () => setForm({ clave: this.generarClave(f), ver: true }),
       onLargo: (ev) => { const n = Object.assign({}, f, { largo: Number(ev.target.value) }); setForm({ largo: n.largo, clave: this.generarClave(n), ver: true }); },
+      onLargoNum: (ev) => { const n = Object.assign({}, f, { largo: ev.target.value }); setForm({ largo: n.largo, clave: this.generarClave(n), ver: true }); },
       onMinus: () => { const n = Object.assign({}, f, { minus: !f.minus }); setForm({ minus: n.minus, clave: this.generarClave(n) }); },
       onMayus: () => { const n = Object.assign({}, f, { mayus: !f.mayus }); setForm({ mayus: n.mayus, clave: this.generarClave(n) }); },
       onDigitos: () => { const n = Object.assign({}, f, { digitos: !f.digitos }); setForm({ digitos: n.digitos, clave: this.generarClave(n) }); },
       onSimbolos: () => { const n = Object.assign({}, f, { simbolos: !f.simbolos }); setForm({ simbolos: n.simbolos, clave: this.generarClave(n) }); },
       guardar: () => {
         if (!f.titulo.trim()) { setForm({ error: true }); return; }
+        const datos = { titulo: f.titulo.trim(), usuario: f.usuario.trim(), url: f.url.trim(), notas: f.notas, clave: f.clave, cuando: '12 nov', modificada: '12 nov 2026, 1:40 p. m.' };
+        if (f.id) {
+          const cambios = Object.assign({}, st.cambios);
+          cambios[f.id] = datos;
+          this.setState({ cambios: cambios, ventana: 'ver', ver: false, aviso: 'Cambios guardados', form: this.formVacio() });
+          return;
+        }
         const id = 'n' + (st.extra.length + 1);
-        const nueva = { id, g: grupoNuevo, titulo: f.titulo.trim(), usuario: f.usuario.trim(), url: f.url.trim(), cuando: 'hoy', notas: f.notas, clave: f.clave, fechas: 'Creada hoy' };
-        this.setState({ extra: st.extra.concat([nueva]), dialogo: false, sel: id, grupo: grupoNuevo, q: '', ver: false, aviso: 'Entrada guardada', form: this.formVacio() });
+        const nueva = Object.assign({ id: id, g: grupoNuevo, creada: '12 nov 2026, 1:40 p. m.' }, datos);
+        this.setState({ extra: st.extra.concat([nueva]), ventana: null, sel: id, grupo: grupoNuevo, q: '', ver: false, aviso: 'Entrada guardada', form: this.formVacio() });
       }
     };
   }

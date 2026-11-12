@@ -43,14 +43,6 @@
     border-top: 0;
   }
 
-  .app:not(:has(.open-vault)) .app-status-note {
-    align-items: flex-start;
-    margin-inline-start: 0;
-  }
-
-  .app:not(:has(.open-vault)) .app-status-note .icon {
-    margin-top: 2px;
-  }
 }
 
 /* The totem of the default window is narrow: the title leaves the corner to the settings button. */

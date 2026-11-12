@@ -113,12 +113,13 @@ describe("P8 Ajustes y Acerca de", () => {
     expect(await screen.findByLabelText(/Bloquear la bóveda/)).toBeDefined();
   });
 
-  it("P8: muestra la versión, la licencia GPL-3.0, el aviso de desarrollo y el panel de actualización", async () => {
+  it("P8: muestra la versión, la licencia GPL-3.0 y el panel de actualización, sin aviso de versión de desarrollo", async () => {
     setup();
 
     expect(await screen.findByText("Versión 0.1.0")).toBeDefined();
     expect(screen.getByText(/GPL-3\.0/)).toBeDefined();
-    expect(screen.getByText(/Versión de desarrollo/)).toBeDefined();
+    // Owner's decision of 2026-11-12: the 0.x versions no longer carry the warning.
+    expect(screen.queryByText(/Versión de desarrollo|contraseñas reales/)).toBeNull();
     expect(screen.getByRole("heading", { name: "Actualizaciones" })).toBeDefined();
     expect(screen.getByRole("button", { name: "Buscar actualizaciones" })).toBeDefined();
   });

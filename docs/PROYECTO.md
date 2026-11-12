@@ -176,6 +176,10 @@ Plan y los 5 ADR: **aceptados**. Repo público creado ese día.
 1. **Releases 0.x sin firma Authenticode en un repo público.** E2/E3 piden firma antes del primer usuario externo y
    SignPath exige un release publicado para aceptar la solicitud. **Aceptado:** las 0.x salen marcadas "versión de
    desarrollo: no la uses con tus contraseñas reales"; E2-1 queda ❌ con ese motivo hasta la 1.0.
+   **Cambiado por el dueño el 2026-11-12** (`docs/revisiones/0.1-ronda-2-dueno.md`, punto 2): las 0.x ya no llevan esa
+   marca en la app, el README, el CHANGELOG ni las notas de versión; queda dicho el dato (sin firma de Windows ni
+   auditoría externa hasta la 1.0). E2-1 sigue ❌ hasta la 1.0, aceptado por el dueño. Sigue pendiente y es del dueño
+   la comprobación manual de cada versión: copiar una contraseña y mirar Win+V.
 2. **Con SignPath, Windows muestra "SignPath Foundation" como editor**, no "Kattonavi" (el nombre de la app sí es el nuestro). **Aceptado.**
 3. **Abierta, para la spec 002:** ¿la app confirma el primer uso de cada entrada desde el navegador? Un botón dentro de la
    página no cuenta como gesto seguro (amenaza N2). Se pregunta al empezar la 0.2.

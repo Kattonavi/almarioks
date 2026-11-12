@@ -1,12 +1,12 @@
 # Changelog
 
 Formato: [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/). Versiones: [SemVer](https://semver.org/lang/es/).
-Las versiones 0.x son de desarrollo: no las uses con tus contraseñas reales.
+Las versiones 0.x salen sin firma de Windows y sin auditoría externa, hasta la 1.0.
 
 ## [Unreleased]
 
 ## [0.1.0] - 2026-11-12
-Primera versión que guarda contraseñas. Sigue siendo de desarrollo: no la uses con tus contraseñas reales.
+Primera versión que guarda contraseñas.
 
 ### Added
 - Crear una bóveda KDBX 4 con su nombre, contraseña maestra, archivo llave o ambos, y abrir las hechas con KeePass 2 o

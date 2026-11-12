@@ -2,7 +2,6 @@ import { getVersion } from "@tauri-apps/api/app";
 import { useEffect, useState, type ReactNode } from "react";
 
 import { BrandMark } from "./ui/BrandMark";
-import { WarningIcon } from "./ui/icons";
 
 type VersionState =
   | { readonly kind: "loading" }
@@ -62,10 +61,6 @@ export function App({ children }: { readonly children?: ReactNode }) {
         <p>Gestor de contraseñas local.</p>
         <p aria-live="polite" className="num">
           <VersionText state={state} />
-        </p>
-        <p className="app-status-note">
-          <WarningIcon />
-          Versión de desarrollo: no la uses con tus contraseñas reales.
         </p>
       </footer>
     </div>

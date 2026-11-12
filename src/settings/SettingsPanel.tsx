@@ -5,7 +5,6 @@ import { assertNever } from "../assertNever";
 import type { VaultClient } from "../ipc/client";
 import { errorMessage, type AppError } from "../ipc/errors";
 import { AUTO_LOCK_MINUTES, type AutoLockMinutes } from "../ipc/schemas";
-import { WarningIcon } from "../ui/icons";
 import { UpdatePanel } from "../update/UpdatePanel";
 
 export type SettingsClient = Pick<VaultClient, "settingsGet" | "settingsSet" | "prepareUpdate">;
@@ -266,10 +265,6 @@ export function SettingsPanel({ client, readVersion = getVersion, onSaved, vault
             : version.kind === "ready"
               ? `Versión ${version.version}`
               : "No se pudo leer la versión."}
-        </p>
-        <p className="notice notice-icon">
-          <WarningIcon />
-          Versión de desarrollo: no la uses con tus contraseñas reales.
         </p>
         <p>
           Software libre con licencia GPL-3.0: puedes usarlo, estudiarlo, compartirlo y modificarlo. Tus bóvedas son
