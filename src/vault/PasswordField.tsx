@@ -211,13 +211,25 @@ export function PasswordField({ ref, id, client, hint, invalid, errorId, onWritt
     setGeneratorError(possible(next) ? null : IMPOSSIBLE);
   }
 
-  /** The length, from the slider or as it is typed in the box: both show it. */
-  function changeLength(text: string) {
+  /** The length from the slider: every position is a whole length in range, so it works like any other option. */
+  function slideLength(text: string) {
     setLengthText(text);
     const length = lengthOf(text);
-    // RF-68: half typed ("5" on its way to "50"), empty or out of range: nothing is generated, the core is not asked.
     if (length === null) return;
     changeOptions({ ...options, length }, true);
+  }
+
+  /**
+   * The length as it is typed in the box. It only sets the length: typing never generates. "501" passes through
+   * "50", which is in range, and that must not replace what is in the field (RF-68; walkthrough on the installed
+   * app). "Generar" or Enter generate with it.
+   */
+  function typeLength(text: string) {
+    setLengthText(text);
+    const length = lengthOf(text);
+    // Half typed, empty or out of range: the options keep the last good length, and "Generar" refuses (RF-68).
+    if (length === null) return;
+    setOptions({ ...options, length });
   }
 
   const hintId = `${id}-hint`;
@@ -323,7 +335,7 @@ export function PasswordField({ ref, id, client, hint, invalid, errorId, onWritt
               step={1}
               value={Math.min(options.length, SLIDER_MAX)}
               onChange={(event) => {
-                changeLength(event.target.value);
+                slideLength(event.target.value);
               }}
             />
             <input
@@ -339,7 +351,7 @@ export function PasswordField({ ref, id, client, hint, invalid, errorId, onWritt
               aria-invalid={!lengthValid}
               aria-describedby={`${lengthErrorId} ${lengthHelpId}`}
               onChange={(event) => {
-                changeLength(event.target.value);
+                typeLength(event.target.value);
               }}
             />
           </div>

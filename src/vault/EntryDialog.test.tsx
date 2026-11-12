@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { createClient } from "../ipc/client";
@@ -863,7 +863,7 @@ describe("Diálogo de entrada — la longitud del generador", () => {
     expect(backend.count("generate_password")).toBe(0);
   });
 
-  it("RF-65: teclear la longitud no regenera con un valor a medias, pasar de 64 deja el deslizante al tope y nada pisa una contraseña escrita a mano", async () => {
+  it("RF-65: RF-68: teclear la longitud nunca regenera (ni al pasar por «50» camino de «501»), Enter sí; pasar de 64 deja el deslizante al tope y nada pisa una contraseña escrita a mano", async () => {
     const { backend } = open();
     const first = await generateOnce();
     openOptions();
@@ -874,20 +874,31 @@ describe("Diálogo de entrada — la longitud del generador", () => {
     expect(backend.count("generate_password")).toBe(1);
     expect(passwordField().value).toBe(first);
 
+    // "50" is in range, but it may be on its way to "501": typing sets the length and generates nothing.
     writeLength("50");
-    await waitFor(() => {
-      expect(Array.from(passwordField().value)).toHaveLength(50);
-    });
-    expect(backend.count("generate_password")).toBe(2);
-    expect(lastArgs(backend, "generate_password")).toEqual({ ...DEFAULT_RULES, length: 50 });
     expect(slider().value).toBe("50");
+    writeLength("501");
+    expect(screen.getByText(LENGTH_ERROR)).toBeDefined();
+    // Give a wrongly started generation the time to arrive before saying there was none.
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(backend.count("generate_password")).toBe(1);
+    expect(passwordField().value).toBe(first);
 
-    // Past 64 the slider stays at its end; moving it brings the box with it.
+    // Past 64 the slider stays at its end. Enter in the box generates with what it says.
     writeLength("65");
+    expect(slider().value).toBe("64");
+    expect(passwordField().value).toBe(first);
+    fireEvent.keyDown(lengthBox(), { key: "Enter" });
     await waitFor(() => {
       expect(Array.from(passwordField().value)).toHaveLength(65);
     });
-    expect(slider().value).toBe("64");
+    expect(backend.count("generate_password")).toBe(2);
+    expect(lastArgs(backend, "generate_password")).toEqual({ ...DEFAULT_RULES, length: 65 });
+
+    // The slider is an option like the others: moving it regenerates, and brings the box with it.
     fireEvent.change(slider(), { target: { value: "32" } });
     expect(lengthBox().value).toBe("32");
     await waitFor(() => {

@@ -565,7 +565,10 @@ describe("P5 Entrada — crear y editar", () => {
     expect(backend.entry("entry-github")?.password).toBe(PASSWORD);
     expect(backend.entry("entry-github")?.history).toBe(1);
     const modified = backend.entry("entry-github")?.modified;
-    expect(document.activeElement).toBe(screen.getByRole("button", { name: "Editar" }));
+    // The window of the entry comes back in place of the form and opens in an effect: wait for it.
+    await waitFor(() => {
+      expect(document.activeElement).toBe(screen.getByRole("button", { name: "Editar" }));
+    });
 
     // Confirm again without changing anything: neither the date nor the history move.
     fireEvent.click(screen.getByRole("button", { name: "Editar" }));

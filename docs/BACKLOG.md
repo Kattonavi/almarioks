@@ -98,3 +98,7 @@ Lo que no cabe en la fase va aquí, un renglón por ítem: `- [origen] qué · s
 - [código ronda 2, I-6] `unlockKeySuggestion` y su esquema solo los usan las pruebas (la pantalla usa `unlockKeyProposal`): quitarlos · Bajo
 - [código ronda 2, I-7] Enviar el desbloqueo antes de que llegue la propuesta de llave lo manda sin llave (ventana de milisegundos) · Bajo
 - [diseño ronda 2] Los círculos de las tres opciones de archivo llave usan un color de línea (`--line-2`) como color de selección, contra la regla de que las líneas solo nombran grupos (así está en el prototipo); `--list-w` y `--detail-min-w` quedaron sin uso en `tokens.css`; las fechas van en Overpass y no en mono · Bajo
+- [recorrido ronda 2] Con la ventana de la entrada abierta no se puede bloquear a mano ("Bloquear" queda detrás del modal y no hay atajo); el bloqueo automático sí actúa · Bajo
+- [recorrido ronda 2] "Mostrar contraseña" con un valor de más de un renglón hace crecer la ventana centrada y "Editar" sube unos 24 px: un clic inmediato cae fuera. Anclar la ventana arriba la aparta del prototipo: decidir · Bajo
+- [recorrido ronda 2] Una contraseña larga mostrada se parte en guiones y signos, con renglones desiguales · Bajo
+- [recorrido ronda 2] Sin probar en la app real: "Usar uno mío", llave recordada en una unidad desconectada, el mensaje de 4d (aleatoriedad caída), la entrada de 500 a 1000 × 640, otras escalas y lector de pantalla · por verificar
