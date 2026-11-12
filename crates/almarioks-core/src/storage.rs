@@ -2,7 +2,7 @@
 //!
 //! What creating a vault needs (RF-4, RF-6): create a file only if it does not exist, write it and read it back.
 //! The save path (RF-21 to RF-24, RF-27, RF-33, RF-89) lives in the submodules: [`Disk`] and [`StdDisk`], then
-//! [`read_vault`], [`save_vault`] and [`save_vault_as`], the recovery file and the save queue. They only see
+//! [`read_vault`], [`save_vault`] and [`save_vault_as`], the recovery file and the [`SaveQueue`]. They only see
 //! bytes that are already encrypted: never a key nor a `keepass` type.
 
 use std::{
@@ -78,6 +78,8 @@ impl Drop for CreatedFiles {
 }
 
 mod disk;
+mod queue;
+mod recovery;
 mod save;
 #[cfg(test)]
 mod test_disk;
@@ -85,6 +87,8 @@ mod test_disk;
 mod tests;
 
 pub use disk::{Disk, StdDisk};
+pub use queue::{SaveQueue, SaveTicket, Verifier};
+pub use recovery::{Timestamp, write_recovery};
 pub use save::{
     FailureCause, Fingerprint, SaveError, Saved, read_vault, save_vault, save_vault_as,
 };

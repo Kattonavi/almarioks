@@ -8,11 +8,15 @@
 use std::{
     io::ErrorKind,
     path::{Path, PathBuf},
+    sync::{Arc, mpsc},
+    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
 use super::{
-    FailureCause, Fingerprint, SaveError, read_vault, save_vault, save_vault_as,
+    Disk, FailureCause, Fingerprint, SaveError, SaveQueue, Timestamp, Verifier, read_vault,
+    save_vault, save_vault_as,
     test_disk::{Fault, MemDisk},
+    write_recovery,
 };
 use crate::{
     error::{CoreError, CoreResult},
@@ -24,6 +28,8 @@ use crate::{
 const SAVE_OPS: usize = 7;
 /// Index of the replace of the vault among [`SAVE_OPS`].
 const REPLACE_OP: usize = 5;
+/// No wait in these tests is a "wait for it to pass": this only bounds a channel so a bug fails instead of hanging.
+const GUARD: Duration = Duration::from_secs(30);
 /// Master password of the test vaults (fake data).
 const PASSWORD: &str = "guardar-Prueba-2026";
 
@@ -339,4 +345,217 @@ fn rf_27_a_save_hung_before_the_replace_leaves_the_vault_readable_and_finishes_w
     });
     assert_eq!(disk.get(&vault_path()).unwrap(), v.v2);
     assert_eq!(paths(&disk), vault_and_bak());
+}
+
+// ---- Recovery file (RF-33) ----
+
+#[test]
+fn rf_33_recovery_file_is_named_by_the_clock_and_never_replaces_another() {
+    let v = versions();
+    let disk = disk_with(&v.v0, None);
+    let now = Timestamp::new(2026, 11, 11, 8, 30, 5).unwrap();
+
+    let first = write_recovery(&disk, &vault_path(), &v.v1, now).unwrap();
+    let second = write_recovery(&disk, &vault_path(), &v.v2, now).unwrap();
+
+    assert_eq!(first, sibling(".recuperacion-20261111-083005.kdbx"));
+    assert_eq!(second, sibling(".recuperacion-20261111-083005-2.kdbx"));
+    assert_eq!(
+        disk.get(&first).unwrap(),
+        v.v1,
+        "the first one is not replaced"
+    );
+    opens(&disk.get(&second).unwrap(), &v.key).unwrap();
+    assert_eq!(disk.get(&vault_path()).unwrap(), v.v0);
+}
+
+#[test]
+fn rf_33_recovery_that_cannot_be_written_is_guardado_fallido() {
+    let v = versions();
+    let disk = MemDisk::default();
+    disk.fault_at(0, Fault::Fail(ErrorKind::StorageFull));
+    let now = Timestamp::new(2026, 11, 11, 8, 30, 5).unwrap();
+    assert_eq!(
+        write_recovery(&disk, &vault_path(), &v.v1, now).unwrap_err(),
+        CoreError::GuardadoFallido
+    );
+    assert!(paths(&disk).is_empty());
+}
+
+#[test]
+fn rf_33_the_clock_gives_aaaammdd_hhmmss() {
+    let at = |seconds| Timestamp::from_system_time_utc(UNIX_EPOCH + Duration::from_secs(seconds));
+    assert_eq!(at(0).unwrap().to_string(), "19700101-000000");
+    assert_eq!(at(1_794_385_805).unwrap().to_string(), "20261111-083005");
+    assert_eq!(at(1_709_251_199).unwrap().to_string(), "20240229-235959");
+    assert!(Timestamp::new(2025, 2, 29, 0, 0, 0).is_err());
+    assert!(Timestamp::new(2026, 13, 1, 0, 0, 0).is_err());
+    assert!(Timestamp::new(2026, 1, 1, 24, 0, 0).is_err());
+    assert!(Timestamp::from_system_time_utc(SystemTime::now()).is_ok());
+}
+
+// ---- Save queue (RF-89, RF-30) ----
+
+/// Its own copy of the key: the queue must be able to drop it (`VaultKey` is not `Clone` on purpose).
+fn verifier() -> Verifier {
+    let key = key(PASSWORD);
+    Arc::new(move |bytes: &[u8]| opens(bytes, &key))
+}
+
+fn queue(disk: &Arc<MemDisk>, confirmed: &[u8], verifier: Verifier) -> SaveQueue {
+    let disk: Arc<dyn Disk> = Arc::clone(disk) as Arc<dyn Disk>;
+    SaveQueue::start(disk, vault_path(), Fingerprint::of(confirmed), verifier).unwrap()
+}
+
+/// Arms a hang at the `nth` operation; returns (entered, release).
+fn hang_at(disk: &MemDisk, nth: usize) -> (mpsc::Receiver<()>, mpsc::SyncSender<()>) {
+    let (entered_tx, entered) = mpsc::sync_channel(1);
+    let (release, release_rx) = mpsc::sync_channel(1);
+    disk.fault_at(
+        nth,
+        Fault::Hang {
+            entered: entered_tx,
+            release: release_rx,
+        },
+    );
+    (entered, release)
+}
+
+#[test]
+fn rf_89_saves_run_one_after_another_and_the_file_ends_with_the_last_state() {
+    let v = versions();
+    let disk = Arc::new(disk_with(&v.v0, None));
+    let queue = queue(&disk, &v.v0, verifier());
+
+    queue.submit(v.v1.clone()).wait().unwrap();
+    let last = queue.submit(v.v2.clone()).wait().unwrap();
+
+    assert_eq!(last.fingerprint, Fingerprint::of(&v.v2));
+    assert_eq!(queue.confirmed(), Fingerprint::of(&v.v2));
+    assert!(queue.unconfirmed().is_none());
+    assert_eq!(disk.get(&vault_path()).unwrap(), v.v2);
+    assert_eq!(disk.get(&sibling(".bak")).unwrap(), v.v1);
+    queue.shutdown().unwrap();
+}
+
+#[test]
+fn rf_89_saves_that_arrive_during_a_save_wait_their_turn_and_none_is_lost() {
+    let v = versions();
+    let third = new_vault(&v.key);
+    let disk = Arc::new(disk_with(&v.v0, None));
+    let (entered, release) = hang_at(&disk, 1); // writing the temporary file of the first save
+    let queue = queue(&disk, &v.v0, verifier());
+
+    let first = queue.submit(v.v1.clone());
+    entered.recv_timeout(GUARD).unwrap();
+    let second = queue.submit(v.v2.clone());
+    let newest = queue.submit(third.clone());
+    assert_eq!(queue.unconfirmed().unwrap().as_slice(), third.as_slice());
+    release.send(()).unwrap();
+
+    assert_eq!(first.wait().unwrap().fingerprint, Fingerprint::of(&v.v1));
+    // The newest state already holds the second one: both tickets get the result of that write.
+    assert_eq!(second.wait().unwrap().fingerprint, Fingerprint::of(&third));
+    assert_eq!(newest.wait().unwrap().fingerprint, Fingerprint::of(&third));
+    assert_eq!(disk.get(&vault_path()).unwrap(), third);
+    assert_eq!(disk.get(&sibling(".bak")).unwrap(), v.v1);
+    assert!(queue.unconfirmed().is_none());
+    queue.shutdown().unwrap();
+}
+
+#[test]
+fn rf_30_with_the_disk_hung_the_unconfirmed_bytes_come_out_at_once_and_the_key_is_released() {
+    let v = versions();
+    let disk = Arc::new(disk_with(&v.v0, None));
+    let (entered, release) = hang_at(&disk, 1);
+    let verify = verifier();
+    let held = Arc::downgrade(&verify);
+    let queue = queue(&disk, &v.v0, verify);
+
+    let hung = queue.submit(v.v1.clone());
+    entered.recv_timeout(GUARD).unwrap();
+    let waiting = queue.submit(v.v2.clone());
+
+    let started = Instant::now();
+    assert_eq!(queue.unconfirmed().unwrap().as_slice(), v.v2.as_slice());
+    let for_recovery = queue.close().unwrap();
+    assert!(started.elapsed() < Duration::from_secs(1), "RF-30: ≤ 1 s");
+    assert_eq!(for_recovery.as_slice(), v.v2.as_slice());
+    assert!(
+        held.upgrade().is_none(),
+        "rule 7 / D12: the key is not held by the hung save"
+    );
+    assert_eq!(waiting.wait_timeout(GUARD), Some(Err(SaveError::Closed)));
+    assert_eq!(SaveError::Closed.code(), CoreError::Bloqueada);
+
+    // The disk comes back: the hung save cannot verify any more and the vault stays as it was.
+    release.send(()).unwrap();
+    assert_eq!(
+        hung.wait(),
+        Err(SaveError::Failed(FailureCause::Verification))
+    );
+    assert_eq!(disk.get(&vault_path()).unwrap(), v.v0);
+    queue.shutdown().unwrap();
+
+    // RF-33: the copy already encrypted goes to the recovery file, and it opens with the key.
+    let now = Timestamp::new(2026, 11, 11, 8, 30, 5).unwrap();
+    let recovery = write_recovery(disk.as_ref(), &vault_path(), &for_recovery, now).unwrap();
+    opens(&disk.get(&recovery).unwrap(), &v.key).unwrap();
+}
+
+#[test]
+fn rf_23_a_failed_save_keeps_its_bytes_unconfirmed_and_a_retry_writes_them() {
+    let v = versions();
+    let disk = Arc::new(disk_with(&v.v0, None));
+    disk.fault_at(1, Fault::Fail(ErrorKind::StorageFull));
+    let queue = queue(&disk, &v.v0, verifier());
+
+    assert_eq!(
+        queue.submit(v.v1.clone()).wait(),
+        Err(SaveError::Failed(FailureCause::Io))
+    );
+    assert_eq!(queue.unconfirmed().unwrap().as_slice(), v.v1.as_slice());
+    assert_eq!(disk.get(&vault_path()).unwrap(), v.v0);
+
+    queue.submit(v.v1.clone()).wait().unwrap();
+    assert!(queue.unconfirmed().is_none());
+    assert_eq!(disk.get(&vault_path()).unwrap(), v.v1);
+    queue.shutdown().unwrap();
+}
+
+#[test]
+fn rf_24_after_an_external_change_the_queue_stops_writing() {
+    let v = versions();
+    let disk = Arc::new(disk_with(&v.v0, None));
+    let queue = queue(&disk, &v.v0, verifier());
+    disk.put(&vault_path(), &v.v2); // another app
+
+    assert_eq!(
+        queue.submit(v.v1.clone()).wait(),
+        Err(SaveError::ExternalChange)
+    );
+    let ops = disk.op_count();
+    assert_eq!(
+        queue.submit(v.v1.clone()).wait(),
+        Err(SaveError::ExternalChange)
+    );
+    assert_eq!(
+        disk.op_count(),
+        ops,
+        "the second one does not touch the disk"
+    );
+    assert_eq!(queue.unconfirmed().unwrap().as_slice(), v.v1.as_slice());
+    assert_eq!(disk.get(&vault_path()).unwrap(), v.v2);
+    queue.shutdown().unwrap();
+}
+
+#[test]
+fn rf_30_a_closed_queue_answers_bloqueada() {
+    let v = versions();
+    let disk = Arc::new(disk_with(&v.v0, None));
+    let queue = queue(&disk, &v.v0, verifier());
+    assert!(queue.close().is_none(), "nothing was pending");
+    assert_eq!(queue.submit(v.v1.clone()).wait(), Err(SaveError::Closed));
+    assert_eq!(disk.get(&vault_path()).unwrap(), v.v0);
+    queue.shutdown().unwrap();
 }
