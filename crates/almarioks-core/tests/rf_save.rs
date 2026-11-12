@@ -72,7 +72,7 @@ fn verify(bytes: &[u8]) -> Result<(), CoreError> {
 }
 
 fn new_vault() -> Vec<u8> {
-    kdbx::create_vault(&key(), NewVaultKdf::with_iterations(2).unwrap()).unwrap()
+    kdbx::create_vault(&key(), "Cuentas", NewVaultKdf::with_iterations(2).unwrap()).unwrap()
 }
 
 /// `base` (made by the core) with `count` entries more, saved by the library with the same key and settings.

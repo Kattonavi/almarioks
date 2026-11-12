@@ -46,7 +46,7 @@ fn key(password: &str) -> VaultKey {
 }
 
 fn new_vault(key: &VaultKey) -> Vec<u8> {
-    kdbx::create_vault(key, NewVaultKdf::with_iterations(2).unwrap()).unwrap()
+    kdbx::create_vault(key, "Cuentas", NewVaultKdf::with_iterations(2).unwrap()).unwrap()
 }
 
 fn opens(bytes: &[u8], key: &VaultKey) -> CoreResult<()> {
