@@ -13,7 +13,7 @@ use secrecy::SecretString;
 use uuid::Uuid;
 
 use crate::{
-    error::{CoreError, CoreResult},
+    error::{CoreError, CoreResult, Field, FieldError},
     text,
 };
 
@@ -269,15 +269,24 @@ pub enum Deletion {
 /// # Errors
 /// [`CoreError::NombreVacio`], [`CoreError::CampoMuyLargo`] or [`CoreError::CaracterNoPermitido`], in that order.
 pub fn check_group_name(name: &str) -> CoreResult<String> {
+    validate_group_name(name).map_err(CoreError::from)
+}
+
+/// [`check_group_name`] with the data of the error: field [`Field::Name`] and, for `CampoMuyLargo`, the limit
+/// (RF-40, plan "Precisiones" 15).
+///
+/// # Errors
+/// The same codes as [`check_group_name`], as a [`FieldError`].
+pub fn validate_group_name(name: &str) -> Result<String, FieldError> {
     let name = text::trim(name);
     if name.is_empty() {
-        return Err(CoreError::NombreVacio);
+        return Err(FieldError::new(CoreError::NombreVacio, Field::Name));
     }
     if text::char_count(name) > GROUP_NAME_MAX_CHARS {
-        return Err(CoreError::CampoMuyLargo);
+        return Err(FieldError::too_long(Field::Name, GROUP_NAME_MAX_CHARS));
     }
     if text::has_forbidden_char(name) {
-        return Err(CoreError::CaracterNoPermitido);
+        return Err(FieldError::new(CoreError::CaracterNoPermitido, Field::Name));
     }
     Ok(name.to_owned())
 }

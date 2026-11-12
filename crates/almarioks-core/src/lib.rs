@@ -16,6 +16,7 @@ pub mod text;
 pub mod vault;
 
 pub use error::{CoreError, CoreResult};
+pub use error::{Field, FieldError};
 
 /// Version of this crate, shared by the whole workspace (`[workspace.package]`).
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
