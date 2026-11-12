@@ -57,6 +57,10 @@ windows = { version = "=0.62.2", features = [
     "Win32_System_Ole",
     "Win32_UI_WindowsAndMessaging",
 ] }
+# WebView2 settings (`src/webview/ffi.rs`, the other module with `unsafe`): Tauri 2.12 does not expose the two
+# that switch off the context menu and the accelerator keys of the browser (D-9). The same crate and version
+# `tauri` and `wry` already bring, so the controller `with_webview` hands over is this type: no new code. MIT.
+webview2-com = "=0.39.1"
 
 # tests/clipboard_win32.rs: asks the WinRT clipboard history whether it kept the canary (RF-72).
 [target.'cfg(windows)'.dev-dependencies]

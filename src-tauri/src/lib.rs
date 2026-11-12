@@ -10,6 +10,7 @@ pub mod clipboard;
 pub mod commands;
 pub mod lock;
 pub mod state;
+pub mod webview;
 
 use clipboard::ClipboardService;
 use commands::{dialogs::SystemDialogs, url::SystemUrlOpener};
@@ -128,6 +129,9 @@ impl<R: Runtime> WebviewReloader for AppWindow<R> {
 /// Verified by hand, once per release: the mock runtime of the tests accepts the call and reloads nothing.
 pub fn reload_main_webview<R: Runtime>(app: &AppHandle<R>) {
     if let Some(window) = app.get_webview_window(MAIN_WINDOW) {
+        // Before the reload, and through the same queue, so the settings are in force for the navigation the
+        // reload starts: no context menu and no keys of the browser (D-9).
+        webview::renew_browser_surface(&window);
         // Best effort: a window that is closing has nothing left to reload.
         drop(window.reload());
     }
@@ -191,10 +195,18 @@ pub fn install<R: Runtime>(app: &AppHandle<R>, parts: AppParts) -> Result<(), Se
 ///
 /// # Errors
 /// Returns the Tauri error if the runtime, a plugin or the main window cannot start.
+///
+/// # Panics
+/// Tauri 2.12 runs the setup hook when the event loop is ready and panics if it fails ("Failed to setup app"):
+/// an error of the hook (the browser surface, the state, the heartbeat) ends the process instead of coming back
+/// from here. Either way the app does not start.
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() -> tauri::Result<()> {
     let app = app_builder(tauri::Builder::default(), plugins())
         .setup(|app| {
+            // First of all, with the window just created and before anybody can use it: no context menu and no
+            // keys of the browser (D-9). An error here stops the start, as the two below do.
+            webview::close_browser_surface(app.handle())?;
             install(app.handle(), system_parts(app.handle())?)?;
             // Only the real app has the heartbeat: the tests evaluate the timer by hand, with their own clocks.
             lock::start_heartbeat(app.state::<AppState>().lock_center())?;

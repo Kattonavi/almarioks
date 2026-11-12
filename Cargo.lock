@@ -62,6 +62,7 @@ dependencies = [
  "tauri-plugin-updater",
  "thiserror 2.0.21",
  "url",
+ "webview2-com",
  "windows",
  "zeroize",
 ]
