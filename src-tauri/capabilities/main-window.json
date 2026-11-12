@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "main-window",
-  "description": "Main window: read the app version and check/install signed updates on user request. No fs, shell, http or remote access.",
+  "description": "Main window: the commands of src/commands/list.rs, the events of the core, the app version and signed updates on user request. No fs, shell, http, dialog, opener or remote access: file dialogs and opening a URL are done from Rust.",
   "windows": [
     "main"
   ],
@@ -10,8 +10,19 @@
   ],
   "permissions": [
     "core:app:allow-version",
+    "core:event:allow-listen",
     "updater:allow-check",
     "updater:allow-download",
-    "updater:allow-install"
+    "updater:allow-install",
+    "allow-pick-vault-to-open",
+    "allow-pick-vault-to-create",
+    "allow-pick-key-file",
+    "allow-pick-new-key-file",
+    "allow-recent-list",
+    "allow-recent-remove",
+    "allow-password-strength",
+    "allow-generate-password",
+    "allow-settings-get",
+    "allow-settings-set"
   ]
 }
