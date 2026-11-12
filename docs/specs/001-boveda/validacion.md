@@ -10,7 +10,7 @@ externa.
 ## De dónde sale cada prueba
 | Fuente | Qué cubre | Resultado |
 |---|---|---|
-| Pruebas del implementador (`rf_NN_*` en Rust, `it("RF-NN: …")` en la interfaz) | Los 95 requisitos, salvo los tres recortables no hechos | 442 pruebas Rust y 353 de interfaz en verde (tras el pase de interacción) (incluye las independientes de la fila siguiente) |
+| Pruebas del implementador (`rf_NN_*` en Rust, `it("RF-NN: …")` en la interfaz) | Los 95 requisitos, salvo los tres recortables no hechos | 487 pruebas Rust y 428 de interfaz en verde (tras la segunda ronda del dueño) (incluye las independientes de la fila siguiente) |
 | Pruebas independientes desde la spec, sin ver la implementación (`spec_rf_NN_*`) — `validacion-nucleo.md` | Núcleo: bloqueo, guardado, secretos, entradas, grupos, búsqueda, abrir y crear, generador, ajustes | 83 pruebas; 1 defecto (RF-94), corregido |
 | Prueba en la ventana real con la app instalada — `validacion-app.md` | Flujo principal, matriz de completitud, portapapeles real, bloqueo automático, errores visibles, rastro en disco, superficie de navegador | Hito cumplido. Cinco corridas: la primera halló 2 defectos de integración bloqueantes y 6 menores; la de release, el menú contextual y las teclas de navegador de WebView2 (D-9 a D-12); la última comprobó la capa nativa aislada y el valor mostrado no seleccionable. Todos corregidos y reverificados en la app de release |
 | Revisión de código — `docs/revisiones/0.1-codigo.md` | Fidelidad a la spec, constitución regla por regla, preparación para producción | Apta con condiciones; 1 Alto (C-1), corregido |
@@ -35,6 +35,34 @@ Encargo y resultado en `docs/revisiones/0.1-ux-dueno.md`; revisión de seguridad
 
 Sin revisión de código independiente de este delta. La ventana a 1280 × 800 solo se vio para "Crear bóveda" y el
 diálogo (la pantalla del PC de pruebas no da para capturar la bóveda entera a ese tamaño).
+
+## Segunda ronda del dueño (2026-11-12): RF-42, RF-43, RF-65, RF-68 y RF-105 a RF-113
+Encargo y resultado en `docs/revisiones/0.1-ronda-2-dueno.md`; seguridad en `docs/revisiones/0.1-seguridad.md`
+(tres secciones del 2026-11-12) y código en `docs/revisiones/0.1-codigo.md` (sección del 2026-11-12).
+
+| Requisito | Pruebas que lo citan | En la app instalada |
+|---|---|---|
+| RF-42 lista en tabla | `RF-42` (`VaultScreen.test.tsx`) | Medidas de la tabla; sin barra horizontal a 1000 × 640 |
+| RF-43 entrada en una ventana | `RF-43`, `RF-108` | Abre con doble clic, Enter y el botón de la fila; 500 caracteres mostrados completos |
+| RF-65, RF-68 generador de 8 a 500 | `rf_65_*`, `rf_68_*`, `spec_*` (solo cotas), `RF-65`, `RF-68` | 500 de punta a punta, también leídos con KeePassLib; 7, 501 y vacío no generan; teclear la longitud no regenera |
+| RF-105 la contraseña no llega a la lista | 14 (`rf_105_*`, `RF-105`) | 0 hallazgos de 13 contraseñas en el árbol de accesibilidad; máscara igual para 8, 18 y 40 caracteres |
+| RF-106 gestos de doble clic | 11 | Ratón real: contraseña, usuario, sitio, título y fecha; camino de teclado |
+| RF-107 fechas con hora | 3 | "Modificada" cambia al minuto al editar |
+| RF-108 Editar reemplaza la ventana y vuelve | 8 | Esc devuelve el foco a la fila |
+| RF-109 error propio sin aleatoriedad | 6 (`rf_109_*`, `RF-109`) | Sin ejercitar (no se puede tumbar la fuente del sistema) |
+| RF-110 llave junto a la bóveda propuesta | 18 | Viene elegida; se desbloquea escribiendo solo la contraseña |
+| RF-111 llave recordada | 31 (`rf_111_*`, `RF-111`) | Movida y elegida una vez, viene elegida; si falta, lo dice; `settings.json` guarda solo la ruta |
+| RF-112 mensaje de fallo de desbloqueo | 4 | Texto exacto |
+| RF-113 ruta de la llave antes de crear | 2 | Las dos rutas a la vista; sin barra a 1120 × 720 |
+
+Calidad del generador (punto 4): uniformidad con 9 000 000 de caracteres a ±2 % para el alfabeto completo y sin
+parecidos; subconjuntos de tipos con 40 000 por carácter a ±3 %; primera y última posición a ±15 %; las pruebas
+rechazan un generador con +3 % en un carácter y otro que pone primero una minúscula. Límite conocido: solo miden
+frecuencias marginales. En la app instalada: 200 generadas, todas distintas, de 20 y con los cuatro tipos; rastro
+en disco en cero.
+
+Sin ejercitar en la app instalada: "Usar uno mío", llave recordada en una unidad desconectada, RF-109, otras
+escalas y lector de pantalla.
 
 ## Requisitos sin prueba automática
 - **Recortables no hechos:** RF-37 (bloqueo inmediato al bloquear la sesión de Windows), RF-85 (ver el historial),
