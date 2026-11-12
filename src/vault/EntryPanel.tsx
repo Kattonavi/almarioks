@@ -360,12 +360,14 @@ export function EntryPanel({
         <div>
           <dt>Usuario</dt>
           <dd>
-            <span>{shown(entry.username, "(vacío)")}</span>
+            <span title={entry.username === null || entry.username === "" ? undefined : entry.username}>{shown(entry.username, "(vacío)")}</span>
             {entry.username !== null && entry.username !== "" && (
               <span className="field-actions">
-                <button type="button" onClick={() => void copy("UserName")}>
+                <button type="button" aria-label="Copiar usuario" onClick={() => void copy("UserName")}>
                   <CopyIcon />
-                  Copiar usuario
+                  <span>
+                    Copiar<span className="label-more"> usuario</span>
+                  </span>
                 </button>
               </span>
             )}
@@ -410,10 +412,13 @@ export function EntryPanel({
                         type="button"
                         ref={field === "Password" ? copyPasswordRef : undefined}
                         className={field === "Password" ? "btn-primary" : undefined}
+                        aria-label={`Copiar ${nameOf(field)}`}
                         onClick={() => void copy(field)}
                       >
                         <CopyIcon />
-                        Copiar {nameOf(field)}
+                        <span>
+                          Copiar<span className="label-more"> {nameOf(field)}</span>
+                        </span>
                       </button>
                     </span>
                   </dd>
@@ -429,12 +434,16 @@ export function EntryPanel({
         <div>
           <dt>URL</dt>
           <dd>
-            <span className="path">{shown(entry.url, "(vacía)")}</span>
+            <span className="path" title={entry.url === null || entry.url === "" ? undefined : entry.url}>
+              {shown(entry.url, "(vacía)")}
+            </span>
             {entry.url !== "" && (
               <span className="field-actions">
-                <button type="button" onClick={() => void openUrl()}>
+                <button type="button" aria-label="Abrir URL en el navegador" onClick={() => void openUrl()}>
                   <OpenLinkIcon />
-                  Abrir URL en el navegador
+                  <span>
+                    Abrir<span className="label-more"> URL en el navegador</span>
+                  </span>
                 </button>
               </span>
             )}

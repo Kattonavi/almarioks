@@ -803,7 +803,7 @@ function EntryTable({ items, groupPaths, badgeOf, stamped, selectedId, onSelect,
                 >
                   {formatDay(entry.modified)}
                 </time>
-                {stamped?.entryId === entry.id && <span className="stamp">Copiado · {stamped.seconds} s</span>}
+                {stamped?.entryId === entry.id && <span className="stamp"><span className="stamp-word">Copiado</span> · {stamped.seconds} s</span>}
               </td>
             </tr>
           ))}
