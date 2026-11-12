@@ -229,3 +229,52 @@ Calibración en debug (`cargo run --bin p4_keepass`) y en debug con `rust-argon2
 5. KDBX 3.1: `get_version` al abrir → modo solo lectura; convertir = clonar + `config` nuevo + guardar en otra ruta.
 
 ---
+
+## P3. Guardado atómico en Windows con `std`, sin `unsafe` (RF-21, RF-22, RF-23, RF-27)
+
+**Fuente:** https://doc.rust-lang.org/std/fs/fn.rename.html (en Windows reemplaza un archivo destino existente),
+https://doc.rust-lang.org/std/fs/fn.copy.html (copia también los permisos) y
+https://doc.rust-lang.org/std/fs/struct.File.html#method.sync_all. `ReplaceFileW` conserva el respaldo en una sola
+llamada, pero es FFI con `unsafe` y el núcleo lo prohíbe: se resolvió con `std`. Hecho por el hilo principal.
+
+### Respuestas
+- `std::fs::rename` sobre un destino existente **lo reemplaza** en un paso (probado en NTFS).
+- `sync_all` del temporal antes de renombrar: sí, para que el contenido esté en disco antes de que el nombre apunte a él.
+- **Si otro proceso tiene abierto el destino sin `FILE_SHARE_DELETE`** (un editor, un antivirus), `rename` falla con
+  `PermissionDenied` (error 5) y la bóveda queda intacta: es un `GuardadoFallido` normal. Con `FILE_SHARE_DELETE`
+  (como abre KeePass al leer) el reemplazo funciona.
+- **Un destino con atributo de solo lectura** también da `PermissionDenied`.
+- **Orden del respaldo.** La primera versión del ejercicio promovía la copia a `.bak` antes del reemplazo final: cuando
+  el reemplazo falló, el respaldo viejo ya se había perdido (`bak = v3` con la bóveda en `v3`). Orden corregido:
+  1. escribir `<bóveda>.tmp`, `sync_all`, releer y descifrar;
+  2. `fs::copy(bóveda, <bóveda>.bak.tmp)` y quitarle el atributo de solo lectura a la copia (`fs::copy` lo hereda y un
+     `.bak` de solo lectura hace fallar el siguiente guardado: pasó en el ejercicio);
+  3. `rename(tmp → bóveda)`;
+  4. solo si 3 salió bien, `rename(bak.tmp → bak)`.
+  La bóveda nunca deja de existir, y si 3 falla el `.bak` anterior sigue ahí.
+- Un temporal sobrante de un corte anterior no afecta la bóveda y el siguiente guardado lo reemplaza.
+
+### Salida real (`cargo run --release --bin p3_atomic`)
+```
+== P3 guardado atomico con std (sin unsafe) ==
+  tras guardar v2: boveda=v2 bak=v1
+  tras guardar v3: boveda=v3 bak=v2
+  archivos en la carpeta: ["cuentas.kdbx", "cuentas.kdbx.bak"]
+== destino abierto por otro (handle sin FILE_SHARE_DELETE, como el Bloc de notas o un antivirus) ==
+  guardar v4 -> Err((PermissionDenied, Some(5))) | boveda sigue = v3 | bak = v2
+  temporal que queda: true
+== destino abierto por otro CON FILE_SHARE_DELETE (como KeePass al leer) ==
+  guardar v5 -> Ok(()) | boveda = v5
+== carpeta de solo lectura simulada: destino con atributo de solo lectura ==
+  guardar v6 -> Err((PermissionDenied, Some(5))) | boveda = v5
+== corte entre escribir el temporal y renombrar (se simula no llamando a rename) ==
+  boveda = v5 (el temporal sobrante no la afecta y el siguiente guardado lo pisa)
+  tras guardar v7: boveda=v7 bak=v5
+```
+
+### Qué cambia en el diseño
+`almarioks-core::storage` usa el orden de 4 pasos de arriba, limpia el temporal cuando el guardado falla y trata
+`PermissionDenied` como `GuardadoFallido` con un mensaje que sugiere cerrar la otra app que tiene el archivo abierto.
+No probado: unidades de red, FAT/exFAT y carpetas sincronizadas (OneDrive, Dropbox).
+
+---
