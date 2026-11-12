@@ -490,8 +490,7 @@
 }
 
 .entry-form .field > .error:empty,
-.entry-form > .error:empty,
-.generator-result:empty {
+.entry-form > .error:empty {
   display: none;
 }
 

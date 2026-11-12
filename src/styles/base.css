@@ -341,10 +341,6 @@ legend {
  * ---- Strength. It reads by hatch and by its text, never by colour alone: each level has its own pattern (upright
  * and sparse, slanted and thin, slanted and dense), and the words sit next to it. ----
  */
-.strength:empty {
-  display: none;
-}
-
 .strength-line {
   display: flex;
   flex-wrap: wrap;
@@ -544,8 +540,8 @@ dialog:has(.settings) {
   width: 7rem;
 }
 
-.settings .error:empty,
-.settings [role="status"]:empty {
+/* Only the alerts fold away while empty: a polite live region stays rendered, or its next text is not announced. */
+.settings .error:empty {
   display: none;
 }
 
