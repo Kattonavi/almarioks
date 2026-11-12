@@ -28,6 +28,8 @@ sha2 = "=0.11.1"
 getrandom = "=0.4.3"
 hex = "=0.4.3"
 quick-xml = "=0.42.0"
+# sha2 is also the content fingerprint of `almarioks-core::storage` (RF-24): a SHA-256 of bytes already encrypted,
+# to notice that another app rewrote the file. It is not vault crypto and protects nothing (constitution rule 4).
 
 [workspace.lints.rust]
 unsafe_code = "forbid"         # only an `ffi` module may lower it, block by block
