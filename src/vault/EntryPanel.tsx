@@ -527,14 +527,14 @@ export function EntryPanel({
         </button>
         <button
           type="button"
-          className="btn-danger"
+          className={inBin ? "btn-danger" : "btn-to-bin"}
           onClick={() => {
             if (inBin) setDialog({ kind: "delete" });
             else void remove(entry, false);
           }}
         >
           <TrashIcon />
-          {inBin ? "Borrar definitivamente…" : "Borrar entrada"}
+          {inBin ? "Borrar definitivamente…" : "Enviar a la papelera"}
         </button>
       </div>
       )}

@@ -436,6 +436,21 @@
   margin-top: var(--space-6);
 }
 
+/*
+ * Sending an entry to the bin can be undone, so in its resting state it reads like the other actions: red only under
+ * the pointer and with focus. Inside the bin, "Borrar definitivamente…" keeps the red border of `.btn-danger`.
+ */
+.entry-actions > .btn-to-bin:hover:not(:disabled) {
+  color: var(--on-danger);
+  background: var(--danger);
+  border-color: var(--danger);
+}
+
+.entry-actions > .btn-to-bin:focus-visible:not(:hover) {
+  color: var(--danger);
+  border-color: var(--danger);
+}
+
 .entry-status p {
   margin: var(--space-4) 0 0;
   font-size: var(--text-sm);
