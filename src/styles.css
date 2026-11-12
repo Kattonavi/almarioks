@@ -5,64 +5,7 @@
 @import "./styles/tokens.css";
 @import "./styles/theme-dark.css" (prefers-color-scheme: dark);
 @import "./styles/base.css";
-
-/* Layout of the screens that have not been composed yet: one readable column. */
-main {
-  max-width: var(--content-width);
-  margin: 0 auto;
-  padding: var(--space-8) var(--space-6);
-}
-
-.vault {
-  display: grid;
-  gap: var(--space-4);
-}
-
-.vault-zones {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
-  gap: var(--space-6);
-}
-
-.vault-zone {
-  min-width: 0;
-}
-
-.groups {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.groups .groups {
-  padding-inline-start: var(--space-4);
-}
-
-.groups button {
-  margin-block: var(--space-1);
-  text-align: start;
-}
-
-.groups button[aria-current="true"],
-table button[aria-current="true"] {
-  font-weight: var(--weight-display);
-}
-
-.table-scroll {
-  overflow-x: auto;
-}
-
-table {
-  border-collapse: collapse;
-}
-
-th,
-td {
-  padding: var(--space-1) var(--space-2);
-  text-align: start;
-  vertical-align: top;
-  overflow-wrap: anywhere;
-}
+@import "./styles/shell.css";
 
 .recent {
   display: grid;

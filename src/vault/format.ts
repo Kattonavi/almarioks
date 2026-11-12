@@ -17,6 +17,14 @@ export function formatDate(iso: string): string {
   return Number.isNaN(date.getTime()) ? iso : DATE_FORMAT.format(date);
 }
 
+const DAY_FORMAT = new Intl.DateTimeFormat("es-CO", { dateStyle: "medium" });
+
+/** The day alone, for a row of the entry list; the full date and time stay in the detail. */
+export function formatDay(iso: string): string {
+  const date = new Date(iso);
+  return Number.isNaN(date.getTime()) ? iso : DAY_FORMAT.format(date);
+}
+
 export function strengthLabel(score: number): string {
   return ["muy débil", "débil", "regular", "buena", "muy buena"][score] ?? "";
 }

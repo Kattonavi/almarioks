@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 
 import { assertNever } from "../assertNever";
 import type { Unlisten, VaultClient } from "../ipc/client";
 import { errorMessage, type AppError, type Result } from "../ipc/errors";
 import type { Recovery, SaveState, VaultStatus } from "../ipc/schemas";
+import { LockIcon, WarningIcon } from "../ui/icons";
 import { Dialog } from "./Dialog";
 import { RecoveryNotice } from "./RecoveryNotice";
 import { fileNameOf, type VaultRef } from "./state";
@@ -79,6 +80,8 @@ interface OpenVaultProps {
   readonly onDismissWeak: () => void;
   readonly begin: () => Guard;
   readonly onLock: () => void;
+  /** Controls that are not the vault's own (settings): they sit at the end of the top bar, after "Bloquear". */
+  readonly tools?: ReactNode;
 }
 
 /**
@@ -208,22 +211,20 @@ export function OpenVault(props: OpenVaultProps) {
 
   const problem = save.kind === "failed" || save.kind === "external" ? save : null;
 
-  return (
-    <section aria-labelledby="vault-title">
-      <h2 id="vault-title" ref={titleRef} tabIndex={-1}>
-        {props.name === "" ? vault.fileName : props.name}
-      </h2>
-      <p className="path">{vault.path}</p>
+  /** What the person has to know before working: above the work area, never over it. */
+  const notices = (
+    <>
       {props.recovery !== null && <RecoveryNotice recovery={props.recovery} />}
 
-      <div aria-live="polite">{politeText(save, notice) !== "" && <p>{politeText(save, notice)}</p>}</div>
-
       {problem !== null && (
-        <section aria-labelledby="save-problem-title" className="notice">
+        <section aria-labelledby="save-problem-title" className="notice notice-danger">
           <div role="alert">
             {problem.kind === "failed" ? (
               <>
-                <h3 id="save-problem-title">No se pudo guardar: tus cambios siguen en memoria</h3>
+                <h3 id="save-problem-title">
+                  <WarningIcon />
+                  No se pudo guardar: tus cambios siguen en memoria
+                </h3>
                 <p>
                   El archivo del disco quedó como estaba. Vuelve a intentarlo o guarda la bóveda en otro lugar. Si otra
                   app tiene abierto el archivo (por ejemplo, KeePass o un programa de sincronización), ciérrala y
@@ -232,7 +233,10 @@ export function OpenVault(props: OpenVaultProps) {
               </>
             ) : (
               <>
-                <h3 id="save-problem-title">El archivo cambió en disco</h3>
+                <h3 id="save-problem-title">
+                  <WarningIcon />
+                  El archivo cambió en disco
+                </h3>
                 <p>
                   Otra app modificó el archivo de la bóveda y AlmarioKS no lo sobrescribió. Tus cambios siguen en
                   memoria: guárdalos en otro lugar o recarga el archivo descartando lo pendiente.
@@ -289,7 +293,10 @@ export function OpenVault(props: OpenVaultProps) {
 
       {weakKdf && !props.weakDismissed && (
         <section aria-labelledby="weak-kdf-title" className="notice">
-          <h3 id="weak-kdf-title">Protección débil contra fuerza bruta</h3>
+          <h3 id="weak-kdf-title">
+            <WarningIcon />
+            Protección débil contra fuerza bruta
+          </h3>
           <p>
             Los ajustes de cifrado de esta bóveda son antiguos o usan poca memoria: alguien con una copia del archivo
             podría probar contraseñas mucho más rápido. Tus datos siguen cifrados.
@@ -312,12 +319,39 @@ export function OpenVault(props: OpenVaultProps) {
         </section>
       )}
 
-      <div className="actions">
-        <button type="button" onClick={props.onLock}>
-          Bloquear
-        </button>
+    </>
+  );
+
+  return (
+    <section aria-labelledby="vault-title" className="open-vault">
+      <VaultScreen
+        key={`${vault.path}#${String(props.generation)}`}
+        client={client}
+        readOnly={readOnly}
+        barEnd={
+          <>
+            <button type="button" className="btn-primary" onClick={props.onLock}>
+              <LockIcon />
+              Bloquear
+            </button>
+            {props.tools}
+          </>
+        }
+        railHead={
+          <>
+            <h2 id="vault-title" ref={titleRef} tabIndex={-1}>
+              {props.name === "" ? vault.fileName : props.name}
+            </h2>
+            <p className="path mono">{vault.path}</p>
+          </>
+        }
+        banner={notices}
+      />
+
+      {/* Outside the vault screen on purpose: this live region must not be remounted with it after a reload. */}
+      <div aria-live="polite" className="save-state">
+        {politeText(save, notice) !== "" && <p>{politeText(save, notice)}</p>}
       </div>
-      <VaultScreen key={`${vault.path}#${String(props.generation)}`} client={client} readOnly={readOnly} />
 
       {confirmReload && (
         <Dialog

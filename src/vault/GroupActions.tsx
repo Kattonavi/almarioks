@@ -4,6 +4,7 @@ import { assertNever } from "../assertNever";
 import type { VaultClient } from "../ipc/client";
 import { errorMessage, type AppError, type Result } from "../ipc/errors";
 import type { DeletePreview, GroupNode } from "../ipc/schemas";
+import { EditIcon, MoveIcon, PlusIcon, TrashIcon } from "../ui/icons";
 import { Dialog } from "./Dialog";
 import { groupOptions, isInBin, plural, shown, trailTo } from "./format";
 import { checkGroupName, groupNameText, type GroupNameProblem } from "./rules";
@@ -107,7 +108,8 @@ export function GroupActions({ client, root, group, onChange }: GroupActionsProp
               open({ kind: "create" });
             }}
           >
-            Nuevo grupo…
+            <PlusIcon />
+            <span className="label">Nuevo grupo…</span>
           </button>
         )}
         {!isBin && (
@@ -117,7 +119,8 @@ export function GroupActions({ client, root, group, onChange }: GroupActionsProp
               open({ kind: "rename" });
             }}
           >
-            Renombrar grupo…
+            <EditIcon />
+            <span className="label">Renombrar grupo…</span>
           </button>
         )}
         {!isBin && !isRoot && (
@@ -127,22 +130,26 @@ export function GroupActions({ client, root, group, onChange }: GroupActionsProp
               open({ kind: "move" });
             }}
           >
-            Mover grupo…
+            <MoveIcon />
+            <span className="label">Mover grupo…</span>
           </button>
         )}
         {!isBin && !isRoot && (
-          <button type="button" disabled={busy} onClick={() => void askDelete()}>
-            Borrar grupo…
+          <button type="button" className="btn-danger" disabled={busy} onClick={() => void askDelete()}>
+            <TrashIcon />
+            <span className="label">Borrar grupo…</span>
           </button>
         )}
         {isBin && (
           <button
             type="button"
+            className="btn-danger"
             onClick={() => {
               open({ kind: "empty-bin" });
             }}
           >
-            Vaciar papelera…
+            <TrashIcon />
+            <span className="label">Vaciar papelera…</span>
           </button>
         )}
       </div>

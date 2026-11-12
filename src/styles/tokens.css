@@ -63,6 +63,10 @@
   --on-signal: #ffffff;
   --on-signal-muted: #c3cae0;
   --danger-on-signal: #ff7a85;
+  /* The selected group and the main action of the frame: a white plate with signal text. */
+  --signal-panel: #ffffff;
+  --signal-panel-hover: #dcdcd6;
+  --on-signal-panel: #16181d;
 
   /* ---- Signal panel inside the work area: the selected row and the main action. ---- */
   --panel: #16181d;
