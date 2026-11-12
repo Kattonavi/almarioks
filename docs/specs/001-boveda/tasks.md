@@ -30,7 +30,7 @@ real) → commit → marcar. Las pruebas citan el RF (`rf_NN_…`, `it("RF-NN: �
       Hecho cuando: esas `rf_*` en verde con el disco colgado y con el disco que falla; en ambos el estado queda `Locked` en < 1 s.
 - [ ] T10. Búsqueda. (RF-59 a RF-63, RF-92)
       Hecho cuando: esas `rf_*` en verde, incluido el ejemplo 2 y una propiedad de plegado con semilla fija; 5 000 entradas en < 100 ms (medido y anotado).
-- [ ] T11. Generador y fortaleza. (RF-7, RF-65 a RF-70)
+- [x] T11. Generador y fortaleza. (RF-7, RF-65 a RF-70)
       Hecho cuando: esas `rf_*` en verde, incluido el ejemplo 5 y la estadística con semilla fija.
 - [ ] T12. Ajustes y bóvedas recientes. (RF-19, RF-20, RF-82)
       Hecho cuando: esas `rf_*` en verde, con un archivo de ajustes dañado.
