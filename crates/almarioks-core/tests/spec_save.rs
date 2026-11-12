@@ -144,9 +144,16 @@ fn spec_rf_24_reload_reads_the_other_apps_file_and_drops_what_was_pending() {
     assert!(!open.save_pending, "pending changes were dropped");
     assert_eq!(rig.titles(), Ok(vec!["Ajena".to_owned()]));
     // After the reload the next change is saved over the other app's version.
-    rig.drain();
+    // The reload tells its own state on the listener's thread, maybe after this point: wait for a `Saved` that
+    // comes with nothing pending, not for the first state that arrives.
     rig.add("Después").expect("add");
-    assert_eq!(rig.settle(), SaveState::Saved);
+    loop {
+        let state = rig.settle();
+        assert_eq!(state, SaveState::Saved);
+        if !status_open(rig.session.status()).save_pending {
+            break;
+        }
+    }
     let mut titles = root_titles(&rig.path);
     titles.sort();
     assert_eq!(titles, vec!["Ajena".to_owned(), "Después".to_owned()]);

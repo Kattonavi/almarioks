@@ -26,6 +26,25 @@ fn fixture_key() -> VaultKey {
 }
 
 #[test]
+fn spec_rf_10_kdbx_4_vaults_written_by_keepass_2_open_with_password_and_with_password_plus_key_file()
+ {
+    let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/keepass2");
+    let read = |name: &str| fs::read(dir.join(name)).expect("fixture");
+    let pass = kdbx::open(&read("f-pass.kdbx"), &fixture_key()).expect("RF-10: f-pass opens");
+    assert_eq!(pass.version().major, 4);
+    assert!(pass.entry_count() > 0 && pass.group_count() > 0);
+    let key_file = almarioks_core::kdbx::KeyFile::from_bytes(read("llave.keyx")).expect("key file");
+    let both_key = VaultKey::new(
+        Some(MasterPassword::new(FIXTURE_PASSWORD.to_owned())),
+        Some(key_file),
+    )
+    .expect("key");
+    let both = kdbx::open(&read("f-both.kdbx"), &both_key).expect("RF-10: f-both opens");
+    assert_eq!(both.version().major, 4);
+    assert!(both.entry_count() > 0);
+}
+
+#[test]
 fn spec_rf_14_a_kdbx_3_vault_opens_read_only_and_every_change_is_solo_lectura() {
     let bytes = fixture();
     let mut vault = kdbx::open(&bytes, &fixture_key()).expect("RF-14: KDBX 3.1 opens");

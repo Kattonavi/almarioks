@@ -281,6 +281,11 @@ fn spec_rf_33_a_hung_recovery_write_does_not_hold_the_lock_beyond_its_limit() {
         !matches!(result, Some(Recovery::Saved { .. })),
         "the recovery file was never written, yet the lock says it was: {result:?}"
     );
+    assert!(
+        rig.clock.asked().contains(&Duration::from_secs(5)),
+        "RF-33: the limit asked of the clock is 5 s: {:?}",
+        rig.clock.asked()
+    );
     rig.disk.release();
 }
 

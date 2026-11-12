@@ -20,7 +20,8 @@
   borrados, que no tienen API pública.
 - **Cabeceras hostiles**: se parte de una bóveda creada por el núcleo, se reescribe el TLV de la cabecera KDBX 4 o el
   `VariantDictionary` del KDF y se recalcula el SHA-256 de la cabecera, para que solo falle el campo bajo prueba. Se
-  abre con la llave correcta y se exige respuesta en menos de 1 s (no se derivó).
+  abre con la llave correcta y se exige respuesta en menos de 1 s. Eso demuestra que no se derivó el KDF hostil de
+  RF-16; en los casos de D-1 el núcleo sí llegó a comprobar la llave (respondió `LlaveIncorrecta` en 0,12 s).
 
 ## Resultado por requisito
 | RF | Prueba `spec_` | Resultado |
@@ -29,6 +30,7 @@
 | RF-2 | ídem + `spec_rf_2_calibration_picks_the_iterations_closest_to_one_second` | pasa |
 | RF-3, RF-4, RF-6 | `spec_rf_3_rf_4_rf_6_creation_refuses_without_touching_anything` | pasa |
 | RF-5 | `spec_rf_5_a_new_key_file_is_keyx_v2_with_32_bytes_and_opens_the_vault` | pasa |
+| RF-10 | `spec_rf_10_kdbx_4_vaults_written_by_keepass_2_open_with_password_and_with_password_plus_key_file` (fixtures KeePass 2 `f-pass`, `f-both` + `llave.keyx`) | pasa (KeePassXC no intentado) |
 | RF-11 (ej. 7) | `spec_rf_11_example_7_three_wrong_keys_give_the_same_code_and_text` (núcleo y sesión) | pasa |
 | RF-12 | `spec_rf_12_a_keyx_whose_hash_does_not_match_is_archivo_llave_danado` | pasa |
 | RF-13 | `spec_rf_13_empty_plain_text_and_truncated_files_are_archivo_danado` · `…_header_that_does_not_verify…` · `…_kdb_1_kdbx_2_and_kdbx_5…` | pasa |
@@ -45,7 +47,7 @@
 | RF-27 | `spec_rf_27_if_the_process_dies_at_any_step_the_vault_file_still_opens_with_its_key` | pasa |
 | RF-28 | `spec_rf_28_rf_35_after_lock_every_command_answers_bloqueada_and_nothing_is_written` | pasa |
 | RF-30 | `spec_rf_30_rf_33_lock_with_a_hung_save_…_within_1s…` · `spec_rf_30_a_lock_asked_during_an_unlock_leaves_the_vault_locked` · `spec_rf_33_a_hung_recovery_write…` | pasa |
-| RF-33 | `spec_rf_30_rf_33_…` · `spec_rf_33_rf_34_failed_save_goes_to_a_new_recovery_file_each_time…` · `spec_rf_33_a_hung_recovery_write_does_not_hold_the_lock_beyond_its_limit` · `spec_rf_33_the_recovery_holds_only_encrypted_bytes…` | pasa |
+| RF-33 | `spec_rf_30_rf_33_…` · `spec_rf_33_rf_34_failed_save_goes_to_a_new_recovery_file_each_time…` · `spec_rf_33_a_hung_recovery_write_does_not_hold_the_lock_beyond_its_limit` (pide al reloj una alarma de 5 s; la prueba la suena ella misma, así que demuestra "acotado por el límite de 5 s", no el paso de 5 s reales) · `spec_rf_33_the_recovery_holds_only_encrypted_bytes…` | pasa |
 | RF-34 | `spec_rf_33_rf_34_…` (una sola vez) · `spec_rf_34_when_the_recovery_cannot_be_written_unlock_says_the_changes_were_lost` | pasa |
 | RF-35 | `spec_rf_35_closed_session_answers_bloqueada_to_every_vault_command` · `spec_rf_28_rf_35_…` | pasa |
 | RF-36 | `spec_rf_36_close_does_the_same_as_lock_and_goes_back_to_welcome` | pasa |
@@ -84,7 +86,6 @@
 | RF-94 | `spec_rf_94_a_master_seed_or_iv_of_the_wrong_size_is_archivo_danado` | **DEFECTO** (ignorada) |
 | RF-95 | `spec_rf_95_missing_vault_or_key_file_says_which` | pasa |
 | Definiciones (control) | `spec_definiciones_control_characters_are_rejected_but_tab_and_line_feed_are_not` | pasa |
-| RF-10 | — | no se pudo probar aquí: las bóvedas de KeePass 2/KeePassXC están en `tests/fixtures` pero sin la llave documentada para todas; las cubren las pruebas `roundtrip_*` del implementador (no leídas) |
 | RF-25 | — | no probado (ida y vuelta completa: es de las pruebas `roundtrip_*`) |
 | RF-29 (tiempo), RF-31, RF-32, RF-37 | — | fuera del núcleo: el temporizador, el portapapeles y la vista son de la app; del núcleo solo se comprobó que avisa `SessionEvents::locked` |
 | RF-49, RF-71 a RF-75, RF-78, RF-79, RF-81, RF-83, RF-84 | — | fuera del núcleo o sin API pública en `almarioks-core` (URL, portapapeles, ventana, Tauri) |
@@ -97,16 +98,22 @@
   responderá `ArchivoDanado` y la app seguirá funcionando." (RF-94).
 - **Qué hace el núcleo:** con el `MasterSeed` (campo 4) de 31 bytes en vez de 32, o el IV de ChaCha20 (campo 7) de
   11 bytes en vez de 12, y la suma SHA-256 de la cabecera recalculada, `kdbx::open` con la llave correcta responde
-  `LlaveIncorrecta`. No se cae ni deriva un KDF hostil; el daño es el mensaje: le dice a la persona que su llave está
+  `LlaveIncorrecta`. No se cae; el daño es el mensaje: le dice a la persona que su llave está
   mal cuando el archivo está dañado, y la empuja a reintentar contraseñas. Los campos de tamaño fijo que la librería
   lee con `byteorder` (cifrado, compresión, ítems del KDF) sí dan `ArchivoDanado`.
 - **Entrada mínima:** una bóveda creada con `kdbx::create_vault`, el campo 4 truncado a 31 bytes, SHA-256 de la
   cabecera recalculado → `kdbx::open(bytes, llave_correcta)` = `Err(LlaveIncorrecta)`.
 - **Matiz:** la fila de casos límite "Cabecera cambiada por alguien que recalcula su suma → `LlaveIncorrecta`" cubre
-  cambiar *valores*; un *tamaño* inválido lo nombra RF-94 de forma específica y KeePass 2 lo rechaza como error de
-  formato. Si el dueño decide que basta con no caerse, se cierra cambiando la prueba, no el código.
+  cambiar *valores*; un *tamaño* inválido lo nombra RF-94 de forma específica. Que KeePass 2 lo rechace como error de
+  formato es **sin verificar**. Puede ser spec ambigua: si el dueño decide que basta con no caerse, se cierra cambiando
+  la prueba, no el código.
 
-Ningún otro defecto: las 81 pruebas restantes pasan.
+Ningún otro defecto: las 82 pruebas restantes pasan.
+
+**Límite de esta validación:** 82 de 83 en verde al primer intento, y el código de producto estaba vedado, así que no
+se rompió el núcleo a propósito para ver fallar cada prueba (ni mutation testing). Su poder de detección se razonó,
+no se midió. Tampoco se probó: un bloqueo con un `mutate` cifrando en vuelo (RF-30, sin gancho para detenerlo a
+mitad), el archivo llave XML versión 1 (RF-87) ni las bóvedas de KeePassXC.
 
 ## API poco clara (no son defectos)
 - **Edición sin cambios y guardado:** `update_entry` devuelve `bool` y quien llama a `Session::mutate` decide entre
@@ -137,4 +144,6 @@ Ningún otro defecto: las 81 pruebas restantes pasan.
 - Para fabricar bóvedas con `keepass` 0.17: el laboratorio `docs/lab/boveda-0.1/src/bin/p4_keepass.rs` (llaves y
   configuración) y las firmas del propio crate `keepass` en el registro de cargo. La contraseña del fixture KDBX 3.1
   salió de `docs/lab/kdbx-roundtrip/correr.ps1`.
-- No se leyeron `tests/rf_*.rs` ni `src/**/tests*.rs`.
+- De las pruebas existentes: las líneas 1 a 30 de `tests/rf_save.rs` (imports, su constante de contraseña y el inicio
+  de su `TempDir`), para ver el estilo de cabecera de un archivo de pruebas. Nada más de `tests/rf_*.rs` ni de
+  `src/**/tests*.rs`.
