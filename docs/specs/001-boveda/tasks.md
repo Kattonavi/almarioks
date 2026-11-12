@@ -31,9 +31,15 @@ real) → commit → marcar. Las pruebas citan el RF (`rf_NN_…`, `it("RF-NN: �
       (T9). Decisiones pendientes: archivo borrado por otra app = `CambioExterno`; fallo al promover el `.bak` = guardado
       hecho con `backup_updated = false`; hora del nombre de recuperación en UTC o local; `PermissionDenied` viaja como
       causa de `GuardadoFallido`, no como código nuevo.
-- [ ] T9. Sesión: `Closed` / `Locked` / `Open`, desbloqueo único, bloqueo que no espera al disco, recuperación desde
+- [x] T9. Sesión: `Closed` / `Locked` / `Open`, desbloqueo único, bloqueo que no espera al disco, recuperación desde
       bytes ya cifrados, aviso al desbloquear. (RF-28, RF-30, RF-33 a RF-36, RF-88)
       Hecho cuando: esas `rf_*` en verde con el disco colgado y con el disco que falla; en ambos el estado queda `Locked` en < 1 s.
+      Hecho (2026-11-11): `almarioks-core::session` (`Session`, `Status`, `SaveState`, `Recovery`, `Applied`, `Clock`,
+      `SessionEvents`) con 21 pruebas `session::tests::rf_*`. Límite medido y documentado en el módulo: una orden en
+      vuelo retiene la bóveda y la llave, como mucho, lo que dura UNA derivación (`to_bytes` ≈ un desbloqueo). Decisiones
+      pendientes: `Ocupada` también para "el bloqueo aún escribe la recuperación" y "un guardado de la sesión anterior
+      sigue en manos del disco"; `ArgumentoInvalido` al desbloquear con una bóveda ya abierta; `ArchivoLlaveDanado` para
+      un archivo llave que existe y no se puede leer; hora del nombre de recuperación en UTC.
 - [ ] T10. Búsqueda. (RF-59 a RF-63, RF-92)
       Hecho cuando: esas `rf_*` en verde, incluido el ejemplo 2 y una propiedad de plegado con semilla fija; 5 000 entradas en < 100 ms (medido y anotado).
 - [x] T11. Generador y fortaleza. (RF-7, RF-65 a RF-70)

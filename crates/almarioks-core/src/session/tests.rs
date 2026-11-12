@@ -627,6 +627,36 @@ fn rf_23_a_failed_save_keeps_the_vault_editable_and_a_retry_saves_it() {
 }
 
 #[test]
+fn rf_89_changes_made_while_a_save_is_being_written_wait_their_turn() {
+    let rig = rig();
+    rig.open();
+    let (entered, release) = hang_at(&rig.disk, WRITE_TMP_OP);
+
+    rig.add("GitHub").unwrap();
+    assert_eq!(rig.next_save(), SaveState::Saving);
+    entered.recv_timeout(GUARD).unwrap();
+    // The change does not wait for the disk: the second one is answered while the first is being written.
+    rig.add("Banco").unwrap();
+    assert_eq!(rig.titles().unwrap(), ["Banco", "GitHub"]);
+    let open = rig.open_status();
+    assert_eq!((open.save, open.save_pending), (SaveState::Saving, true));
+    // Nobody else may take the file while its save thread is writing.
+    assert_eq!(rig.session.reload(), Err(CoreError::Ocupada));
+    assert_eq!(
+        rig.session.save_as(&sibling(".copia.kdbx")),
+        Err(CoreError::Ocupada)
+    );
+
+    release.send(()).unwrap();
+    // One "saved", when the newest change is on disk.
+    assert_eq!(rig.next_save(), SaveState::Saved);
+    assert_eq!(titles_in(&rig.file(&vault_path())), ["Banco", "GitHub"]);
+    assert_eq!(titles_in(&rig.file(&sibling(".bak"))), ["GitHub"]);
+    assert!(!rig.open_status().save_pending);
+    assert!(hold(&rig.saves).try_recv().is_err());
+}
+
+#[test]
 fn rf_24_after_an_external_change_save_as_goes_on_in_the_new_file() {
     let rig = rig();
     rig.open();
