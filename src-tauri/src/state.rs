@@ -8,12 +8,17 @@ use std::{
     sync::{Arc, Mutex, MutexGuard, PoisonError},
 };
 
-use almarioks_core::{CoreResult, settings::Settings};
+use almarioks_core::{CoreResult, kdbx::NewVaultKdf, session::Session, settings::Settings};
 
 use crate::{
     clipboard::{ClipboardError, ClipboardService},
     commands::{dialogs::FileDialogs, url::UrlOpener},
+    lock::{IdleClock, LockCenter, LockParts, WebviewReloader, WindowEvents},
 };
+
+/// Chooses the KDF of a new vault (RF-2). Production calibrates it on this machine, which takes seconds; the
+/// tests give a fixed one.
+pub type KdfChooser = dyn Fn() -> CoreResult<NewVaultKdf> + Send + Sync;
 
 /// Name of the settings file inside the app's configuration folder (RF-82).
 pub const SETTINGS_FILE_NAME: &str = "settings.json";
@@ -28,6 +33,12 @@ pub struct AppParts {
     pub dialogs: Arc<dyn FileDialogs>,
     /// Who opens a validated URL (the default browser).
     pub url_opener: Arc<dyn UrlOpener>,
+    /// The clocks of the inactivity lock (RF-29).
+    pub idle_clock: Arc<dyn IdleClock>,
+    /// Who reloads the webview after a lock (RF-32, AMENAZAS W2).
+    pub reloader: Arc<dyn WebviewReloader>,
+    /// The KDF of a vault created or converted here (RF-2).
+    pub new_vault_kdf: Arc<KdfChooser>,
 }
 
 /// The state managed by Tauri: `tauri::State<'_, AppState>` in every command.
@@ -39,19 +50,50 @@ pub struct AppState {
     clipboard: Result<Arc<ClipboardService>, ClipboardError>,
     dialogs: Arc<dyn FileDialogs>,
     url_opener: Arc<dyn UrlOpener>,
-    // The session of the core (the open vault, its lock and the inactivity timer) goes here: T13/T14.
+    /// The session of the core with its lock, its inactivity timer and its events (`crate::lock`).
+    lock: Arc<LockCenter>,
+    new_vault_kdf: Arc<KdfChooser>,
 }
 
 impl AppState {
-    /// Assembles the state.
+    /// Assembles the state: a closed session wired to the clipboard, the settings and `window`.
     #[must_use]
-    pub fn new(parts: AppParts) -> Self {
+    pub fn new(parts: AppParts, window: Arc<dyn WindowEvents>) -> Self {
+        let settings = Arc::new(SettingsStore::new(parts.settings_file));
+        let clipboard = parts.clipboard.map(Arc::new);
+        let lock = Arc::new(LockCenter::new(LockParts {
+            clipboard: clipboard.as_ref().ok().cloned(),
+            settings: Arc::clone(&settings),
+            window,
+            reloader: parts.reloader,
+            clock: parts.idle_clock,
+        }));
         Self {
-            settings: Arc::new(SettingsStore::new(parts.settings_file)),
-            clipboard: parts.clipboard.map(Arc::new),
+            settings,
+            clipboard,
             dialogs: parts.dialogs,
             url_opener: parts.url_opener,
+            lock,
+            new_vault_kdf: parts.new_vault_kdf,
         }
+    }
+
+    /// The session of the core: the vault, open or not.
+    #[must_use]
+    pub fn session(&self) -> Arc<Session> {
+        self.lock.session()
+    }
+
+    /// The lock: who asks for it, the inactivity timer and the exit.
+    #[must_use]
+    pub fn lock_center(&self) -> Arc<LockCenter> {
+        Arc::clone(&self.lock)
+    }
+
+    /// Chooses the KDF of a new vault. Slow in production: call it from `spawn_blocking`.
+    #[must_use]
+    pub fn new_vault_kdf(&self) -> Arc<KdfChooser> {
+        Arc::clone(&self.new_vault_kdf)
     }
 
     /// The settings and recent vaults.

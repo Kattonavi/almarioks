@@ -1,16 +1,21 @@
 //! AlmarioKS desktop app. Thin shell around `almarioks-core`: the commands of the window, the clipboard and the
 //! plugins. The vault itself lives in the core.
 
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 
-use tauri::{AppHandle, Manager, Runtime, plugin::Plugin};
+use almarioks_core::{CoreResult, kdbx::NewVaultKdf};
+use tauri::{AppHandle, Emitter, Manager, RunEvent, Runtime, plugin::Plugin};
 
 pub mod clipboard;
 pub mod commands;
+pub mod lock;
 pub mod state;
 
 use clipboard::ClipboardService;
 use commands::{dialogs::SystemDialogs, url::SystemUrlOpener};
+use lock::{
+    SystemIdleClock, VAULT_LOCKED_EVENT, VAULT_SAVE_STATE_EVENT, WebviewReloader, WindowEvents,
+};
 use state::{AppParts, AppState, SETTINGS_FILE_NAME};
 
 /// What can stop the app from starting.
@@ -79,7 +84,61 @@ pub fn system_parts<R: Runtime>(app: &AppHandle<R>) -> Result<AppParts, SetupErr
         clipboard: system_clipboard(),
         dialogs: Arc::new(SystemDialogs::new(app.clone())),
         url_opener: Arc::new(SystemUrlOpener),
+        idle_clock: Arc::new(SystemIdleClock),
+        reloader: Arc::new(AppWindow(app.clone())),
+        new_vault_kdf: Arc::new(calibrated_kdf),
     })
+}
+
+/// The KDF of a new vault on this machine (RF-2): calibrated the first time a vault is created or converted
+/// (a few seconds) and kept for the rest of the run, since the machine does not change meanwhile.
+fn calibrated_kdf() -> CoreResult<NewVaultKdf> {
+    static CHOSEN: OnceLock<NewVaultKdf> = OnceLock::new();
+    if let Some(kdf) = CHOSEN.get() {
+        return Ok(*kdf);
+    }
+    let kdf = NewVaultKdf::calibrate_on_this_machine()?;
+    Ok(*CHOSEN.get_or_init(|| kdf))
+}
+
+/// The window, as the lock sees it: the events it hears and its reload. Holds only the app handle.
+struct AppWindow<R: Runtime>(AppHandle<R>);
+
+impl<R: Runtime> WindowEvents for AppWindow<R> {
+    fn vault_locked(&self) {
+        // Best effort: with no window left there is nobody to tell, and the vault is locked either way.
+        drop(self.0.emit(VAULT_LOCKED_EVENT, ()));
+    }
+
+    fn save_state(&self, state: &'static str) {
+        // Best effort, as above: `vault_status` still says whether a save is pending.
+        drop(self.0.emit(VAULT_SAVE_STATE_EVENT, state));
+    }
+}
+
+impl<R: Runtime> WebviewReloader for AppWindow<R> {
+    fn reload(&self) {
+        reload_main_webview(&self.0);
+    }
+}
+
+/// Reloads the page of the main window, so nothing a script kept from the vault survives a lock (RF-32,
+/// AMENAZAS W2). `WebviewWindow::reload` only posts a message to the event loop: it does not block the lock.
+///
+/// Verified by hand, once per release: the mock runtime of the tests accepts the call and reloads nothing.
+pub fn reload_main_webview<R: Runtime>(app: &AppHandle<R>) {
+    if let Some(window) = app.get_webview_window(MAIN_WINDOW) {
+        // Best effort: a window that is closing has nothing left to reload.
+        drop(window.reload());
+    }
+}
+
+/// The app is exiting: closes the vault as a lock does and empties the clipboard if its content is ours (RF-36,
+/// RF-75). Waits a bounded time; safe to call more than once.
+pub fn shutdown<R: Runtime>(app: &AppHandle<R>) {
+    if let Some(state) = app.try_state::<AppState>() {
+        state.lock_center().shutdown();
+    }
 }
 
 #[cfg(windows)]
@@ -106,13 +165,14 @@ pub fn app_builder<R: Runtime>(
         .invoke_handler(commands::handler())
 }
 
-/// What the setup hook does once the app exists: hands the state to Tauri and registers the updater. The tests
+/// What the setup hook does once the app exists: hands the state (with a closed session) to Tauri and registers
+/// the updater. The tests
 /// call it themselves with their own parts, because the mock runtime never runs the setup hook.
 ///
 /// # Errors
 /// The updater plugin cannot start.
 pub fn install<R: Runtime>(app: &AppHandle<R>, parts: AppParts) -> Result<(), SetupError> {
-    app.manage(AppState::new(parts));
+    app.manage(AppState::new(parts, Arc::new(AppWindow(app.clone()))));
     // Updater (ADR-0003): nothing is checked at startup. The window asks only when the user clicks,
     // and the plugin verifies the signature against the `pubkey` in tauri.conf.json before installing.
     #[cfg(desktop)]
@@ -126,7 +186,19 @@ pub fn install<R: Runtime>(app: &AppHandle<R>, parts: AppParts) -> Result<(), Se
 /// Returns the Tauri error if the runtime, a plugin or the main window cannot start.
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() -> tauri::Result<()> {
-    app_builder(tauri::Builder::default(), plugins())
-        .setup(|app| install(app.handle(), system_parts(app.handle())?))
-        .run(context())
+    let app = app_builder(tauri::Builder::default(), plugins())
+        .setup(|app| {
+            install(app.handle(), system_parts(app.handle())?)?;
+            // Only the real app has the heartbeat: the tests evaluate the timer by hand, with their own clocks.
+            lock::start_heartbeat(app.state::<AppState>().lock_center())?;
+            Ok(())
+        })
+        .build(context())?;
+    app.run(|app, event| {
+        // `Exit` comes once, after the last window closed and before the process ends.
+        if matches!(event, RunEvent::Exit) {
+            shutdown(app);
+        }
+    });
+    Ok(())
 }

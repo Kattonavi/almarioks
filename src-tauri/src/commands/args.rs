@@ -47,6 +47,20 @@ pub fn expect_no_args(body: &InvokeBody) -> Result<(), AppError> {
     }
 }
 
+/// For an optional field of `args`: absent is `None`, present must be a value of its type. `null` is refused
+/// instead of being read as "absent" (serde's default for `Option`), so a patch says exactly what it changes
+/// (RF-45, RF-80). Use with `#[serde(default, deserialize_with = "present")]`.
+///
+/// # Errors
+/// Whatever `T` answers for the value, `null` included.
+pub(crate) fn present<'de, D, T>(deserializer: D) -> Result<Option<T>, D::Error>
+where
+    D: Deserializer<'de>,
+    T: Deserialize<'de>,
+{
+    T::deserialize(deserializer).map(Some)
+}
+
 /// A secret text argument (a password being typed). It is moved into a [`SecretString`] while it is being read,
 /// so the copy this crate owns is wiped when the command ends; it has no `Debug` that shows it and is never
 /// logged. The copy inside Tauri's request is not ours to wipe (ADR-0002; plan, "Precisiones" 14).

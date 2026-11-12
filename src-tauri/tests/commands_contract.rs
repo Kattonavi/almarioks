@@ -146,11 +146,13 @@ fn rf_79_every_listed_command_reaches_its_handler() {
     let app = app_with(test_parts(&dir));
 
     for command in COMMANDS {
-        // With an empty body a command either answers, or says `ArgumentoInvalido` because it wants `args`.
-        // Both prove the ACL let it through and the handler knows it; Tauri's text would prove the opposite.
+        // With an empty body a command either answers, or says `ArgumentoInvalido` because it wants `args`, or
+        // says `Bloqueada` because it needs an open vault (RF-35, which wins over the arguments). All three prove
+        // the ACL let it through and the handler knows it; Tauri's text would prove the opposite.
         let answer = invoke_plain(&app, command);
         assert!(
-            answer.is_ok() || error_code(&answer) == "ArgumentoInvalido",
+            answer.is_ok()
+                || ["ArgumentoInvalido", "Bloqueada"].contains(&error_code(&answer).as_str()),
             "`{command}` is listed but did not reach its handler: {answer:?}"
         );
     }
@@ -193,6 +195,7 @@ fn rf_79_the_capability_allows_exactly_the_listed_commands() {
     let mut expected: BTreeSet<String> = [
         "core:app:allow-version",
         "core:event:allow-listen",
+        "core:event:allow-unlisten",
         "updater:allow-check",
         "updater:allow-download",
         "updater:allow-install",
@@ -532,6 +535,7 @@ fn rf_84_the_window_has_no_network_file_or_shell_permission() {
         let is_known_plugin_permission = [
             "core:app:allow-version",
             "core:event:allow-listen",
+            "core:event:allow-unlisten",
             "updater:allow-check",
             "updater:allow-download",
             "updater:allow-install",
