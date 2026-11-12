@@ -5,7 +5,10 @@
 
 use std::{
     path::{Path, PathBuf},
-    sync::{Arc, Mutex, MutexGuard, PoisonError},
+    sync::{
+        Arc, Mutex, MutexGuard, PoisonError,
+        atomic::{AtomicU32, Ordering},
+    },
 };
 
 use almarioks_core::{CoreResult, kdbx::NewVaultKdf, session::Session, settings::Settings};
@@ -123,22 +126,43 @@ impl AppState {
     }
 }
 
+/// Writes the settings to their file. Production uses [`Settings::save`]; the tests give one that fails or hangs.
+pub type SettingsWriter = dyn Fn(&Settings, &Path) -> CoreResult<()> + Send + Sync;
+
+/// What [`SettingsStore::auto_lock_minutes`] holds until the file has been read: no choice of the settings is 0.
+const NOT_READ_YET: u32 = 0;
+
 /// The settings file and its lock (RF-82). The file is read once, on first use, and every change is validated,
 /// written and only then kept, all under the same lock.
+///
+/// That lock is held while the file is written, and a disk can hang. The inactivity lock (RF-29) must not wait
+/// for it, so the one value it needs is also kept outside the lock: see [`Self::auto_lock_minutes`].
 ///
 /// Every method may touch the disk: call them from `spawn_blocking`, never straight from an `async` command.
 pub struct SettingsStore {
     file: PathBuf,
+    write: Box<SettingsWriter>,
     current: Mutex<Option<Settings>>,
+    /// The minutes of the inactivity lock as the file has them: stored when the file is first read and after
+    /// every change that reached the disk, never before. [`NOT_READ_YET`] until then.
+    auto_lock_minutes: AtomicU32,
 }
 
 impl SettingsStore {
     /// A store over `file`. Nothing is read yet.
     #[must_use]
-    pub const fn new(file: PathBuf) -> Self {
+    pub fn new(file: PathBuf) -> Self {
+        Self::with_writer(file, Box::new(Settings::save))
+    }
+
+    /// A store over `file` whose changes are written by `write`.
+    #[must_use]
+    pub fn with_writer(file: PathBuf, write: Box<SettingsWriter>) -> Self {
         Self {
             file,
+            write,
             current: Mutex::new(None),
+            auto_lock_minutes: AtomicU32::new(NOT_READ_YET),
         }
     }
 
@@ -155,12 +179,26 @@ impl SettingsStore {
         self.loaded(&mut current).clone()
     }
 
+    /// The minutes of the inactivity lock (RF-29), for the heartbeat and the countdown of the window. Once the
+    /// file has been read this never takes the lock nor touches the disk, so a change that hangs while it is
+    /// written cannot keep the vault from locking. It is the value that is on disk: a change that is still
+    /// being written, or that could not be written, does not count.
+    ///
+    /// Before the first read it reads the file, as [`Self::read`] does.
+    #[must_use]
+    pub fn auto_lock_minutes(&self) -> u32 {
+        match self.auto_lock_minutes.load(Ordering::SeqCst) {
+            NOT_READ_YET => self.read().auto_lock_minutes(),
+            minutes => minutes,
+        }
+    }
+
     /// Applies `change` to a copy, writes the file and only then keeps the copy: all or nothing. If `change`
     /// leaves the settings as they were, nothing is written.
     ///
     /// # Errors
     /// Whatever `change` answers (nothing is kept), or `GuardadoFallido` if the file cannot be written (the
-    /// settings in memory stay as they were).
+    /// settings in memory, and the minutes the inactivity lock reads, stay as they were).
     pub fn update(
         &self,
         change: impl FnOnce(&mut Settings) -> CoreResult<()>,
@@ -170,14 +208,21 @@ impl SettingsStore {
         let mut after = before.clone();
         change(&mut after)?;
         if after != *before {
-            after.save(&self.file)?;
+            (self.write)(&after, &self.file)?;
+            self.auto_lock_minutes
+                .store(after.auto_lock_minutes(), Ordering::SeqCst);
             *before = after.clone();
         }
         Ok(after)
     }
 
     fn loaded<'a>(&self, current: &'a mut Option<Settings>) -> &'a mut Settings {
-        current.get_or_insert_with(|| Settings::load(&self.file))
+        current.get_or_insert_with(|| {
+            let settings = Settings::load(&self.file);
+            self.auto_lock_minutes
+                .store(settings.auto_lock_minutes(), Ordering::SeqCst);
+            settings
+        })
     }
 
     fn lock(&self) -> MutexGuard<'_, Option<Settings>> {

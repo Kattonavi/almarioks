@@ -361,6 +361,29 @@ pub async fn vault_close(state: State<'_, AppState>, request: Request<'_>) -> Re
     .await
 }
 
+/// The window is about to install an update it has downloaded: closes the vault as the exit of the app does
+/// (RF-36, with the recovery file of RF-33) and empties the clipboard if its content is ours (RF-75), because on
+/// Windows the installer ends the process and the app never sees that exit. The window is not told and not
+/// reloaded, and the app goes on working if the installer does not start (`LockCenter::close_for_update`).
+///
+/// May take as long as a recovery file (5 s). Asking again is harmless.
+///
+/// # Errors
+/// `ArgumentoInvalido` if anything comes with the call.
+#[tauri::command]
+pub async fn app_prepare_update(
+    state: State<'_, AppState>,
+    request: Request<'_>,
+) -> Result<(), AppError> {
+    expect_no_args(request.body())?;
+    let center = state.lock_center();
+    blocking(move || {
+        center.close_for_update();
+        Ok(())
+    })
+    .await
+}
+
 /// Converts the open KDBX 3.x vault into a KDBX 4 file at a new path and goes on there; the original file is
 /// not touched (RF-15).
 ///

@@ -61,6 +61,7 @@ fn needs_open_vault(command: &str) -> bool {
         | "vault_open"
         | "vault_lock"
         | "vault_close"
+        | "app_prepare_update"
         | "activity"
         | "pick_vault_to_open"
         | "pick_vault_to_create"
@@ -188,6 +189,8 @@ fn rf_76_no_command_and_no_event_hands_a_protected_value_to_the_window() {
     ] {
         sweep.ok(command, None);
     }
+    // Closes whatever is open before an update: with no vault it has nothing to do, and it answers nothing.
+    assert_eq!(sweep.ok("app_prepare_update", None), Value::Null);
     assert_eq!(sweep.ok("vault_status", None), json!({ "state": "closed" }));
     sweep.ok(
         "recent_remove",
@@ -706,7 +709,13 @@ fn rf_80_the_vault_commands_reject_malformed_arguments_and_change_nothing() {
         let answer = rig.args(command, json!({ "id": bank }));
         assert_eq!(error_code(&answer), "ArgumentoInvalido", "`{command}`");
     }
-    for command in ["vault_status", "vault_lock", "vault_close", "activity"] {
+    for command in [
+        "vault_status",
+        "vault_lock",
+        "vault_close",
+        "app_prepare_update",
+        "activity",
+    ] {
         let answer = rig.args(command, json!({}));
         assert_eq!(error_code(&answer), "ArgumentoInvalido", "`{command}`");
     }

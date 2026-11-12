@@ -1,5 +1,5 @@
 //! The lock as the app runs it (T14; spec 001, section D): by inactivity with clocks the test moves (RF-29 and the
-//! worked example 10), by order of the person (RF-28), on exit (RF-36, RF-75), and what happens around it: the
+//! worked example 10), by order of the person (RF-28), on exit and before an update (RF-36, RF-75), and around it: the
 //! clipboard (RF-31, RF-73), the event and the reload of the webview (RF-32). No test sleeps: the heartbeat that
 //! production runs every second is called by hand.
 
@@ -8,12 +8,27 @@
 
 mod common;
 
-use std::time::Duration;
+use std::{
+    sync::{
+        Arc, Mutex,
+        atomic::{AtomicBool, Ordering},
+        mpsc::channel,
+    },
+    thread,
+    time::Duration,
+};
 
-use almarioks_lib::lock::{IdleTimer, VAULT_LOCKED_EVENT, idle_between};
+use almarioks_core::{CoreError, kdbx::MasterPassword, session::Status, settings::Settings};
+use almarioks_lib::{
+    lock::{
+        IdleTimer, LockCenter, LockParts, VAULT_LOCKED_EVENT, VAULT_SAVE_STATE_EVENT, WindowEvents,
+        idle_between,
+    },
+    state::SettingsStore,
+};
 use common::{
-    error_code,
-    vault::{CANARY, FakeIdleClock, Rig},
+    CountingReloader, TempDir, error_code,
+    vault::{CANARY, FakeIdleClock, PATIENCE, Rig, canary_vault_bytes},
 };
 use serde_json::{Value, json};
 
@@ -371,4 +386,308 @@ fn rf_75_exit_leaves_alone_what_another_app_copied() {
 
     almarioks_lib::shutdown(rig.app.handle());
     assert_eq!(rig.clipboard.text().as_deref(), Some("hola"));
+}
+
+// ---------- RF-36, RF-75 (review 0.1, C-1): the window is about to install an update ----------
+
+/// The recovery files next to the canary vault of `rig`.
+fn recovery_files(rig: &Rig) -> Vec<String> {
+    std::fs::read_dir(rig.dir.path())
+        .unwrap()
+        .map(|entry| entry.unwrap().file_name().to_string_lossy().into_owned())
+        .filter(|name| name.starts_with("canario.kdbx.recuperacion-"))
+        .collect()
+}
+
+#[test]
+fn rf_36_rf_75_prepare_update_closes_the_vault_and_clears_the_clipboard_without_touching_the_window()
+ {
+    let rig = Rig::new("update-prepare");
+    let vault = rig.open_canary_vault();
+    rig.args(
+        "entry_copy",
+        json!({ "id": vault.bank, "field": "Password" }),
+    )
+    .unwrap();
+    assert_eq!(rig.clipboard.text(), Some(format!("{CANARY}-password")));
+
+    // On Windows the installer ends the process and the app never sees that exit: this is the exit.
+    assert_eq!(rig.plain("app_prepare_update"), Ok(Value::Null));
+
+    assert_eq!(
+        rig.plain("vault_status").unwrap(),
+        json!({ "state": "closed" })
+    );
+    assert_eq!(rig.clipboard.text(), None, "RF-75");
+    assert_eq!(
+        error_code(&rig.args("entry_get", json!({ "id": vault.bank }))),
+        "Bloqueada"
+    );
+    // The window holds the downloaded update and is about to install it: a reload would lose it.
+    assert_eq!(rig.reloader.count(), 0);
+    assert_eq!(rig.events.count(VAULT_LOCKED_EVENT), 0);
+    // Nothing was pending: no recovery file.
+    assert_eq!(recovery_files(&rig), Vec::<String>::new());
+
+    // Asking twice is harmless.
+    assert_eq!(rig.plain("app_prepare_update"), Ok(Value::Null));
+    assert_eq!(rig.state(), "closed");
+    assert_eq!(rig.reloader.count(), 0);
+    assert_eq!(rig.events.count(VAULT_LOCKED_EVENT), 0);
+
+    // The page was not reloaded, so it still holds what it had read: the next lock or close tells the window
+    // and reloads it (RF-32), as after any unlock.
+    assert_eq!(rig.plain("vault_close"), Ok(Value::Null));
+    assert_eq!(rig.events.count(VAULT_LOCKED_EVENT), 1);
+    assert_eq!(rig.reloader.count(), 1);
+}
+
+#[test]
+fn rf_36_rf_75_prepare_update_leaves_alone_what_another_app_copied() {
+    let rig = Rig::new("update-other");
+    let vault = rig.open_canary_vault();
+    rig.args(
+        "entry_copy",
+        json!({ "id": vault.bank, "field": "Password" }),
+    )
+    .unwrap();
+    rig.clipboard.other_app_copies("hola");
+
+    rig.plain("app_prepare_update").unwrap();
+    assert_eq!(rig.state(), "closed");
+    assert_eq!(rig.clipboard.text().as_deref(), Some("hola"));
+}
+
+#[test]
+fn rf_36_rf_75_prepare_update_writes_the_recovery_file_of_a_save_that_failed() {
+    let rig = Rig::new("update-recovery");
+    let vault = rig.open_canary_vault();
+    // A folder sits where a save writes its temporary file: every save of this vault fails, on the real disk.
+    let in_the_way = std::path::PathBuf::from(format!("{}.tmp", vault.path));
+    std::fs::create_dir(&in_the_way).unwrap();
+    std::fs::write(in_the_way.join("ocupado"), b"x").unwrap();
+    rig.args(
+        "entry_update",
+        json!({ "id": vault.bank, "title": "Banco 2" }),
+    )
+    .unwrap();
+    rig.events.wait_for(VAULT_SAVE_STATE_EVENT, "\"failed\"");
+    assert_eq!(rig.plain("vault_status").unwrap()["save_pending"], true);
+    assert_eq!(recovery_files(&rig), Vec::<String>::new());
+
+    assert_eq!(rig.plain("app_prepare_update"), Ok(Value::Null));
+
+    // RF-33: by the time the command answers, what was not saved is in its recovery file; the installer may
+    // end the process right after.
+    assert_eq!(rig.state(), "closed");
+    let recovered = recovery_files(&rig);
+    assert_eq!(recovered.len(), 1, "one recovery file: {recovered:?}");
+    assert_eq!(rig.reloader.count(), 0);
+    assert_eq!(rig.events.count(VAULT_LOCKED_EVENT), 0);
+
+    // RF-34: the next unlock says where the changes are.
+    let opened = rig
+        .args(
+            "vault_open",
+            json!({ "path": vault.path, "password": common::vault::master() }),
+        )
+        .unwrap();
+    assert_eq!(opened["recovery"]["kind"], "saved");
+    assert!(
+        opened["recovery"]["path"]
+            .as_str()
+            .unwrap()
+            .ends_with(&recovered[0])
+    );
+}
+
+#[test]
+fn rf_29_rf_36_after_prepare_update_the_vault_opens_again_and_still_locks_by_inactivity() {
+    let rig = Rig::new("update-goes-on");
+    let vault = rig.open_canary_vault();
+    rig.plain("app_prepare_update").unwrap();
+    assert_eq!(rig.state(), "closed");
+
+    // The installer did not start and the person goes on: the app is not left "exiting".
+    rig.idle_clock.advance(HOUR);
+    assert!(!rig.heartbeat(), "a closed vault has nothing to lock");
+    let opened = rig
+        .args(
+            "vault_open",
+            json!({ "path": vault.path, "password": common::vault::master() }),
+        )
+        .unwrap();
+    assert_eq!(opened["state"], "open");
+    assert_eq!(opened["locks_in_seconds"], 300);
+    assert_eq!(
+        rig.args("entry_get", json!({ "id": vault.bank })).unwrap()["title"],
+        "Banco"
+    );
+
+    rig.idle_clock.advance(4 * 60 + 59);
+    assert!(!rig.heartbeat());
+    assert_eq!(rig.state(), "open");
+    rig.idle_clock.advance(1);
+    assert!(
+        rig.heartbeat(),
+        "RF-29: the inactivity lock is still running"
+    );
+    assert_eq!(rig.state(), "locked");
+    // And this lock is an ordinary one: the window is told and reloaded (RF-32).
+    assert_eq!(rig.events.count(VAULT_LOCKED_EVENT), 1);
+    assert_eq!(rig.reloader.count(), 1);
+
+    // The copy of a value is cleared by a later preparation too.
+    rig.args(
+        "vault_open",
+        json!({ "path": vault.path, "password": common::vault::master() }),
+    )
+    .unwrap();
+    rig.args(
+        "entry_copy",
+        json!({ "id": vault.bank, "field": "Password" }),
+    )
+    .unwrap();
+    rig.plain("app_prepare_update").unwrap();
+    assert_eq!(rig.state(), "closed");
+    assert_eq!(rig.clipboard.text(), None);
+}
+
+// ---------- RF-29 (review 0.1, M-1): the inactivity lock does not wait for the settings file ----------
+
+/// A window nobody looks at.
+struct NoWindow;
+
+impl WindowEvents for NoWindow {
+    fn vault_locked(&self) {}
+    fn save_state(&self, _state: &'static str) {}
+}
+
+/// The lock of the app over `settings`, with a clock the test moves, and the canary vault open in its session.
+fn center_with_open_vault(
+    dir: &TempDir,
+    settings: &Arc<SettingsStore>,
+    clock: &FakeIdleClock,
+) -> Arc<LockCenter> {
+    let center = Arc::new(LockCenter::new(LockParts {
+        clipboard: None,
+        settings: Arc::clone(settings),
+        window: Arc::new(NoWindow),
+        reloader: Arc::new(CountingReloader::default()),
+        clock: Arc::new(clock.clone()),
+    }));
+    let path = dir.path().join("canario.kdbx");
+    std::fs::write(&path, canary_vault_bytes()).unwrap();
+    center.unlocking();
+    center
+        .session()
+        .unlock(
+            &path,
+            Some(MasterPassword::new(common::vault::master())),
+            None,
+        )
+        .unwrap();
+    center.activity();
+    center
+}
+
+/// The countdown and one heartbeat, on a thread of their own: a heartbeat that waits for the settings file fails
+/// the test instead of hanging it.
+fn countdown_and_heartbeat(center: &Arc<LockCenter>) -> (u64, bool) {
+    let (answer, answered) = channel();
+    let center = Arc::clone(center);
+    thread::spawn(move || {
+        // The test may have given up waiting.
+        _ = answer.send((center.locks_in_seconds(), center.evaluate()));
+    });
+    answered
+        .recv_timeout(PATIENCE)
+        .expect("the inactivity lock waited for the settings file")
+}
+
+#[test]
+fn rf_29_the_vault_locks_on_time_while_a_change_of_the_settings_hangs_on_the_disk() {
+    let dir = TempDir::new("rf29-hung-settings");
+    // A disk that hangs on the write the test arms, until it is released.
+    let armed = Arc::new(AtomicBool::new(false));
+    let (inside, entered) = channel();
+    let (release, released) = channel::<()>();
+    let gate = Mutex::new((inside, released));
+    let hangs = Arc::clone(&armed);
+    let settings = Arc::new(SettingsStore::with_writer(
+        dir.settings_file(),
+        Box::new(move |settings, file| {
+            if hangs.swap(false, Ordering::SeqCst) {
+                let gate = gate.lock().unwrap();
+                gate.0.send(()).unwrap();
+                gate.1.recv_timeout(PATIENCE).unwrap();
+            }
+            settings.save(file)
+        }),
+    ));
+    settings
+        .update(|settings| settings.set_auto_lock_minutes(1))
+        .unwrap();
+    let clock = FakeIdleClock::default();
+    let center = center_with_open_vault(&dir, &settings, &clock);
+
+    // The person chooses 30 minutes and the write hangs (a configuration folder on a network that went away).
+    armed.store(true, Ordering::SeqCst);
+    let changing = {
+        let settings = Arc::clone(&settings);
+        thread::spawn(move || settings.update(|settings| settings.set_auto_lock_minutes(30)))
+    };
+    entered.recv_timeout(PATIENCE).unwrap();
+
+    clock.advance(59);
+    assert_eq!(countdown_and_heartbeat(&center), (1, false));
+    clock.advance(1);
+    assert_eq!(
+        countdown_and_heartbeat(&center),
+        (0, true),
+        "the minute that is on disk, not the 30 that are not there yet"
+    );
+    assert!(matches!(center.session().status(), Status::Locked { .. }));
+
+    // The write ends: the change is kept, and counts from the next heartbeat.
+    release.send(()).unwrap();
+    let changed = changing.join().unwrap().unwrap();
+    assert_eq!(changed.auto_lock_minutes(), 30);
+    assert_eq!(settings.auto_lock_minutes(), 30);
+    assert_eq!(Settings::load(&dir.settings_file()).auto_lock_minutes(), 30);
+}
+
+#[test]
+fn rf_29_a_change_of_the_settings_that_could_not_be_written_does_not_move_the_inactivity_lock() {
+    let dir = TempDir::new("rf29-failed-settings");
+    let fails = Arc::new(AtomicBool::new(false));
+    let failing = Arc::clone(&fails);
+    let settings = Arc::new(SettingsStore::with_writer(
+        dir.settings_file(),
+        Box::new(move |settings, file| {
+            if failing.load(Ordering::SeqCst) {
+                return Err(CoreError::GuardadoFallido);
+            }
+            settings.save(file)
+        }),
+    ));
+    let clock = FakeIdleClock::default();
+    let center = center_with_open_vault(&dir, &settings, &clock);
+    // Read from a file that is not there yet: the default.
+    assert_eq!(settings.auto_lock_minutes(), 5);
+
+    fails.store(true, Ordering::SeqCst);
+    let refused = settings.update(|settings| settings.set_auto_lock_minutes(30));
+    assert_eq!(refused.map(drop), Err(CoreError::GuardadoFallido));
+    assert_eq!(settings.auto_lock_minutes(), 5);
+    assert_eq!(settings.read().auto_lock_minutes(), 5);
+
+    // And one that was written counts at the next heartbeat.
+    fails.store(false, Ordering::SeqCst);
+    clock.advance(60);
+    assert_eq!(countdown_and_heartbeat(&center), (240, false));
+    settings
+        .update(|settings| settings.set_auto_lock_minutes(1))
+        .unwrap();
+    assert_eq!(countdown_and_heartbeat(&center), (0, true));
 }

@@ -186,6 +186,9 @@ struct AppEvents {
     locked: LockSignal,
     /// The app is closing: there is no window left to tell or to reload.
     exiting: AtomicBool,
+    /// The vault is being closed so an update can be installed ([`LockCenter::close_for_update`]): the window
+    /// asked for it and holds the downloaded update, so it is neither told nor reloaded.
+    quiet: AtomicBool,
     /// A lock could not clear the clipboard (the system refused it): the heartbeat tries again.
     clear_owed: AtomicBool,
     /// An unlock was asked for since the last reload: the page may hold the key that was typed, or what it read
@@ -222,7 +225,8 @@ impl SessionEvents for AppEvents {
         // Commands already answer `Bloqueada` (step 1 of the core's lock). Clipboard first: it is the one part
         // that holds a secret (RF-31); it also makes a copy in flight answer `Bloqueada` (RF-90).
         self.clear_clipboard();
-        if !self.exiting.load(Ordering::SeqCst) {
+        let silent = self.exiting.load(Ordering::SeqCst) || self.quiet.load(Ordering::SeqCst);
+        if !silent {
             self.window.vault_locked();
             if self.page_holds_something.swap(false, Ordering::SeqCst) {
                 self.reloader.reload();
@@ -235,6 +239,23 @@ impl SessionEvents for AppEvents {
         if !self.exiting.load(Ordering::SeqCst) {
             self.window.save_state(state.as_str());
         }
+    }
+}
+
+/// Keeps [`AppEvents::quiet`] raised for as long as it lives. Lowered on drop, so a panic on the way cannot
+/// leave every later lock silent.
+struct Quiet<'a>(&'a AtomicBool);
+
+impl<'a> Quiet<'a> {
+    fn raise(flag: &'a AtomicBool) -> Self {
+        flag.store(true, Ordering::SeqCst);
+        Self(flag)
+    }
+}
+
+impl Drop for Quiet<'_> {
+    fn drop(&mut self) {
+        self.0.store(false, Ordering::SeqCst);
     }
 }
 
@@ -251,7 +272,7 @@ pub enum End {
 pub struct LockParts {
     /// The clipboard, if it could start.
     pub clipboard: Option<Arc<ClipboardService>>,
-    /// The settings: the minutes of inactivity are read at every evaluation.
+    /// The settings: the minutes of inactivity are read at every evaluation, without waiting for their file.
     pub settings: Arc<SettingsStore>,
     /// Who tells the window.
     pub window: Arc<dyn WindowEvents>,
@@ -270,6 +291,8 @@ pub struct LockCenter {
     idle: IdleTimer,
     /// Threads still finishing a lock (the recovery file): the exit waits for them.
     workers: Mutex<Vec<JoinHandle<()>>>,
+    /// One [`LockCenter::close_for_update`] at a time: the second waits for the first and finds the vault closed.
+    updating: Mutex<()>,
 }
 
 impl LockCenter {
@@ -282,6 +305,7 @@ impl LockCenter {
             reloader: parts.reloader,
             locked: LockSignal::default(),
             exiting: AtomicBool::new(false),
+            quiet: AtomicBool::new(false),
             clear_owed: AtomicBool::new(false),
             page_holds_something: AtomicBool::new(false),
         });
@@ -299,6 +323,7 @@ impl LockCenter {
             clock: parts.clock,
             idle,
             workers: Mutex::new(Vec::new()),
+            updating: Mutex::new(()),
         }
     }
 
@@ -330,10 +355,10 @@ impl LockCenter {
     }
 
     /// Whole seconds left before the inactivity lock, rounded up; 0 when it is due. Reads the settings (disk on
-    /// first use): call it from `spawn_blocking`.
+    /// first use only): call it from `spawn_blocking`.
     #[must_use]
     pub fn locks_in_seconds(&self) -> u64 {
-        let minutes = self.settings.read().auto_lock_minutes();
+        let minutes = self.settings.auto_lock_minutes();
         let remaining = self.idle.remaining(self.clock.now(), minutes);
         remaining.as_secs() + u64::from(remaining.subsec_nanos() > 0)
     }
@@ -356,8 +381,10 @@ impl LockCenter {
         if !matches!(self.session.status(), Status::Open(_)) {
             return false;
         }
-        // Read at every evaluation, so a change of the setting counts from the next heartbeat.
-        let minutes = self.settings.read().auto_lock_minutes();
+        // Read at every evaluation, so a change of the setting counts from the next heartbeat. Not through the
+        // lock of the settings: it is held while their file is written, and a disk that hangs must not keep the
+        // vault open (RF-29).
+        let minutes = self.settings.auto_lock_minutes();
         if !self.idle.expired(self.clock.now(), minutes) {
             return false;
         }
@@ -400,6 +427,32 @@ impl LockCenter {
             // A lock thread that panicked already dropped the vault (the core catches its listener).
             drop(worker.join());
         }
+    }
+
+    /// An update is about to be installed, and on Windows the installer ends the process without the app ever
+    /// seeing its exit: closes the vault as a lock does, waiting for what was not saved to reach its recovery
+    /// file (RF-33, RF-36; bounded by the core's own limit), and empties the clipboard if its content is ours
+    /// (RF-75).
+    ///
+    /// Unlike a lock asked for by the person, the window is neither told nor reloaded: it holds the downloaded
+    /// update and is about to install it, and a reload would lose it. The page is still marked as holding
+    /// something, so the next lock or close reloads it. Unlike [`Self::shutdown`], the app is not left "exiting":
+    /// if the installer cannot start, the app goes on with the vault closed and the inactivity lock running
+    /// (RF-29). Safe to call more than once: with the vault closed there is nothing left to do.
+    ///
+    /// Blocking (up to the recovery file's limit): call it from `spawn_blocking`.
+    pub fn close_for_update(&self) {
+        let one_at_a_time = hold(&self.updating);
+        let quiet = Quiet::raise(&self.events.quiet);
+        // The session is locked, and its listener was called in silence, by the time this returns.
+        self.end(End::Close);
+        // The recovery file, if one was needed: the installer must not end the process half way through it.
+        self.settle();
+        // The close already cleared it; a copy that was finishing then is cleared here. If the system refuses,
+        // the heartbeat tries again.
+        self.events.clear_clipboard();
+        drop(quiet);
+        drop(one_at_a_time);
     }
 
     /// The app is closing (RF-36, RF-75): closes the vault as a lock does, waiting a bounded time for what was

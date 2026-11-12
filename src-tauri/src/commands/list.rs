@@ -42,4 +42,6 @@ pub const COMMANDS: &[&str] = &[
     "settings_get",
     "settings_set",
     "activity",
+    // Not a row of that table yet: the window calls it right before it installs an update (review 0.1, C-1).
+    "app_prepare_update",
 ];
