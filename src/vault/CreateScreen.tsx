@@ -307,9 +307,12 @@ export function CreateScreen({ client, onBack, onDone }: CreateScreenProps) {
                     Fortaleza: {strengthLabel(score)} ({score} de 4){" "}
                     <meter min={0} max={4} low={2} high={3} optimum={4} value={score} aria-label="Fortaleza" />
                   </p>
+                  {/* RF-7: below 3 it warns and never blocks; only a score of 0 or 1 is called weak. */}
                   {score < 3 && (
                     <p className="notice">
-                      Es una contraseña débil. Puedes continuar, pero una más larga y variada protege mejor tu bóveda.
+                      {score <= 1
+                        ? "Es una contraseña débil. Puedes continuar, pero una más larga y variada protege mejor tu bóveda."
+                        : "Todavía es fácil de adivinar. Puedes continuar, pero una más larga y variada protege mejor tu bóveda."}
                     </p>
                   )}
                 </>

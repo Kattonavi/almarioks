@@ -122,8 +122,9 @@ function RecentList({ state, onChoose, onFind, onForget }: RecentListProps) {
               // A vault is a station: the same white badge the root group wears on the rail.
               <li key={item.path} className="recent-row">
                 <span className="bullet" data-line="station" data-initial={initialOf(name)} aria-hidden="true" />
-                <button type="button" onClick={() => { onChoose(item.path); }}>
-                  Abrir {name}
+                {/* The row already reads as "open": the verb stays only in the accessible name. */}
+                <button type="button" aria-label={`Abrir ${name}`} onClick={() => { onChoose(item.path); }}>
+                  {name}
                 </button>{" "}
                 <span className="path mono">{item.path}</span>
                 <ChevronRightIcon />

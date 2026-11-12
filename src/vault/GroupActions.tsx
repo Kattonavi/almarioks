@@ -72,6 +72,8 @@ export function GroupActions({ client, root, group, onChange }: GroupActionsProp
   const inBin = isInBin(root, group.id);
   const isBin = group.kind === "recycle_bin";
   const isRoot = group.kind === "root";
+  /** Outside the bin a group goes to the bin; the button says so, like its dialog. */
+  const deleteLabel = inBin ? "Borrar grupo…" : "Enviar grupo a la papelera…";
 
   function open(next: GroupDialog) {
     setError(null);
@@ -104,6 +106,7 @@ export function GroupActions({ client, root, group, onChange }: GroupActionsProp
         {!isBin && !inBin && (
           <button
             type="button"
+            title="Nuevo grupo…"
             onClick={() => {
               open({ kind: "create" });
             }}
@@ -115,6 +118,7 @@ export function GroupActions({ client, root, group, onChange }: GroupActionsProp
         {!isBin && (
           <button
             type="button"
+            title="Renombrar grupo…"
             onClick={() => {
               open({ kind: "rename" });
             }}
@@ -126,6 +130,7 @@ export function GroupActions({ client, root, group, onChange }: GroupActionsProp
         {!isBin && !isRoot && (
           <button
             type="button"
+            title="Mover grupo…"
             onClick={() => {
               open({ kind: "move" });
             }}
@@ -135,15 +140,22 @@ export function GroupActions({ client, root, group, onChange }: GroupActionsProp
           </button>
         )}
         {!isBin && !isRoot && (
-          <button type="button" className="btn-danger" disabled={busy} onClick={() => void askDelete()}>
+          <button
+            type="button"
+            className="btn-danger"
+            title={deleteLabel}
+            disabled={busy}
+            onClick={() => void askDelete()}
+          >
             <TrashIcon />
-            <span className="label">Borrar grupo…</span>
+            <span className="label">{deleteLabel}</span>
           </button>
         )}
         {isBin && (
           <button
             type="button"
             className="btn-danger"
+            title="Vaciar papelera…"
             onClick={() => {
               open({ kind: "empty-bin" });
             }}
@@ -210,13 +222,15 @@ export function GroupActions({ client, root, group, onChange }: GroupActionsProp
         if (dialog.groupId !== group.id) return null;
         return (
           <ConfirmDialog
-            title={dialog.forGood ? `Borrar ${nameOf(group)} de forma definitiva` : `Borrar ${nameOf(group)}`}
+            title={
+              dialog.forGood ? `Borrar ${nameOf(group)} de forma definitiva` : `Enviar ${nameOf(group)} a la papelera`
+            }
             text={
               dialog.forGood
                 ? `${nameOf(group)} está en la papelera con ${contentText(dialog.preview)}. Si lo borras, se elimina todo para siempre y no se puede deshacer.`
-                : `${nameOf(group)} contiene ${contentText(dialog.preview)}. Al borrarlo, todo pasa a la papelera y desde ahí se puede recuperar.`
+                : `${nameOf(group)} contiene ${contentText(dialog.preview)}. Todo pasa a la papelera y desde ahí se puede recuperar.`
             }
-            confirmLabel={dialog.forGood ? "Borrar definitivamente" : "Mover a la papelera"}
+            confirmLabel={dialog.forGood ? "Borrar definitivamente" : "Enviar a la papelera"}
             onClose={close}
             onConfirm={() => client.groupDelete(group.id)}
             onDone={(tree) => {
