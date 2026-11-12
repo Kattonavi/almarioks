@@ -396,6 +396,11 @@
   .app:has(.create) > .app-status {
     padding-inline: 1.75rem;
   }
+
+  /* The approved create screen has no tools on it: "Ajustes y Acerca de" is one "Cancelar" away, on the welcome. */
+  .app:has(.create) .app-tools {
+    display: none;
+  }
 }
 
 .create {
