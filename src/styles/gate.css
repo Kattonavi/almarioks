@@ -1,0 +1,352 @@
+/*
+ * The screens without an open vault: welcome, create, unlock (which is also the lock screen), and the two states of
+ * asking the core. The frame stands as a station totem: the signal panel takes the side where the group rail will be,
+ * with the symbol and the name in one ink, and the task sits on the work ground. A small window folds the totem back
+ * into the top bar.
+ */
+@media (min-width: 720px) {
+  .app:not(:has(.open-vault)) {
+    grid-template:
+      "sign main" minmax(0, 1fr)
+      "foot main" auto / var(--rail-w) minmax(0, 1fr);
+  }
+
+  .app:not(:has(.open-vault)) > .app-bar {
+    flex-direction: column;
+    grid-area: sign;
+    gap: var(--space-4);
+    align-items: flex-start;
+    padding: var(--space-8) var(--space-5) 0;
+  }
+
+  .app:not(:has(.open-vault)) .brand-mark {
+    width: 72px;
+    height: 72px;
+  }
+
+  .app:not(:has(.open-vault)) .app-name {
+    font-size: var(--text-xl);
+    line-height: 1;
+  }
+
+  .app:not(:has(.open-vault)) > .app-main {
+    grid-area: main;
+  }
+
+  /* The small print of the sign, at its foot. */
+  .app:not(:has(.open-vault)) > .app-status {
+    flex-direction: column;
+    grid-area: foot;
+    gap: var(--space-1);
+    align-items: flex-start;
+    padding: var(--space-4) var(--space-5);
+    border-top: 0;
+  }
+
+  .app:not(:has(.open-vault)) .app-status-note {
+    align-items: flex-start;
+    margin-inline-start: 0;
+  }
+
+  .app:not(:has(.open-vault)) .app-status-note .icon {
+    margin-top: 2px;
+  }
+}
+
+/* The totem of the default window is narrow: the title leaves the corner to the settings button. */
+@media (min-width: 720px) and (max-width: 1099px) {
+  .gate-title,
+  .gate-head {
+    padding-inline-end: var(--space-8);
+  }
+}
+
+.gate {
+  max-width: 46rem;
+  margin: 0;
+  padding: var(--space-8) var(--space-10) var(--space-10);
+}
+
+.gate-title {
+  margin: 0 0 var(--space-5);
+  overflow-wrap: anywhere;
+  font-size: var(--text-xl);
+  line-height: 1.05;
+  letter-spacing: -0.01em;
+}
+
+/* The vault as a station: its badge, what is being asked, and the file in data type. */
+.gate-head {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--space-1) var(--space-3);
+  align-items: center;
+  margin-bottom: var(--space-5);
+}
+
+.gate-head .gate-title {
+  margin: 0;
+  padding: 0;
+}
+
+.gate-head .path {
+  grid-column: 2;
+  margin: 0;
+}
+
+.gate-help {
+  max-width: 60ch;
+  color: var(--ink-muted);
+}
+
+.gate-title + .gate-help {
+  margin: calc(-1 * var(--space-2)) 0 var(--space-5);
+}
+
+.gate-subtitle {
+  margin: var(--space-8) 0 var(--space-3);
+}
+
+.gate > .error:not(:empty) {
+  margin: var(--space-3) 0 0;
+}
+
+.gate > .notice {
+  max-width: 34rem;
+  margin: 0 0 var(--space-5);
+}
+
+.gate-actions {
+  margin-top: var(--space-2);
+}
+
+/* ---- Forms of the gate: one column under a signal rule. ---- */
+.gate-form {
+  max-width: 30rem;
+}
+
+.gate-form > fieldset {
+  gap: var(--space-5);
+  min-width: 0;
+  padding: var(--space-5) 0 0;
+  border: 0;
+  border-top: 2px solid var(--ink);
+  border-radius: 0;
+}
+
+/* The heading of the screen already says it: the legend stays for assistive technology. */
+.gate-form > fieldset > legend {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.gate-form .gate-help {
+  margin: 0;
+}
+
+.gate-form .field > input {
+  width: 100%;
+}
+
+/* A file to choose: its path and the button that picks it share a row while there is room. */
+.gate-form .field[role="group"] {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-3);
+  align-items: center;
+}
+
+.gate-form .field[role="group"] > :is(.field-label, .error) {
+  flex: 0 0 100%;
+}
+
+.gate-form .field[role="group"] > .path {
+  flex: 1 1 12rem;
+}
+
+.choices > .field > .actions {
+  margin-top: var(--space-1);
+}
+
+.gate-form .error:empty {
+  display: none;
+}
+
+.gate-form .error {
+  margin: 0;
+}
+
+.choices {
+  gap: 0;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+}
+
+.choices > legend {
+  margin-bottom: var(--space-1);
+  padding: 0;
+  font-size: var(--text-sm);
+}
+
+/* The file of the chosen option hangs under the options, in line with their labels. */
+.choices > .field {
+  margin: var(--space-1) 0 var(--space-2) calc(18px + var(--space-2));
+}
+
+.deriving {
+  max-width: 30rem;
+}
+
+.deriving p {
+  margin: var(--space-5) 0 var(--space-2);
+  font-size: var(--text-sm);
+}
+
+/* ---- Recent vaults: rows like the entry list, each one a station. ---- */
+.recent {
+  max-width: 36rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-bottom: 1px solid var(--rule);
+}
+
+.recent-row {
+  position: relative;
+  display: grid;
+  grid-template-areas:
+    "badge name go"
+    "badge path go";
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  column-gap: var(--space-3);
+  align-content: center;
+  align-items: center;
+  min-height: calc(var(--row-h) + var(--space-4));
+  padding: var(--space-2) var(--space-3);
+  border-top: 1px solid var(--rule);
+}
+
+.recent-row:not([data-missing]):hover {
+  background: var(--hover);
+}
+
+.recent-row:has(> button:focus-visible) {
+  outline: var(--focus-width) solid var(--focus);
+  outline-offset: calc(-1 * var(--focus-width));
+}
+
+.recent-row > .bullet {
+  grid-area: badge;
+}
+
+/* The name is the button, stretched over its row. */
+.recent-row > button,
+.recent-row > button:hover:not(:disabled),
+.recent-row > button:active:not(:disabled) {
+  display: block;
+  grid-area: name;
+  justify-self: start;
+  max-width: 100%;
+  min-height: 0;
+  padding: 0;
+  overflow-wrap: anywhere;
+  font-size: var(--text-md);
+  text-align: start;
+  background: none;
+  border: 0;
+  transform: none;
+}
+
+.recent-row > button:focus-visible {
+  outline: none;
+}
+
+.recent-row > button::after {
+  position: absolute;
+  inset: 0;
+  content: "";
+}
+
+.recent-row > .path {
+  grid-area: path;
+  font-size: var(--text-xs);
+}
+
+.recent-row > .icon {
+  grid-area: go;
+  color: var(--ink-muted);
+}
+
+.recent-row[data-missing] {
+  grid-template-areas:
+    "badge text"
+    "badge actions";
+  grid-template-columns: auto minmax(0, 1fr);
+  row-gap: var(--space-2);
+  align-items: start;
+  padding-block: var(--space-3);
+}
+
+.recent-row[data-missing] > p {
+  grid-area: text;
+  margin: 0;
+  font-size: var(--text-sm);
+}
+
+.recent-row[data-missing] .path {
+  font-size: inherit;
+}
+
+.recent-row[data-missing] > .actions {
+  grid-area: actions;
+}
+
+.gate > .pane-state {
+  max-width: 60ch;
+}
+
+/* The default window (800 × 600) and below: less air, same order. */
+@media (max-width: 1099px) {
+  .gate {
+    padding: var(--space-6) var(--space-8) var(--space-8);
+  }
+
+  .gate-subtitle {
+    margin-top: var(--space-6);
+  }
+}
+
+@media (max-width: 719px) {
+  /* The settings button sits on the signal bar again. */
+  .app-tools button {
+    --hover: var(--signal-hover);
+    --focus: var(--on-signal);
+
+    color: var(--on-signal);
+    border-color: var(--signal-border);
+  }
+
+  .gate {
+    padding: var(--space-4) var(--space-4) var(--space-6);
+  }
+
+  .gate-title {
+    margin-bottom: var(--space-4);
+    font-size: 1.5rem;
+  }
+
+  .gate-head {
+    margin-bottom: var(--space-4);
+  }
+
+  .gate-form > fieldset {
+    gap: var(--space-4);
+    padding-top: var(--space-4);
+  }
+}

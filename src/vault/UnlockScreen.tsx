@@ -3,6 +3,8 @@ import { useEffect, useRef, useState, type SubmitEvent } from "react";
 import type { VaultClient } from "../ipc/client";
 import { errorMessage, type AppError } from "../ipc/errors";
 import type { Recovery } from "../ipc/schemas";
+import { FileIcon } from "../ui/icons";
+import { initialOf } from "./lines";
 import { RecoveryNotice } from "./RecoveryNotice";
 import type { VaultRef } from "./state";
 
@@ -60,15 +62,23 @@ export function UnlockScreen({ client, vault, busy, error, recovery, onUnlock, s
   const shownError = error ?? pickError;
 
   return (
-    <section aria-labelledby="unlock-title">
-      <h2 id="unlock-title">Desbloquear {vault.fileName}</h2>
-      <p className="path">{vault.path}</p>
+    <section aria-labelledby="unlock-title" className="gate">
+      {/* The vault is the station every line reaches: the badge the root group wears once it is open. */}
+      <header className="gate-head">
+        <span className="bullet" data-line="station" data-initial={initialOf(vault.fileName)} aria-hidden="true" />
+        <h2 id="unlock-title" className="gate-title">
+          Desbloquear {vault.fileName}
+        </h2>
+        <p className="path mono">{vault.path}</p>
+      </header>
       {recovery !== null && <RecoveryNotice recovery={recovery} />}
 
-      <form onSubmit={onSubmit} noValidate>
+      <form onSubmit={onSubmit} noValidate className="gate-form">
         <fieldset disabled={busy}>
           <legend>Llave de la bóveda</legend>
-          <p id="unlock-help">Usa la contraseña maestra, el archivo llave o los dos, según cómo creaste la bóveda.</p>
+          <p id="unlock-help" className="gate-help">
+            Usa la contraseña maestra, el archivo llave o los dos, según cómo creaste la bóveda.
+          </p>
 
           <div className="field">
             <label htmlFor="unlock-password">Contraseña maestra</label>
@@ -86,10 +96,13 @@ export function UnlockScreen({ client, vault, busy, error, recovery, onUnlock, s
           </div>
 
           <div className="field" role="group" aria-labelledby="key-file-label">
-            <span id="key-file-label">Archivo llave</span>
-            <p className="path">{keyFilePath ?? "Ninguno"}</p>
+            <span id="key-file-label" className="field-label">
+              Archivo llave
+            </span>
+            <p className={keyFilePath === null ? "path" : "path mono"}>{keyFilePath ?? "Ninguno"}</p>
             <div className="actions">
               <button type="button" onClick={() => void pickKeyFile()}>
+                <FileIcon />
                 Elegir archivo llave…
               </button>
               {keyFilePath !== null && (
@@ -100,8 +113,15 @@ export function UnlockScreen({ client, vault, busy, error, recovery, onUnlock, s
             </div>
           </div>
 
-          <div className="actions">
-            <button type="submit">Desbloquear</button>
+          {/* The key failed as a whole (it never says which part), so the error sits under both of its parts. */}
+          <p id="unlock-error" role="alert" className="error">
+            {shownError === null ? "" : errorMessage(shownError)}
+          </p>
+
+          <div className="actions gate-actions">
+            <button type="submit" className="btn-primary">
+              Desbloquear
+            </button>
             <button type="button" onClick={secondary.onClick}>
               {secondary.label}
             </button>
@@ -109,17 +129,16 @@ export function UnlockScreen({ client, vault, busy, error, recovery, onUnlock, s
         </fieldset>
       </form>
 
-      <div role="status" aria-live="polite">
+      <div role="status" aria-live="polite" className="deriving">
         {busy && (
           <>
             <p>Abriendo la bóveda: derivando la llave. Puede tardar unos segundos.</p>
-            <progress aria-label="Abriendo la bóveda" />
+            <div className="progress-track">
+              <progress aria-label="Abriendo la bóveda" />
+            </div>
           </>
         )}
       </div>
-      <p id="unlock-error" role="alert" className="error">
-        {shownError === null ? "" : errorMessage(shownError)}
-      </p>
     </section>
   );
 }

@@ -2,11 +2,8 @@
  * Design tokens of the "Señalética" direction. Colour is named by ROLE, never by hue: components read roles, and
  * `theme-dark.css` redefines the same roles. Contrast of every text/ground pair is AA in both themes (computed).
  */
-/* A dialog is always a work surface, even when it is mounted inside the signal frame: it takes the roles again. */
-:root,
-dialog {
-  color-scheme: light;
-
+/* Type, space and measures live on the root alone, so density and the window size reach every surface, dialogs too. */
+:root {
   /* ---- Type: Overpass for the interface, Overpass Mono only for data (dates, counts, secrets, file paths). ---- */
   --font-sans: "Overpass Variable", "Segoe UI", system-ui, sans-serif;
   --font-mono: "Overpass Mono Variable", "Cascadia Mono", Consolas, monospace;
@@ -44,6 +41,12 @@ dialog {
   --bullet: 26px;
   --focus-width: 3px;
   --content-width: 40rem;
+}
+
+/* A dialog is always a work surface, even when it is mounted inside the signal frame: it takes the colour roles again. */
+:root,
+dialog {
+  color-scheme: light;
 
   /* ---- Work area. ---- */
   --ground: #f6f6f3;
@@ -78,6 +81,7 @@ dialog {
 
   /* ---- States. Red is danger only; dark green is confirmation only. ---- */
   --danger: #d7263d;
+  --on-danger: #ffffff;
   --ok: #157a52;
 
   /* ---- Line colours: an ordered family that only names groups. Text on a line is always --on-line. ---- */

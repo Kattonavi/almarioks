@@ -4,7 +4,6 @@
  */
 .app-bar,
 .app-status,
-.app-tools,
 .vault-bar,
 .rail,
 .save-state {
@@ -17,6 +16,7 @@
   --hover: var(--signal-hover);
   --focus: var(--on-signal);
   --danger: var(--danger-on-signal);
+  --on-danger: var(--on-signal-panel);
   --panel: var(--signal-panel);
   --panel-hover: var(--signal-panel-hover);
   --on-panel: var(--on-signal-panel);
@@ -77,20 +77,11 @@
   overflow: auto;
 }
 
-/* Screens that have not been composed yet: one readable column. */
-.app-main > section,
-.app-main > p {
-  max-width: var(--content-width);
-  margin: 0 auto;
-  padding: var(--space-8) var(--space-6);
-}
-
 .app-main > .open-vault {
-  max-width: none;
   height: 100%;
-  padding: 0;
 }
 
+/* Settings while no vault is open (`gate.css` lays those screens out): the corner the vault bar gives it later. */
 .app-tools {
   position: absolute;
   top: 0;

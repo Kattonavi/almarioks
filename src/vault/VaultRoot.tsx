@@ -197,11 +197,17 @@ export function VaultRoot({ client }: { readonly client: VaultClient }) {
   function renderScreen(current: AppState) {
     switch (current.kind) {
       case "loading":
-        return <p role="status">Consultando la bóveda…</p>;
+        return (
+          <p role="status" className="gate pane-state">
+            Consultando la bóveda…
+          </p>
+        );
       case "unavailable":
         return (
-          <section aria-labelledby="unavailable-title">
-            <h2 id="unavailable-title">No se pudo consultar la bóveda</h2>
+          <section aria-labelledby="unavailable-title" className="gate">
+            <h2 id="unavailable-title" className="gate-title">
+              No se pudo consultar la bóveda
+            </h2>
             <p role="alert" className="error">
               {errorMessage(current.error)}
             </p>

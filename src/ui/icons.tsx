@@ -165,3 +165,38 @@ export function CheckIcon() {
     </Icon>
   );
 }
+
+export function FolderIcon() {
+  return (
+    <Icon>
+      <path d="M3 8v10a1.5 1.5 0 0 0 1.5 1.5h15A1.5 1.5 0 0 0 21 18V9.5A1.5 1.5 0 0 0 19.5 8H12l-2-2.5H4.5A1.5 1.5 0 0 0 3 7v1Z" />
+    </Icon>
+  );
+}
+
+export function FileIcon() {
+  return (
+    <Icon>
+      <path d="M6.5 3.5H14l4 4V19a1.5 1.5 0 0 1-1.5 1.5h-10A1.5 1.5 0 0 1 5 19V5a1.5 1.5 0 0 1 1.5-1.5Z" />
+      <path d="M14 3.5V8h4" />
+    </Icon>
+  );
+}
+
+export function ChevronRightIcon() {
+  return (
+    <Icon>
+      <path d="m9 6 6 6-6 6" />
+    </Icon>
+  );
+}
+
+export function InfoIcon() {
+  return (
+    <Icon>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 11v5.5" />
+      <path d="M12 7.6v.1" />
+    </Icon>
+  );
+}
