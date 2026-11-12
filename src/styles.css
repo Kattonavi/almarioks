@@ -162,3 +162,60 @@ button[aria-disabled="true"] {
   gap: var(--space-3);
   padding-inline-start: var(--space-6);
 }
+
+/* P5 and P6: the detail of an entry and the generator. */
+.entry-fields {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: var(--space-1) var(--space-3);
+  margin: 0;
+}
+
+.entry-fields > div {
+  display: contents;
+}
+
+.entry-fields dt {
+  font-weight: 600;
+}
+
+.entry-fields dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.notes {
+  white-space: pre-wrap;
+}
+
+.secret {
+  font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+  overflow-wrap: anywhere;
+}
+
+.tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+select,
+textarea {
+  font: inherit;
+  padding: var(--space-1) var(--space-2);
+}
+
+/* P7 and confirmations: native modal dialogs. */
+dialog {
+  max-width: min(var(--content-width), 90vw);
+  padding: var(--space-6);
+  color: var(--color-text);
+  background: var(--color-surface);
+}
+
+dialog::backdrop {
+  background: rgb(0 0 0 / 40%);
+}

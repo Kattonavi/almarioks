@@ -4,6 +4,9 @@ import { assertNever } from "../assertNever";
 import type { VaultClient } from "../ipc/client";
 import { errorMessage, type AppError, type Result } from "../ipc/errors";
 import type { EntrySummary, GroupNode, SearchResult } from "../ipc/schemas";
+import { EntryForm } from "./EntryForm";
+import { EntryPanel } from "./EntryPanel";
+import { findGroup, formatDate, liveEntryCount, plural, shown } from "./format";
 
 /** RF-59: wait this long after the last keystroke before asking the core to search. */
 export const SEARCH_DELAY_MS = 150;
@@ -30,47 +33,21 @@ interface SelectedEntry {
   readonly title: string | null;
 }
 
+/** What the detail zone shows. */
+type DetailState =
+  | { readonly kind: "none" }
+  | { readonly kind: "entry"; readonly entry: SelectedEntry }
+  | { readonly kind: "new"; readonly groupId: string };
+
 interface VaultScreenProps {
-  readonly client: Pick<VaultClient, "groupTree" | "entryList" | "search">;
-}
-
-function findGroup(node: GroupNode, id: string): GroupNode | undefined {
-  if (node.id === id) return node;
-  for (const child of node.children) {
-    const found = findGroup(child, id);
-    if (found !== undefined) return found;
-  }
-  return undefined;
-}
-
-/** Entries outside the recycle bin; `entry_count` is per group, so the sum works whether it is direct or not. */
-function liveEntryCount(node: GroupNode): number {
-  if (node.kind === "recycle_bin") return 0;
-  return node.entryCount + node.children.reduce((sum, child) => sum + liveEntryCount(child), 0);
-}
-
-function plural(count: number, one: string, many: string): string {
-  return `${String(count)} ${count === 1 ? one : many}`;
-}
-
-/** A protected standard field arrives as `null` and is shown as "(protegido)", never asked for. */
-function shown(value: string | null, empty = ""): string {
-  if (value === null) return "(protegido)";
-  return value === "" ? empty : value;
-}
-
-const DATE_FORMAT = new Intl.DateTimeFormat("es-CO", { dateStyle: "medium", timeStyle: "short" });
-
-function formatDate(iso: string): string {
-  const date = new Date(iso);
-  return Number.isNaN(date.getTime()) ? iso : DATE_FORMAT.format(date);
+  readonly client: VaultClient;
 }
 
 /**
- * P4: the open vault (RF-42, RF-50, RF-59, RF-64, RF-78, RF-92). Three zones: groups, entries of the chosen group or
- * search results, and the detail. Only metadata: no protected value is asked for or shown. Every vault datum is
- * rendered as a React text child, never as HTML or as a link (RF-78). All its data is local state, so a lock, which
- * unmounts this screen, drops it at once (RF-32).
+ * P4: the open vault (RF-42, RF-50, RF-59, RF-64, RF-78, RF-92), with P5 in the detail zone. Three zones: groups,
+ * entries of the chosen group or search results, and the detail. Every vault datum is rendered as a React text child,
+ * never as HTML or as a link (RF-78). All its data is local state, so a lock, which unmounts this screen, drops it at
+ * once (RF-32).
  */
 export function VaultScreen({ client }: VaultScreenProps) {
   const [tree, setTree] = useState<TreeState>({ kind: "loading" });
@@ -78,10 +55,14 @@ export function VaultScreen({ client }: VaultScreenProps) {
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   const [list, setList] = useState<ListState | null>(null);
   const [listAttempt, setListAttempt] = useState(0);
-  const [selectedEntry, setSelectedEntry] = useState<SelectedEntry | null>(null);
+  /** Asks the list again after a change without showing "Cargando" in between. */
+  const [listRefresh, setListRefresh] = useState(0);
+  const [detail, setDetail] = useState<DetailState>({ kind: "none" });
+  const [notice, setNotice] = useState("");
   const [query, setQuery] = useState("");
   const [search, setSearch] = useState<SearchState>({ kind: "idle" });
   const searchRef = useRef<HTMLInputElement>(null);
+  const detailTitleRef = useRef<HTMLHeadingElement>(null);
   const searchSeq = useRef(0);
   const searchTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const mounted = useRef(false);
@@ -108,7 +89,8 @@ export function VaultScreen({ client }: VaultScreenProps) {
     };
   }, [client, treeAttempt]);
 
-  const groupId = tree.kind === "ready" ? (selectedGroupId ?? tree.root.id) : null;
+  const selectedExists = tree.kind === "ready" && selectedGroupId !== null && findGroup(tree.root, selectedGroupId);
+  const groupId = tree.kind === "ready" ? (selectedExists ? selectedGroupId : tree.root.id) : null;
 
   useEffect(() => {
     if (groupId === null) return;
@@ -119,7 +101,7 @@ export function VaultScreen({ client }: VaultScreenProps) {
     return () => {
       active = false;
     };
-  }, [client, groupId, listAttempt]);
+  }, [client, groupId, listAttempt, listRefresh]);
 
   // Ctrl+F or Ctrl+K go to the search field from anywhere in the vault.
   useEffect(() => {
@@ -167,7 +149,19 @@ export function VaultScreen({ client }: VaultScreenProps) {
 
   function selectGroup(id: string) {
     setSelectedGroupId(id);
-    setSelectedEntry(null);
+    setDetail({ kind: "none" });
+  }
+
+  /** After a change: the tree (counts), the list and an active search, without unmounting the detail. */
+  function refresh() {
+    setTreeAttempt((value) => value + 1);
+    setListRefresh((value) => value + 1);
+    if (query.trim() !== "") onQueryChange(query);
+  }
+
+  function selectEntry(entry: SelectedEntry) {
+    setNotice("");
+    setDetail({ kind: "entry", entry });
   }
 
   const searching = query.trim() !== "";
@@ -211,19 +205,61 @@ export function VaultScreen({ client }: VaultScreenProps) {
         </section>
 
         <section aria-labelledby="detail-title" className="vault-zone">
-          <h3 id="detail-title">Detalle</h3>
-          {selectedEntry === null ? (
-            <p>Elige una entrada para ver su detalle.</p>
-          ) : (
-            <>
-              <p>{shown(selectedEntry.title, "(sin título)")}</p>
-              <p className="path">El detalle completo de la entrada llega en la tarea siguiente.</p>
-            </>
-          )}
+          <h3 id="detail-title" ref={detailTitleRef} tabIndex={-1}>
+            Detalle
+          </h3>
+          <div aria-live="polite">{notice !== "" && <p className="notice">{notice}</p>}</div>
+          {renderDetail()}
         </section>
       </div>
     </div>
   );
+
+  function renderDetail() {
+    switch (detail.kind) {
+      case "none":
+        return <p>Elige una entrada para ver su detalle.</p>;
+      case "new": {
+        if (tree.kind !== "ready") return null;
+        const group = findGroup(tree.root, detail.groupId) ?? tree.root;
+        return (
+          <EntryForm
+            client={client}
+            mode={{ kind: "create", groupId: group.id, groupName: shown(group.name, "(sin nombre)") }}
+            onSaved={(entry) => {
+              setNotice("Entrada guardada.");
+              setDetail({ kind: "entry", entry: { id: entry.id, title: entry.title } });
+              refresh();
+            }}
+            onCancel={() => {
+              setDetail({ kind: "none" });
+              detailTitleRef.current?.focus();
+            }}
+          />
+        );
+      }
+      case "entry":
+        if (tree.kind !== "ready") return null;
+        return (
+          <EntryPanel
+            key={detail.entry.id}
+            client={client}
+            entryId={detail.entry.id}
+            listTitle={detail.entry.title}
+            root={tree.root}
+            onChanged={refresh}
+            onDeleted={(message) => {
+              setDetail({ kind: "none" });
+              setNotice(message);
+              refresh();
+              detailTitleRef.current?.focus();
+            }}
+          />
+        );
+      default:
+        return assertNever(detail);
+    }
+  }
 
   function renderTree() {
     switch (tree.kind) {
@@ -259,16 +295,20 @@ export function VaultScreen({ client }: VaultScreenProps) {
     }
     const group = findGroup(tree.root, groupId) ?? tree.root;
     const loaded = list !== null && list.groupId === groupId && list.attempt === listAttempt ? list.result : null;
+    const selectedId = detail.kind === "entry" ? detail.entry.id : null;
     return (
       <>
         <h3 id="entries-title">Entradas de {shown(group.name, "(sin nombre)")}</h3>
         <div className="actions">
-          <button type="button" aria-disabled="true" aria-describedby="new-entry-soon">
+          <button
+            type="button"
+            onClick={() => {
+              setNotice("");
+              setDetail({ kind: "new", groupId: group.id });
+            }}
+          >
             Nueva entrada
           </button>
-          <span id="new-entry-soon" className="path">
-            Próximamente
-          </span>
         </div>
         {loaded === null ? (
           <p role="status">Cargando las entradas…</p>
@@ -288,22 +328,14 @@ export function VaultScreen({ client }: VaultScreenProps) {
           </>
         ) : loaded.value.length === 0 ? (
           liveEntryCount(tree.root) === 0 && group.kind !== "recycle_bin" ? (
-            <p>
-              Esta bóveda todavía no tiene entradas. Con «Nueva entrada» guardarás la primera cuenta; llega en la
-              tarea siguiente.
-            </p>
+            <p>Esta bóveda todavía no tiene entradas. Con «Nueva entrada» guardas la primera cuenta.</p>
           ) : (
             <p>{group.kind === "recycle_bin" ? "La papelera está vacía." : "Este grupo no tiene entradas."}</p>
           )
         ) : (
           <>
             <p role="status">{plural(loaded.value.length, "entrada", "entradas")}</p>
-            <EntryTable
-              items={loaded.value}
-              groupPaths={null}
-              selectedId={selectedEntry?.id ?? null}
-              onSelect={setSelectedEntry}
-            />
+            <EntryTable items={loaded.value} groupPaths={null} selectedId={selectedId} onSelect={selectEntry} />
           </>
         )}
       </>
@@ -311,6 +343,7 @@ export function VaultScreen({ client }: VaultScreenProps) {
   }
 
   function renderSearch() {
+    const selectedId = detail.kind === "entry" ? detail.entry.id : null;
     return (
       <>
         <h3 id="entries-title">Resultados de la búsqueda</h3>
@@ -344,8 +377,8 @@ export function VaultScreen({ client }: VaultScreenProps) {
           <EntryTable
             items={search.items}
             groupPaths={search.items.map((item) => item.groupPath)}
-            selectedId={selectedEntry?.id ?? null}
-            onSelect={setSelectedEntry}
+            selectedId={selectedId}
+            onSelect={selectEntry}
           />
         )}
       </>

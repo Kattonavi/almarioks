@@ -2,8 +2,9 @@ import type { Transport } from "./client";
 
 /**
  * In-memory stand-in for the core, at the wire level: it answers with raw snake_case payloads and rejects with
- * `{ code, message }`, so tests go through the same `safeParse` edge as the app. It only knows the commands the
- * screens use so far; any other command rejects with a plain `Error` (the client maps it to `Inesperado`).
+ * `{ code, message }`, so tests go through the same `safeParse` edge as the app. It follows the rules of spec 001 that
+ * the screens depend on (validation order, recycle bin, patch semantics); any command it does not know rejects with a
+ * plain `Error` (the client maps it to `Inesperado`).
  * Test-only: the data it holds are fixtures, never real secrets.
  */
 
@@ -41,6 +42,12 @@ export interface FakeGroup {
   readonly children?: readonly FakeGroup[];
 }
 
+export interface FakeCustomField {
+  readonly name: string;
+  readonly protected: boolean;
+  readonly value: string;
+}
+
 /** `null` in a standard field = the vault marks it protected: it never travels and never enters the search. */
 export interface FakeEntry {
   readonly id: string;
@@ -51,6 +58,13 @@ export interface FakeEntry {
   readonly notes?: string | null;
   readonly tags?: readonly string[];
   readonly modified?: string;
+  readonly created?: string;
+  /** The password; only `entry_reveal` and `entry_copy` ever touch it. */
+  readonly password?: string;
+  /** Values of the standard fields that travel as `null` ("Title", "UserName", "URL", "Notes"). */
+  readonly secrets?: Readonly<Record<string, string>>;
+  readonly customFields?: readonly FakeCustomField[];
+  readonly attachments?: readonly { readonly name: string; readonly size: number }[];
 }
 
 export interface FakeOptions {
@@ -66,11 +80,27 @@ export interface FakeOptions {
   readonly entries?: readonly FakeEntry[];
   /** Stand-in for zxcvbn; the default is a crude estimate by length and character classes. */
   readonly strength?: (password: string) => number;
+  /** RF-73: seconds until the clipboard is cleared (20 by default). */
+  readonly clipboardSeconds?: number;
 }
 
 export interface FakeCall {
   readonly command: string;
   readonly args: Readonly<Record<string, unknown>> | undefined;
+}
+
+/** What the core holds for an entry, for assertions that the window cannot see. */
+export interface FakeEntrySnapshot {
+  readonly groupId: string;
+  readonly title: string | null;
+  readonly username: string | null;
+  readonly url: string | null;
+  readonly notes: string | null;
+  readonly tags: readonly string[];
+  readonly password: string;
+  readonly modified: string;
+  /** Versions in the history (RF-26). */
+  readonly history: number;
 }
 
 export interface FakeBackend {
@@ -89,11 +119,34 @@ export interface FakeBackend {
   rejectOnce(command: string, rejection: unknown): void;
   /** The core locks on its own (timer, session): state `locked` and the `vault-locked` event. */
   lockFromCore(recovery?: WireRecovery): void;
+  /** The entry as the core holds it, or `undefined` if it does not exist (deleted for good). */
+  entry(id: string): FakeEntrySnapshot | undefined;
+  /** Names of the groups from the root down to `id`, or `undefined` if it does not exist. */
+  groupTrail(id: string): string[] | undefined;
+  /** What `entry_copy` last put on the clipboard (inside the core, never through the window). */
+  clipboard(): string | null;
+  /** URLs that `entry_open_url` handed to the browser. */
+  readonly openedUrls: readonly string[];
 }
 
 const CORE_MESSAGE = "core text that the window must not show";
 const DEFAULT_ROOT: FakeGroup = { id: "group-root", name: "Raíz", kind: "root" };
 const DEFAULT_MODIFIED = "2026-11-11T10:00:00Z";
+
+/** KeePass keys of the standard fields. */
+const STANDARD_FIELDS = ["Title", "UserName", "Password", "URL", "Notes"] as const;
+
+/** Spec 001, RF-40. */
+export const LIMITS = {
+  title: 255,
+  username: 255,
+  url: 2048,
+  password: 1024,
+  notes: 100_000,
+  tags: 50,
+  tag: 50,
+  groupName: 255,
+} as const;
 
 /** Tauri rejects `invoke` with the serialized `{ code, message }` object, not an `Error`; the fake does the same. */
 function failWith(code: string): never {
@@ -114,12 +167,57 @@ function optionalString(value: unknown): string | undefined {
   return typeof value === "string" ? value : undefined;
 }
 
+/** RF-80: unknown keys or a mistyped one reject the whole call. */
+function onlyKeys(args: Record<string, unknown>, allowed: readonly string[]) {
+  if (Object.keys(args).some((key) => !allowed.includes(key))) failWith("ArgumentoInvalido");
+}
+
+function requiredString(value: unknown): string {
+  if (typeof value !== "string") failWith("ArgumentoInvalido");
+  return value;
+}
+
+function stringOrUndefined(value: unknown): string | undefined {
+  if (value === undefined) return undefined;
+  return requiredString(value);
+}
+
+function tagsOrUndefined(value: unknown): string[] | undefined {
+  if (value === undefined) return undefined;
+  if (!Array.isArray(value) || !value.every((tag): tag is string => typeof tag === "string")) {
+    failWith("ArgumentoInvalido");
+  }
+  return [...value];
+}
+
+function booleanArg(value: unknown): boolean {
+  if (typeof value !== "boolean") failWith("ArgumentoInvalido");
+  return value;
+}
+
 /** Spec 001, "Plegar": lowercase, NFKD and no combining marks. */
 export function fold(text: string): string {
   return text.toLowerCase().normalize("NFKD").replace(/\p{M}/gu, "");
 }
 
-function byTitle(a: FakeEntry, b: FakeEntry): number {
+/** Spec 001, "Recortar": drop `White_Space` characters at both ends. */
+export function trimSpace(text: string): string {
+  return text.replace(/^\p{White_Space}+|\p{White_Space}+$/gu, "");
+}
+
+/** Spec 001, "Carácter": a code point. */
+export function charCount(text: string): number {
+  return Array.from(text).length;
+}
+
+/** Spec 001, "Carácter no permitido": control characters except tab and line feed. */
+// eslint-disable-next-line no-control-regex -- the rule is precisely about control characters.
+const FORBIDDEN = /[\u0000-\u0008\u000B-\u001F\u007F-\u009F]/u;
+export function hasForbidden(text: string): boolean {
+  return FORBIDDEN.test(text);
+}
+
+function byTitle(a: { title: string | null; id: string }, b: { title: string | null; id: string }): number {
   const ta = fold(a.title ?? "");
   const tb = fold(b.title ?? "");
   if (ta !== tb) return ta < tb ? -1 : 1;
@@ -132,16 +230,136 @@ function defaultStrength(password: string): number {
   return Math.min(4, classes);
 }
 
-function summaryOf(entry: FakeEntry) {
+interface StoredEntry {
+  id: string;
+  groupId: string;
+  title: string | null;
+  username: string | null;
+  url: string | null;
+  notes: string | null;
+  tags: string[];
+  modified: string;
+  created: string;
+  password: string;
+  secrets: Record<string, string>;
+  customFields: FakeCustomField[];
+  attachments: { name: string; size: number }[];
+  history: number;
+}
+
+interface StoredGroup {
+  id: string;
+  name: string;
+  kind: FakeGroupKind;
+  children: StoredGroup[];
+}
+
+function storeGroup(group: FakeGroup): StoredGroup {
+  return {
+    id: group.id,
+    name: group.name,
+    kind: group.kind ?? "normal",
+    children: (group.children ?? []).map(storeGroup),
+  };
+}
+
+function storeEntry(entry: FakeEntry): StoredEntry {
   return {
     id: entry.id,
+    groupId: entry.groupId,
     title: entry.title,
     // `undefined` = not filled in; `null` = protected, and it travels as `null`.
     username: entry.username === undefined ? "" : entry.username,
     url: entry.url === undefined ? "" : entry.url,
+    notes: entry.notes === undefined ? "" : entry.notes,
     tags: [...(entry.tags ?? [])],
     modified: entry.modified ?? DEFAULT_MODIFIED,
+    created: entry.created ?? entry.modified ?? DEFAULT_MODIFIED,
+    password: entry.password ?? "",
+    secrets: { ...(entry.secrets ?? {}) },
+    customFields: [...(entry.customFields ?? [])],
+    attachments: (entry.attachments ?? []).map((attachment) => ({ ...attachment })),
+    history: 0,
   };
+}
+
+function summaryOf(entry: StoredEntry) {
+  return {
+    id: entry.id,
+    title: entry.title,
+    username: entry.username,
+    url: entry.url,
+    tags: [...entry.tags],
+    modified: entry.modified,
+  };
+}
+
+/** Names of the protected fields that have a value (plan, `EntryDetail.protected_fields`). */
+function protectedFieldsOf(entry: StoredEntry): string[] {
+  const names: string[] = [];
+  if (entry.password !== "") names.push("Password");
+  if (entry.title === null) names.push("Title");
+  if (entry.username === null) names.push("UserName");
+  if (entry.url === null) names.push("URL");
+  if (entry.notes === null) names.push("Notes");
+  for (const field of entry.customFields) if (field.protected) names.push(field.name);
+  return names;
+}
+
+function detailOf(entry: StoredEntry) {
+  return {
+    ...summaryOf(entry),
+    group_id: entry.groupId,
+    notes: entry.notes,
+    protected_fields: protectedFieldsOf(entry),
+    // A protected custom field never carries its value (RF-43).
+    custom_fields: entry.customFields.map((field) =>
+      field.protected ? { name: field.name, protected: true } : { ...field },
+    ),
+    attachments: entry.attachments.map((attachment) => ({ ...attachment })),
+    created: entry.created,
+  };
+}
+
+/** The value a field holds in the core, or `undefined` if the entry has no such field. */
+function fieldValue(entry: StoredEntry, field: string): string | undefined {
+  switch (field) {
+    case "Password":
+      return entry.password;
+    case "Title":
+      return entry.title ?? entry.secrets.Title ?? "";
+    case "UserName":
+      return entry.username ?? entry.secrets.UserName ?? "";
+    case "URL":
+      return entry.url ?? entry.secrets.URL ?? "";
+    case "Notes":
+      return entry.notes ?? entry.secrets.Notes ?? "";
+    default:
+      return entry.customFields.find((custom) => custom.name === field)?.value;
+  }
+}
+
+const CHARSETS = {
+  lower: "abcdefghijklmnopqrstuvwxyz",
+  upper: "ABCDEFGHIJKLMNOPQRSTUVWXYZ",
+  digits: "0123456789",
+  symbols: "!@#$%^&*()-_=+[]{};:,.<>?/~|",
+} as const;
+const LOOKALIKES = new Set(["0", "O", "o", "1", "l", "I", "|"]);
+
+/** Test stand-in for RF-65 to RF-69 (the real one, without bias, lives in the core). */
+function generate(length: number, sets: readonly string[]): string {
+  const pick = (chars: string): string => {
+    const buffer = new Uint32Array(1);
+    crypto.getRandomValues(buffer);
+    return chars[(buffer[0] ?? 0) % chars.length] ?? "";
+  };
+  const all = sets.join("");
+  for (;;) {
+    let password = "";
+    for (let index = 0; index < length; index += 1) password += pick(all);
+    if (sets.every((set) => Array.from(password).some((char) => set.includes(char)))) return password;
+  }
 }
 
 export function createFakeBackend(options: FakeOptions = {}): FakeBackend {
@@ -152,13 +370,27 @@ export function createFakeBackend(options: FakeOptions = {}): FakeBackend {
   const picks = new Map<string, (string | null)[]>(
     Object.entries(options.picks ?? {}).map(([command, answers]) => [command, [...answers]]),
   );
-  const root = options.groups ?? DEFAULT_ROOT;
-  const entries = [...(options.entries ?? [])];
+  const root = storeGroup(options.groups ?? DEFAULT_ROOT);
+  let entries = (options.entries ?? []).map(storeEntry);
   const strength = options.strength ?? defaultStrength;
+  const clipboardSeconds = options.clipboardSeconds ?? 20;
   const calls: FakeCall[] = [];
   const listeners = new Map<string, Set<(payload: unknown) => void>>();
   const onceResponses = new Map<string, { kind: "resolve" | "reject"; value: unknown }>();
   const holds = new Map<string, Promise<void>>();
+  const openedUrls: string[] = [];
+  let clipboard: string | null = null;
+  let sequence = 0;
+
+  function nextId(prefix: string): string {
+    sequence += 1;
+    return `${prefix}-new-${String(sequence)}`;
+  }
+
+  function now(): string {
+    sequence += 1;
+    return new Date(Date.UTC(2026, 10, 11, 12, 0, sequence)).toISOString().replace(".000Z", "Z");
+  }
 
   /** Read through a call so the compiler does not narrow `status` across the `await` above. */
   function stateNow(): WireStatus["state"] {
@@ -188,6 +420,7 @@ export function createFakeBackend(options: FakeOptions = {}): FakeBackend {
 
   function lockFromCore(recovery: WireRecovery = null) {
     if (status.state !== "closed") status = { state: "locked", path: status.path, recovery };
+    clipboard = null;
     emit("vault-locked");
   }
 
@@ -264,25 +497,240 @@ export function createFakeBackend(options: FakeOptions = {}): FakeBackend {
     if (status.state !== "open") failWith("Bloqueada");
   }
 
-  function groupWire(group: FakeGroup): unknown {
+  function requireWritable() {
+    if (status.state === "open" && status.read_only) failWith("SoloLectura");
+  }
+
+  function groupWire(group: StoredGroup): unknown {
     return {
       id: group.id,
       name: group.name,
-      kind: group.kind ?? "normal",
+      kind: group.kind,
       entry_count: entries.filter((entry) => entry.groupId === group.id).length,
-      children: (group.children ?? []).map(groupWire),
+      children: group.children.map(groupWire),
     };
   }
 
-  /** Path of names from the root down to `id`, or `undefined` if the group does not exist. */
-  function pathTo(id: string, group: FakeGroup = root, trail: readonly FakeGroup[] = []): FakeGroup[] | undefined {
+  /** Groups from the root down to `id`, or `undefined` if the group does not exist. */
+  function pathTo(id: string, group: StoredGroup = root, trail: readonly StoredGroup[] = []): StoredGroup[] | undefined {
     const here = [...trail, group];
     if (group.id === id) return here;
-    for (const child of group.children ?? []) {
+    for (const child of group.children) {
       const found = pathTo(id, child, here);
       if (found !== undefined) return found;
     }
     return undefined;
+  }
+
+  function requireGroup(id: unknown): StoredGroup[] {
+    const trail = pathTo(requiredString(id));
+    if (trail === undefined) failWith("NoEncontrado");
+    return trail;
+  }
+
+  function requireEntry(id: unknown): StoredEntry {
+    const wanted = requiredString(id);
+    const entry = entries.find((candidate) => candidate.id === wanted);
+    if (entry === undefined) failWith("NoEncontrado");
+    return entry;
+  }
+
+  function inBin(trail: readonly StoredGroup[]): boolean {
+    return trail.some((group) => group.kind === "recycle_bin");
+  }
+
+  function descendants(group: StoredGroup): StoredGroup[] {
+    return group.children.flatMap((child) => [child, ...descendants(child)]);
+  }
+
+  function containsBin(group: StoredGroup): boolean {
+    return group.kind === "recycle_bin" || descendants(group).some((child) => child.kind === "recycle_bin");
+  }
+
+  function findBin(): StoredGroup | undefined {
+    return [root, ...descendants(root)].find((group) => group.kind === "recycle_bin");
+  }
+
+  /** RF-47: the recycle bin is created on the first delete if the vault has none. */
+  function ensureBin(): StoredGroup {
+    const existing = findBin();
+    if (existing !== undefined) return existing;
+    const bin: StoredGroup = { id: nextId("group-bin"), name: "Papelera de reciclaje", kind: "recycle_bin", children: [] };
+    root.children.push(bin);
+    return bin;
+  }
+
+  function detach(trail: readonly StoredGroup[]) {
+    const group = trail.at(-1);
+    const parent = trail.at(-2);
+    if (group === undefined || parent === undefined) return;
+    parent.children = parent.children.filter((child) => child.id !== group.id);
+  }
+
+  function removeForGood(group: StoredGroup) {
+    const ids = new Set([group, ...descendants(group)].map((item) => item.id));
+    entries = entries.filter((entry) => !ids.has(entry.groupId));
+  }
+
+  /** RF-52: the name of a group, trimmed. */
+  function groupName(value: unknown): string {
+    const name = trimSpace(requiredString(value));
+    if (name === "") failWith("NombreVacio");
+    if (charCount(name) > LIMITS.groupName) failWith("CampoMuyLargo");
+    if (hasForbidden(name)) failWith("CaracterNoPermitido");
+    return name;
+  }
+
+  /** RF-57: the root cannot be moved or deleted; the bin and any group holding it are untouchable. */
+  function requireMovable(trail: readonly StoredGroup[], action: "move" | "rename" | "delete") {
+    const group = trail.at(-1);
+    if (group === undefined) failWith("NoEncontrado");
+    if (group.kind === "root" && action !== "rename") failWith("GrupoProtegido");
+    if (containsBin(group)) failWith("GrupoProtegido");
+  }
+
+  interface EntryInput {
+    title?: string | undefined;
+    username?: string | undefined;
+    password?: string | undefined;
+    url?: string | undefined;
+    notes?: string | undefined;
+    tags?: string[] | undefined;
+  }
+
+  const ENTRY_KEYS = ["title", "username", "password", "url", "notes", "tags"] as const;
+
+  function readEntryInput(args: Record<string, unknown>): EntryInput {
+    return {
+      title: stringOrUndefined(args.title),
+      username: stringOrUndefined(args.username),
+      password: stringOrUndefined(args.password),
+      url: stringOrUndefined(args.url),
+      notes: stringOrUndefined(args.notes),
+      tags: tagsOrUndefined(args.tags),
+    };
+  }
+
+  /** RF-39, RF-40, RF-91 and "Carácter no permitido", in the spec's order. */
+  function validateEntryInput(input: EntryInput) {
+    if (input.title !== undefined && trimSpace(input.title) === "") failWith("TituloVacio");
+    const tooLong =
+      (input.title !== undefined && charCount(trimSpace(input.title)) > LIMITS.title) ||
+      (input.username !== undefined && charCount(input.username) > LIMITS.username) ||
+      (input.url !== undefined && charCount(input.url) > LIMITS.url) ||
+      (input.password !== undefined && charCount(input.password) > LIMITS.password) ||
+      (input.notes !== undefined && charCount(input.notes) > LIMITS.notes) ||
+      (input.tags !== undefined &&
+        (input.tags.length > LIMITS.tags || input.tags.some((tag) => charCount(tag) > LIMITS.tag)));
+    if (tooLong) failWith("CampoMuyLargo");
+    if (input.tags?.some((tag) => /[;,]/u.test(tag) || trimSpace(tag) === "") === true) failWith("EtiquetaInvalida");
+    const texts = [input.title, input.username, input.password, input.url, input.notes, ...(input.tags ?? [])];
+    if (texts.some((text) => text !== undefined && hasForbidden(text))) failWith("CaracterNoPermitido");
+  }
+
+  function entryCreate(args: Record<string, unknown>) {
+    onlyKeys(args, ["group_id", ...ENTRY_KEYS]);
+    const input = readEntryInput(args);
+    if (input.title === undefined) failWith("ArgumentoInvalido");
+    requireWritable();
+    const trail = requireGroup(args.group_id);
+    validateEntryInput(input);
+    const stamp = now();
+    const entry: StoredEntry = {
+      id: nextId("entry"),
+      groupId: trail.at(-1)?.id ?? root.id,
+      title: trimSpace(input.title),
+      username: input.username ?? "",
+      url: input.url ?? "",
+      notes: input.notes ?? "",
+      tags: input.tags ?? [],
+      modified: stamp,
+      created: stamp,
+      // RF-41: exactly as written.
+      password: input.password ?? "",
+      secrets: {},
+      customFields: [],
+      attachments: [],
+      history: 0,
+    };
+    entries.push(entry);
+    return detailOf(entry);
+  }
+
+  /** RF-45: a missing field is left alone; a present one is replaced; no real change touches nothing. */
+  function entryUpdate(args: Record<string, unknown>) {
+    onlyKeys(args, ["id", ...ENTRY_KEYS]);
+    const input = readEntryInput(args);
+    requireWritable();
+    const entry = requireEntry(args.id);
+    validateEntryInput(input);
+    const next: Partial<StoredEntry> = {
+      ...(input.title === undefined ? {} : { title: trimSpace(input.title) }),
+      ...(input.username === undefined ? {} : { username: input.username }),
+      ...(input.url === undefined ? {} : { url: input.url }),
+      ...(input.notes === undefined ? {} : { notes: input.notes }),
+      ...(input.tags === undefined ? {} : { tags: input.tags }),
+      ...(input.password === undefined ? {} : { password: input.password }),
+    };
+    const changed = (Object.keys(next) as (keyof StoredEntry)[]).some(
+      (key) => JSON.stringify(next[key]) !== JSON.stringify(entry[key]),
+    );
+    if (changed) {
+      Object.assign(entry, next);
+      entry.history += 1;
+      entry.modified = now();
+    }
+    return detailOf(entry);
+  }
+
+  function entryDelete(args: Record<string, unknown>) {
+    onlyKeys(args, ["id"]);
+    requireWritable();
+    const entry = requireEntry(args.id);
+    const trail = pathTo(entry.groupId) ?? [];
+    if (inBin(trail)) {
+      // RF-48: for good (the real core also records it in the deleted objects).
+      entries = entries.filter((candidate) => candidate.id !== entry.id);
+    } else {
+      entry.groupId = ensureBin().id;
+    }
+    return null;
+  }
+
+  function protectedOrStandard(entry: StoredEntry, field: string): string {
+    const known = protectedFieldsOf(entry).includes(field) || (STANDARD_FIELDS as readonly string[]).includes(field);
+    const value = fieldValue(entry, field);
+    if (!known || value === undefined) failWith("NoEncontrado");
+    return value;
+  }
+
+  function entryOpenUrl(args: Record<string, unknown>) {
+    onlyKeys(args, ["id"]);
+    const entry = requireEntry(args.id);
+    const url = trimSpace(fieldValue(entry, "URL") ?? "");
+    const scheme = /^([a-z][a-z0-9+.-]*):/iu.exec(url)?.[1]?.toLowerCase();
+    if (scheme !== "http" && scheme !== "https") failWith("UrlNoPermitida");
+    openedUrls.push(url);
+    return null;
+  }
+
+  function generatePassword(args: Record<string, unknown>) {
+    onlyKeys(args, ["length", "lower", "upper", "digits", "symbols", "avoid_lookalikes"]);
+    const length = args.length;
+    if (typeof length !== "number") failWith("ArgumentoInvalido");
+    const chosen = {
+      lower: booleanArg(args.lower),
+      upper: booleanArg(args.upper),
+      digits: booleanArg(args.digits),
+      symbols: booleanArg(args.symbols),
+    };
+    const avoid = booleanArg(args.avoid_lookalikes);
+    const sets = (Object.keys(chosen) as (keyof typeof chosen)[])
+      .filter((kind) => chosen[kind])
+      .map((kind) => Array.from(CHARSETS[kind]).filter((char) => !avoid || !LOOKALIKES.has(char)).join(""));
+    if (!Number.isInteger(length) || length < 8 || length > 128 || sets.length === 0) failWith("ReglasImposibles");
+    const password = generate(length, sets);
+    return { password, score: strength(password) };
   }
 
   function search(query: string) {
@@ -290,15 +738,15 @@ export function createFakeBackend(options: FakeOptions = {}): FakeBackend {
     if (words.length === 0) return [];
     const hits = entries
       .map((entry) => ({ entry, trail: pathTo(entry.groupId) }))
-      .filter(({ trail }) => trail !== undefined && !trail.some((group) => group.kind === "recycle_bin"))
+      .filter(({ trail }) => trail !== undefined && !inBin(trail))
       .filter(({ entry }) => {
         // RF-61: a protected field (`null`) never enters the search.
-        const texts = [entry.title, entry.username, entry.url, entry.notes, ...(entry.tags ?? [])]
+        const texts = [entry.title, entry.username, entry.url, entry.notes, ...entry.tags]
           .filter((text): text is string => typeof text === "string")
           .map(fold);
         return words.every((word) => texts.some((text) => text.includes(word)));
       });
-    const titleHasAll = (entry: FakeEntry) => words.every((word) => fold(entry.title ?? "").includes(word));
+    const titleHasAll = (entry: StoredEntry) => words.every((word) => fold(entry.title ?? "").includes(word));
     hits.sort((a, b) => {
       const rank = Number(titleHasAll(b.entry)) - Number(titleHasAll(a.entry));
       return rank !== 0 ? rank : byTitle(a.entry, b.entry);
@@ -307,6 +755,12 @@ export function createFakeBackend(options: FakeOptions = {}): FakeBackend {
       ...summaryOf(entry),
       group_path: (trail ?? []).map((group) => group.name),
     }));
+  }
+
+  function countContent(group: StoredGroup) {
+    const all = [group, ...descendants(group)];
+    const ids = new Set(all.map((item) => item.id));
+    return { entries: entries.filter((entry) => ids.has(entry.groupId)).length, subgroups: all.length - 1 };
   }
 
   async function handle(command: string, args: Record<string, unknown>): Promise<unknown> {
@@ -319,10 +773,12 @@ export function createFakeBackend(options: FakeOptions = {}): FakeBackend {
         return vaultCreate(args);
       case "vault_lock":
         if (status.state === "open") status = { state: "locked", path: status.path, recovery: null };
+        clipboard = null;
         emit("vault-locked");
         return null;
       case "vault_close":
         status = { state: "closed" };
+        clipboard = null;
         emit("vault-locked");
         return null;
       case "recent_list":
@@ -340,12 +796,122 @@ export function createFakeBackend(options: FakeOptions = {}): FakeBackend {
       case "group_tree":
         requireOpen();
         return groupWire(root);
+      case "group_create": {
+        requireOpen();
+        onlyKeys(args, ["parent_id", "name"]);
+        requireWritable();
+        const parent = requireGroup(args.parent_id).at(-1);
+        const name = groupName(args.name);
+        parent?.children.push({ id: nextId("group"), name, kind: "normal", children: [] });
+        return groupWire(root);
+      }
+      case "group_rename": {
+        requireOpen();
+        onlyKeys(args, ["id", "name"]);
+        requireWritable();
+        const trail = requireGroup(args.id);
+        requireMovable(trail, "rename");
+        const name = groupName(args.name);
+        const group = trail.at(-1);
+        if (group !== undefined) group.name = name;
+        return groupWire(root);
+      }
+      case "group_move": {
+        requireOpen();
+        onlyKeys(args, ["id", "parent_id"]);
+        requireWritable();
+        const trail = requireGroup(args.id);
+        const target = requireGroup(args.parent_id);
+        requireMovable(trail, "move");
+        const group = trail.at(-1);
+        // RF-55: the same group or one of its descendants.
+        if (group === undefined || target.some((step) => step.id === group.id)) failWith("MovimientoInvalido");
+        detach(trail);
+        target.at(-1)?.children.push(group);
+        return groupWire(root);
+      }
+      case "group_delete_preview": {
+        requireOpen();
+        onlyKeys(args, ["id"]);
+        const trail = requireGroup(args.id);
+        requireMovable(trail, "delete");
+        const group = trail.at(-1);
+        return group === undefined ? { entries: 0, subgroups: 0 } : countContent(group);
+      }
+      case "group_delete": {
+        requireOpen();
+        onlyKeys(args, ["id"]);
+        requireWritable();
+        const trail = requireGroup(args.id);
+        requireMovable(trail, "delete");
+        const group = trail.at(-1);
+        if (group === undefined) failWith("NoEncontrado");
+        detach(trail);
+        // RF-58: a group already in the bin goes for good; otherwise RF-56 moves it there with its content.
+        if (inBin(trail)) removeForGood(group);
+        else ensureBin().children.push(group);
+        return groupWire(root);
+      }
+      case "recycle_bin_empty": {
+        requireOpen();
+        requireWritable();
+        const bin = findBin();
+        if (bin !== undefined) {
+          for (const child of bin.children) removeForGood(child);
+          bin.children = [];
+          entries = entries.filter((entry) => entry.groupId !== bin.id);
+        }
+        return groupWire(root);
+      }
       case "entry_list": {
         requireOpen();
         const groupId = optionalString(args.group_id) ?? "";
         if (pathTo(groupId) === undefined) failWith("NoEncontrado");
         return entries.filter((entry) => entry.groupId === groupId).sort(byTitle).map(summaryOf);
       }
+      case "entry_get":
+        requireOpen();
+        onlyKeys(args, ["id"]);
+        return detailOf(requireEntry(args.id));
+      case "entry_create":
+        requireOpen();
+        return entryCreate(args);
+      case "entry_update":
+        requireOpen();
+        return entryUpdate(args);
+      case "entry_move": {
+        requireOpen();
+        onlyKeys(args, ["id", "group_id"]);
+        requireWritable();
+        const entry = requireEntry(args.id);
+        const target = requireGroup(args.group_id).at(-1);
+        // RF-46: no new version in the history.
+        if (target !== undefined) entry.groupId = target.id;
+        return null;
+      }
+      case "entry_delete":
+        requireOpen();
+        return entryDelete(args);
+      case "entry_reveal": {
+        requireOpen();
+        onlyKeys(args, ["id", "field"]);
+        const entry = requireEntry(args.id);
+        const field = requiredString(args.field);
+        if (!protectedFieldsOf(entry).includes(field)) failWith("NoEncontrado");
+        return { value: protectedOrStandard(entry, field) };
+      }
+      case "entry_copy": {
+        requireOpen();
+        onlyKeys(args, ["id", "field"]);
+        const entry = requireEntry(args.id);
+        clipboard = protectedOrStandard(entry, requiredString(args.field));
+        return { clears_in_seconds: clipboardSeconds };
+      }
+      case "entry_open_url":
+        requireOpen();
+        return entryOpenUrl(args);
+      case "generate_password":
+        return generatePassword(args);
       case "search":
         requireOpen();
         return search(optionalString(args.query) ?? "");
@@ -394,6 +960,24 @@ export function createFakeBackend(options: FakeOptions = {}): FakeBackend {
       onceResponses.set(command, { kind: "reject", value: rejection });
     },
     lockFromCore,
+    entry(id) {
+      const entry = entries.find((candidate) => candidate.id === id);
+      if (entry === undefined) return undefined;
+      return {
+        groupId: entry.groupId,
+        title: entry.title,
+        username: entry.username,
+        url: entry.url,
+        notes: entry.notes,
+        tags: [...entry.tags],
+        password: entry.password,
+        modified: entry.modified,
+        history: entry.history,
+      };
+    },
+    groupTrail: (id) => pathTo(id)?.map((group) => group.name),
+    clipboard: () => clipboard,
+    openedUrls,
   };
 }
 
