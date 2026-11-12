@@ -17,7 +17,7 @@ No hay revisor experto de Rust equivalente a `dotnet-reviewer`: lo suyo lo cubre
 | E0-4 | Logs locales rotados y sin secretos | 0.1 | R | pendiente |
 | E1-1 | H0 cumplido (instala, abre, actualiza, desinstala) | H0 | P | ✅ `v0.0.1` y `v0.0.2` publicadas; instalar, abrir y actualizar 0.0.1 → 0.0.2 probados desde GitHub; desinstalar, en el job `installer` de CI y en el ensayo local (`docs/H0-EVIDENCIA.md`) |
 | E1-2 | SemVer 2.0; `CHANGELOG.md` y notas del release tomadas de él | H0 | R | 🟡 `CHANGELOG.md` existe; notas del release en `docs/RELEASE_NOTES.md` |
-| E1-3 | Instalador NSIS por usuario + actualizador de Tauri (en vez de Velopack; ADR-0003) | H0 | R | ✅ NSIS `currentUser` + actualizador (config); `latest.json` lo genera `scripts/release-manifest.mjs`, sin ejecutar aún en release |
+| E1-3 | Instalador NSIS por usuario + actualizador de Tauri (en vez de Velopack; ADR-0003) | H0 | R | ✅ NSIS `currentUser` + actualizador (config); `latest.json` lo genera `scripts/release-manifest.mjs` en `release.yml` (publicado en `v0.0.1` y `v0.0.2`; la app lo leyó al actualizar) |
 | E1-4 | `release.yml` por etiqueta `v*` sin pasos manuales | H0 | R | ✅ dos corridas completas (`v0.0.1`, `v0.0.2`); el único paso humano es la aprobación del entorno `release` |
 | E1-5 | `SHA256SUMS` en el mismo release | H0 | R | ✅ en los dos releases; la suma del instalador coincide |
 | E1-6 | Decisión de firma en un ADR; sin firma, el README avisa de SmartScreen | H0 | P | ✅ ADR-0004 + aviso en README y `docs/RELEASE_NOTES.md` |
@@ -48,8 +48,8 @@ No hay revisor experto de Rust equivalente a `dotnet-reviewer`: lo suyo lo cubre
 | E3-1 | Modelo de amenazas STRIDE corto antes del código de seguridad | H0 | S | ✅ `docs/AMENAZAS.md` |
 | E3-2 | Cifrado, KDF y formato con librería probada; cero criptografía propia; parches documentados | 0.1 | R+S | parcial: lab 19 (`docs/lab/kdbx-roundtrip/EXPERIMENTO.md`), sin parches |
 | E3-3 | Secretos con tipos protegidos (`secrecy`, `zeroize`); el bloqueo oculta la vista y limpia el portapapeles; no falla abierto | 0.1 | R+S | pendiente |
-| E3-4 | Pruebas de formato con fixtures reales de KeePass 2 y KeePassXC y fuzzing básico del parser | H0 fixtures · 1.0 fuzzing | T+S | parcial: KeePass 2.62 en el lab 19 |
-| E3-5 | Build repetible (`--locked`, `rust-toolchain.toml`, versiones fijadas) y atestación (`actions/attest`) | H0 atestación · 1.0 build repetible | R+S | pendiente (`gh attestation verify`) |
+| E3-4 | Pruebas de formato con fixtures reales de KeePass 2 y KeePassXC y fuzzing básico del parser | H0 fixtures · 1.0 fuzzing | T+S | 🟡 H0 ✅: fixtures de KeePass 2.62 (×4) y KeePassXC 2.8.0 en `crates/almarioks-core/tests/fixtures/`, pruebas `roundtrip_*` en CI `verify`. Fuzzing: 1.0 |
+| E3-5 | Build repetible (`--locked`, `rust-toolchain.toml`, versiones fijadas) y atestación (`actions/attest`) | H0 atestación · 1.0 build repetible | R+S | 🟡 H0 ✅: `actions/attest-build-provenance` en `release.yml`; `gh attestation verify` salió con 0 en `v0.0.1` y `v0.0.2` (`docs/H0-EVIDENCIA.md`). Build repetible: 1.0 |
 | E3-6 | SBOM CycloneDX en el release | 1.0 | R | pendiente |
 | E3-7 | `SECURITY.md` con canal de reporte y plazo; parche de Críticos en ≤ 7 días | 1.0 | S+P | pendiente |
 | E3-8 | Plan de reversa: republicar una versión anterior como estable | 1.0 | P | pendiente (procedimiento probado) |
@@ -98,10 +98,10 @@ No hay revisor experto de Rust equivalente a `dotnet-reviewer`: lo suyo lo cubre
 ## CI/CD
 | Requisito | Fase | Resp. | Evidencia |
 |---|---|---|---|
-| PR: fmt + clippy + nextest + `cargo deny` + typecheck + lint + test, en ≤ 10 min | H0 | R | pendiente |
-| `main` protegida (PR + CI verde) desde que exista CI | H0 | P | pendiente |
-| Actions fijadas por SHA; `permissions: contents: read` salvo el job de release; gitleaks | H0 | R | pendiente |
-| Conventional Commits; etiqueta `v*` → `release.yml` | H0 | R | pendiente |
+| PR: fmt + clippy + nextest + `cargo deny` + typecheck + lint + test, en ≤ 10 min | H0 | R | ✅ job `verify` de `ci.yml` corre todos esos pasos; las corridas de PR del 2026-11-11 tardaron entre 2,5 y 3,5 min |
+| `main` protegida (PR + CI verde) desde que exista CI | H0 | P | ✅ ruleset `main` activo: PR obligatorio, checks `verify`, `secrets` e `installer` requeridos, sin borrado ni `force push` (`gh api repos/Kattonavi/almarioks/rulesets`) |
+| Actions fijadas por SHA; `permissions: contents: read` salvo el job de release; gitleaks | H0 | R | ✅ ningún `uses:` sin SHA de 40 caracteres; `contents: read` en los dos workflows y permisos de escritura solo en el job `publish`; job `secrets` con gitleaks, requerido en `main` |
+| Conventional Commits; etiqueta `v*` → `release.yml` | H0 | R | ✅ el historial sigue Conventional Commits (por convención: no hay verificación automática); `release.yml` solo corre con etiquetas `v*`, protegidas por el ruleset `release-tags` |
 
 ## No aplica
 - **E2-6** (telemetría y reportes de fallos opt-in): no hay telemetría ni reportes automáticos (pilar 1). Si algún día se agregan, vuelve a aplicar.
