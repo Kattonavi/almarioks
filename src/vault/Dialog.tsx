@@ -25,16 +25,20 @@ interface DialogProps {
  */
 export function Dialog({ title, tone, layout, lead, onClose, children }: DialogProps) {
   const ref = useRef<HTMLDialogElement>(null);
+  /** This component is closing the dialog itself (it is going away): that `close` is not the browser's doing. */
+  const closing = useRef(false);
   const titleId = useId();
 
   useEffect(() => {
     const dialog = ref.current;
     const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    closing.current = false;
     dialog?.showModal();
     // The browser focuses the first control. Where that would be the destructive action, the dialog marks the way
     // out instead, so Enter never destroys anything by default.
     dialog?.querySelector<HTMLElement>("[data-initial-focus]")?.focus();
     return () => {
+      closing.current = true;
       if (dialog?.open === true) dialog.close();
       if (opener?.isConnected === true) opener.focus();
     };
@@ -49,6 +53,15 @@ export function Dialog({ title, tone, layout, lead, onClose, children }: DialogP
       onCancel={(event) => {
         // Escape: React decides, so the dialog is unmounted instead of left closed in the DOM.
         event.preventDefault();
+        onClose();
+      }}
+      onClose={() => {
+        // The browser closed it on its own (Chromium lets a repeated Escape through even when the first one was
+        // cancelled). It is still mounted, so it opens again with everything in it and the owner is asked, the same
+        // as with Escape: what was written is never lost in silence.
+        const dialog = ref.current;
+        if (closing.current || dialog === null || dialog.open) return;
+        dialog.showModal();
         onClose();
       }}
     >

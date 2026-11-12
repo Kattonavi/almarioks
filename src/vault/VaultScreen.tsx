@@ -5,7 +5,7 @@ import type { VaultClient } from "../ipc/client";
 import { errorMessage, type AppError, type Result } from "../ipc/errors";
 import type { EntrySummary, GroupNode, SearchResult } from "../ipc/schemas";
 import { CheckIcon, PlusIcon, SearchIcon } from "../ui/icons";
-import { EntryForm } from "./EntryForm";
+import { EntryDialog } from "./EntryDialog";
 import { EntryPanel, type CopyNotice } from "./EntryPanel";
 import { findGroup, formatDate, formatShortDay, plural, shortSite, shown, trailTo } from "./format";
 import { useGroupActions, type GroupChange } from "./GroupActions";
@@ -44,8 +44,7 @@ interface SelectedEntry {
 /** What the detail zone shows. */
 type DetailState =
   | { readonly kind: "none" }
-  | { readonly kind: "entry"; readonly entry: SelectedEntry }
-  | { readonly kind: "new"; readonly groupId: string };
+  | { readonly kind: "entry"; readonly entry: SelectedEntry };
 
 /** The notice of the detail zone: a plain text, or a new entry waiting for its save to reach the disk (RF-21). */
 type Notice = { readonly kind: "text"; readonly text: string } | { readonly kind: "created"; readonly since: number };
@@ -150,6 +149,8 @@ export function VaultScreen({
   /** Asks the list again after a change without showing "Cargando" in between. */
   const [listRefresh, setListRefresh] = useState(0);
   const [detail, setDetail] = useState<DetailState>({ kind: "none" });
+  /** RF-100: the group a new entry is being written for, in its dialog over the vault; `null`: no dialog. */
+  const [newEntryIn, setNewEntryIn] = useState<string | null>(null);
   const [notice, setNotice] = useState<Notice>(NO_NOTICE);
   const [query, setQuery] = useState("");
   const [search, setSearch] = useState<SearchState>({ kind: "idle" });
@@ -264,6 +265,8 @@ export function VaultScreen({
       const key = event.key.toLowerCase();
       if (key !== "f" && key !== "k") return;
       event.preventDefault();
+      // With a modal dialog open, what is behind it is out of reach: the key is still taken from the browser.
+      if (document.querySelector("dialog[open]") !== null) return;
       searchRef.current?.focus();
       searchRef.current?.select();
     }
@@ -507,32 +510,41 @@ export function VaultScreen({
           </section>
         </div>
       </div>
+      {renderNewEntry()}
     </div>
   );
+
+  /** RF-100: "Nueva entrada" is a dialog over the vault; the list and the detail stay behind it as they were. */
+  function renderNewEntry() {
+    if (newEntryIn === null || tree.kind !== "ready") return null;
+    const group = findGroup(tree.root, newEntryIn) ?? tree.root;
+    return (
+      <EntryDialog
+        client={client}
+        mode={{
+          kind: "new",
+          group: { id: group.id, name: shown(group.name, "(sin nombre)"), line: entryLine(lines.get(group.id)) },
+        }}
+        onClose={() => {
+          setNewEntryIn(null);
+        }}
+        onSaved={(entry) => {
+          // The new entry is the chosen one. The focus goes to its detail once it is loaded, as when an entry is
+          // opened from the keyboard (the dialog gives it back to "Nueva entrada" first).
+          settleCopyNotice();
+          setNotice({ kind: "created", since: saveSignal.saved });
+          setKeyboardOpen((current) => ({ entryId: entry.id, seq: (current?.seq ?? 0) + 1 }));
+          setDetail({ kind: "entry", entry: { id: entry.id, title: entry.title } });
+          refresh();
+        }}
+      />
+    );
+  }
 
   function renderDetail() {
     switch (detail.kind) {
       case "none":
         return <p className="pane-state">Elige una entrada para ver su detalle.</p>;
-      case "new": {
-        if (tree.kind !== "ready") return null;
-        const group = findGroup(tree.root, detail.groupId) ?? tree.root;
-        return (
-          <EntryForm
-            client={client}
-            mode={{ kind: "create", groupId: group.id, groupName: shown(group.name, "(sin nombre)") }}
-            onSaved={(entry) => {
-              setNotice({ kind: "created", since: saveSignal.saved });
-              setDetail({ kind: "entry", entry: { id: entry.id, title: entry.title } });
-              refresh();
-            }}
-            onCancel={() => {
-              setDetail({ kind: "none" });
-              detailTitleRef.current?.focus();
-            }}
-          />
-        );
-      }
       case "entry":
         if (tree.kind !== "ready") return null;
         return (
@@ -634,9 +646,7 @@ export function VaultScreen({
         type="button"
         className="btn-primary"
         onClick={() => {
-          settleCopyNotice();
-          setNotice(NO_NOTICE);
-          setDetail({ kind: "new", groupId: target });
+          setNewEntryIn(target);
         }}
       >
         <PlusIcon />

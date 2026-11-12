@@ -64,7 +64,16 @@ function core() {
 function open(mode: EntryDialogMode = NEW, from = core()) {
   const onClose = vi.fn<() => void>();
   const onSaved = vi.fn<(entryId: string, changed: boolean) => void>();
-  const view = render(<EntryDialog client={from.client} mode={mode} onClose={onClose} onSaved={onSaved} />);
+  const view = render(
+    <EntryDialog
+      client={from.client}
+      mode={mode}
+      onClose={onClose}
+      onSaved={(entry, changed) => {
+        onSaved(entry.id, changed);
+      }}
+    />,
+  );
   return { ...from, onClose, onSaved, view };
 }
 
@@ -511,7 +520,7 @@ describe("Diálogo de entrada — contraseña y generador en el campo", () => {
     const length = screen.getByLabelText<HTMLInputElement>("Longitud");
     expect([length.type, length.min, length.max, length.value]).toEqual(["range", "8", "128", "20"]);
     for (const label of KIND_LABELS) expect(within(kinds).getByLabelText<HTMLInputElement>(label).checked).toBe(true);
-    expect(within(kinds).getByLabelText<HTMLInputElement>("Evitar caracteres parecidos").checked).toBe(false);
+    expect(within(kinds).getByLabelText<HTMLInputElement>("Evitar caracteres parecidos (0 O o 1 l I |)").checked).toBe(false);
 
     fireEvent.click(toggle);
     expect(toggle.getAttribute("aria-expanded")).toBe("false");
@@ -523,7 +532,7 @@ describe("Diálogo de entrada — contraseña y generador en el campo", () => {
     const { backend } = open();
     openOptions();
     fireEvent.change(screen.getByLabelText("Longitud"), { target: { value: "8" } });
-    fireEvent.click(screen.getByLabelText("Evitar caracteres parecidos"));
+    fireEvent.click(screen.getByLabelText("Evitar caracteres parecidos (0 O o 1 l I |)"));
     expect(backend.count("generate_password")).toBe(0);
 
     const password = await generateOnce();
@@ -661,5 +670,78 @@ describe("Diálogo de entrada — contraseña y generador en el campo", () => {
 
     view.rerender(<p>Bóveda</p>);
     expect(bodyContains(generated)).toBe(false);
+  });
+});
+
+/**
+ * What Chromium can do on a repeated Escape: close the dialog on its own, without `cancel` and without React. The
+ * element is still mounted; only `open` is gone and `close` fires.
+ */
+function closedByTheBrowser(dialog: HTMLDialogElement) {
+  dialog.open = false;
+  fireEvent(dialog, new Event("close"));
+}
+
+describe("Diálogo de entrada — el navegador lo cierra por su cuenta", () => {
+  it("RF-100: cerrado por el navegador con cambios sin guardar, vuelve a abrirse con lo escrito y pregunta antes de descartar", () => {
+    const { onClose, onSaved } = open();
+    fireEvent.change(title(), { target: { value: "A medias" } });
+    typePassword("escrita-sin-guardar");
+    const dialog = sheet();
+
+    closedByTheBrowser(dialog);
+
+    expect(dialog.open).toBe(true);
+    expect(title().value).toBe("A medias");
+    expect(passwordField().value).toBe("escrita-sin-guardar");
+    expect(confirmation()).not.toBeNull();
+    expect(onClose).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Seguir editando" }));
+    expect(confirmation()).toBeNull();
+    expect(dialog.open).toBe(true);
+    expect(title().value).toBe("A medias");
+    expect(onSaved).not.toHaveBeenCalled();
+  });
+
+  it("RF-100: cerrado por el navegador sin cambios, se va como con Esc: una sola petición de cierre y ninguna pregunta", () => {
+    const { onClose } = open();
+
+    closedByTheBrowser(sheet());
+
+    expect(confirmation()).toBeNull();
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("RF-100: cerrado por el navegador mientras guarda, vuelve a abrirse sin preguntar y el guardado termina", async () => {
+    const { backend, onClose, onSaved } = open();
+    const release = backend.hold("entry_create");
+    fireEvent.change(title(), { target: { value: "Lenta" } });
+    fireEvent.click(screen.getByRole("button", { name: "Guardar entrada" }));
+    await screen.findByRole("button", { name: "Guardando…" });
+    const dialog = sheet();
+
+    closedByTheBrowser(dialog);
+
+    expect(dialog.open).toBe(true);
+    expect(confirmation()).toBeNull();
+    expect(onClose).not.toHaveBeenCalled();
+
+    release();
+    await waitFor(() => {
+      expect(onSaved).toHaveBeenCalledTimes(1);
+    });
+    expect(backend.count("entry_create")).toBe(1);
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("RF-100: al desmontarse, el cierre que hace el propio diálogo no cuenta como cierre del navegador", () => {
+    const { onClose, view } = open();
+    fireEvent.change(title(), { target: { value: "A medias" } });
+
+    view.rerender(<p>Bóveda</p>);
+
+    expect(onClose).not.toHaveBeenCalled();
+    expect(screen.queryByRole("dialog")).toBeNull();
   });
 });

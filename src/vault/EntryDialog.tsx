@@ -29,7 +29,7 @@ export interface EntryDialogProps {
   /** The dialog asks to go away (after saving, or after closing with nothing to lose): the owner unmounts it. */
   readonly onClose: () => void;
   /** Right before `onClose`. `changed` is false when an edit had nothing to send (no save is on its way). */
-  readonly onSaved: (entryId: string, changed: boolean) => void;
+  readonly onSaved: (entry: EntryDetail, changed: boolean) => void;
 }
 
 type Phase =
@@ -121,7 +121,7 @@ export function EntryDialog({ client, mode, onClose, onSaved }: EntryDialogProps
     // From here on the password is only in `input`, on its way to the core.
     const hadPassword = (passwordRef.current?.take() ?? "") !== "";
     if (editing !== null && Object.keys(input).length === 0) {
-      onSaved(editing.id, false);
+      onSaved(editing, false);
       onClose();
       return;
     }
@@ -139,7 +139,7 @@ export function EntryDialog({ client, mode, onClose, onSaved }: EntryDialogProps
     busy.current = false;
     if (!mounted.current) return;
     if (result.ok) {
-      onSaved(result.value.id, true);
+      onSaved(result.value, true);
       onClose();
       return;
     }

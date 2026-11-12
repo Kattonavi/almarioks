@@ -292,7 +292,7 @@ export function PasswordField({ ref, id, client, hint, invalid, errorId, onWritt
                   changeOptions({ ...options, avoidLookalikes: event.target.checked });
                 }}
               />
-              Evitar caracteres parecidos
+              Evitar caracteres parecidos (0 O o 1 l I |)
             </label>
           </div>
           <p role="alert" className="field-error">

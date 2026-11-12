@@ -173,14 +173,14 @@ describe("Precisiones del contrato (plan.md 15 y 16)", () => {
     await screen.findByRole("heading", { name: "Entradas de Personal" });
     fireEvent.click(screen.getByRole("button", { name: "Nueva entrada" }));
     fireEvent.change(await screen.findByLabelText("Título"), { target: { value: "Correo" } });
-    fireEvent.change(screen.getByLabelText("URL"), { target: { value: "https://correo.example" } });
+    fireEvent.change(screen.getByLabelText("Sitio"), { target: { value: "https://correo.example" } });
     backend.rejectOnce("entry_create", { code: "CampoMuyLargo", message: "x", field: "url", limit: 20 });
 
     fireEvent.click(screen.getByRole("button", { name: "Guardar entrada" }));
 
-    expect(await screen.findByText("La URL admite hasta 20 caracteres. Acórtala.")).toBeDefined();
+    expect(await screen.findByText("El sitio admite hasta 20 caracteres. Acórtalo.")).toBeDefined();
     await waitFor(() => {
-      expect(screen.getByLabelText("URL").getAttribute("aria-invalid")).toBe("true");
+      expect(screen.getByLabelText("Sitio").getAttribute("aria-invalid")).toBe("true");
     });
   });
 });

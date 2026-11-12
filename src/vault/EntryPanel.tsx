@@ -7,7 +7,7 @@ import type { EntryDetail, GroupNode } from "../ipc/schemas";
 import { CopyIcon, EditIcon, HideIcon, OpenLinkIcon, ShowIcon } from "../ui/icons";
 import { MenuButton, type MenuItem } from "../ui/MenuButton";
 import { Dialog } from "./Dialog";
-import { EntryForm } from "./EntryForm";
+import { EntryDialog } from "./EntryDialog";
 import { formatDate, formatDay, groupOptions, isInBin, shown, trailTo } from "./format";
 import { assignLines, entryInitial, entryLine } from "./lines";
 import { NO_SAVE_SIGNAL, savingText, type SaveSignal } from "./saveSignal";
@@ -272,7 +272,7 @@ export function EntryPanel({
 }: EntryPanelProps) {
   const [load, setLoad] = useState<LoadState>({ kind: "loading" });
   const [attempt, setAttempt] = useState(0);
-  const [mode, setMode] = useState<"view" | "edit">("view");
+  const [editing, setEditing] = useState(false);
   /** A map, not an object: the name of a custom field is whatever the file says. */
   const [revealed, setRevealed] = useState<ReadonlyMap<FieldName, string>>(() => new Map());
   const [actionError, setActionError] = useState<AppError | null>(null);
@@ -321,11 +321,11 @@ export function EntryPanel({
   }, [focusRequest, load]);
 
   useEffect(() => {
-    if (mode === "view" && focusEdit.current) {
+    if (!editing && focusEdit.current) {
       focusEdit.current = false;
       editRef.current?.focus();
     }
-  }, [mode]);
+  }, [editing]);
 
   function hide(field: FieldName) {
     clearTimeout(timers.current.get(field));
@@ -431,27 +431,6 @@ export function EntryPanel({
 
   const { entry } = load;
 
-  if (mode === "edit") {
-    return (
-      <EntryForm
-        client={client}
-        mode={{ kind: "edit", entry }}
-        onSaved={(saved, changed) => {
-          setLoad({ kind: "ready", entry: saved });
-          setStatus(changed ? "" : "No había cambios que guardar.");
-          setEditSince(changed ? saveSignal.saved : null);
-          focusEdit.current = true;
-          setMode("view");
-          if (changed) onChanged();
-        }}
-        onCancel={() => {
-          focusEdit.current = true;
-          setMode("view");
-        }}
-      />
-    );
-  }
-
   const inBin = isInBin(root, entry.groupId);
   const savedText = editSince === null ? "" : savingText(saveSignal, editSince, WAITING, DONE);
   const secretFields = protectedOf(entry);
@@ -542,7 +521,7 @@ export function EntryPanel({
                 hideAll();
                 say("");
                 setActionError(null);
-                setMode("edit");
+                setEditing(true);
               }}
             >
               <EditIcon />
@@ -688,6 +667,23 @@ export function EntryPanel({
         {actionError === null ? "" : errorMessage(actionError)}
       </p>
 
+      {/* RF-100: editing is a dialog over the vault; this detail stays behind it as it was. */}
+      {editing && (
+        <EntryDialog
+          client={client}
+          mode={{ kind: "edit", entry, group: { id: entry.groupId, name: trail.at(-1) ?? "(sin nombre)", line } }}
+          onClose={() => {
+            focusEdit.current = true;
+            setEditing(false);
+          }}
+          onSaved={(saved, changed) => {
+            setLoad({ kind: "ready", entry: saved });
+            setStatus(changed ? "" : "No había cambios que guardar.");
+            setEditSince(changed ? saveSignal.saved : null);
+            if (changed) onChanged();
+          }}
+        />
+      )}
       {renderDialog()}
     </div>
   );
