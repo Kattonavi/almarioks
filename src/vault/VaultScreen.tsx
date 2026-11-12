@@ -76,9 +76,13 @@ function liveGroupIds(node: GroupNode): string[] {
   return [node.id, ...node.children.flatMap(liveGroupIds)];
 }
 
-/** A title the way the lists compare it: without case or accents. */
+/**
+ * A title the way the core compares it (`text::fold` of the core): lower case, NFKD, without combining marks, and
+ * twice, because a lower case can bring a mark of its own.
+ */
 function foldTitle(title: string | null): string {
-  return (title ?? "").normalize("NFD").replace(/\p{M}/gu, "").toLocaleLowerCase("es");
+  const once = (text: string) => text.toLowerCase().normalize("NFKD").replace(/\p{M}/gu, "");
+  return once(once(title ?? ""));
 }
 
 /** RF-102: several groups put together go by title, like the entries of one group; the id settles equal titles. */

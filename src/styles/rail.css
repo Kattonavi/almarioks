@@ -30,6 +30,15 @@
   padding-inline-end: var(--space-3);
 }
 
+/* The menu of the root never makes the head taller than its two lines; its target still reaches 44 px. */
+.rail-head .rail-more {
+  min-height: 40px;
+}
+
+.rail-head .rail-more::after {
+  inset: -2px 0 -2px -8px;
+}
+
 .rail-label,
 .rail-nav h3 {
   margin: 0;
@@ -185,6 +194,7 @@
   outline-offset: calc(var(--focus-width) * -1);
 }
 
+.rail-all[aria-current="true"]:focus-visible,
 .rail-row[data-current] > .rail-item:focus-visible,
 .rail-row[data-current] .rail-more:focus-visible {
   outline-color: var(--on-panel);

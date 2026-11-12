@@ -6,7 +6,7 @@
  *   ?estado=…               the screen and state to show (default: copiado):
  *       without a vault     bienvenida · bienvenida-vacia · crear · crear-llave · crear-error · creando · creada ·
  *                           desbloquear · derivando · error-llave · bloqueada · ajustes
- *       open vault          todas · menu-grupo · busqueda ·
+ *       open vault          todas · foco-todas · menu-grupo · menu-papelera · busqueda ·
  *                           copiado · detalle · ninguna · formulario · generador · editar · dialogo-mover ·
  *                           dialogo-borrar · dialogo-papelera · dialogo-renombrar · dialogo-recarga ·
  *                           aviso-guardado · cambio-externo · solo-lectura · ajustes-abierta
@@ -222,6 +222,10 @@ async function stageOpen(backend: FakeBackend) {
   await find(".rail-all", /^Todas/);
   backend.emit("vault-save-state", "saved");
   if (state === "todas") return;
+  if (state === "foco-todas") {
+    (await find(".rail-all", /^Todas/)).focus();
+    return;
+  }
   if (state === "busqueda") {
     await fill("vault-search", "ana");
     await find(".list-title p", /resultado/);
@@ -231,6 +235,11 @@ async function stageOpen(backend: FakeBackend) {
   switch (state) {
     case "menu-grupo":
       await click('button[aria-label="Más acciones de Trabajo"]', /^/);
+      await find('[role="menuitem"]', /./);
+      return;
+    case "menu-papelera":
+      // The menu of the last row of the rail: without room below, it opens upward.
+      await click('button[aria-label="Más acciones de Papelera de reciclaje"]', /^/);
       await find('[role="menuitem"]', /./);
       return;
     case "dialogo-borrar":
@@ -287,7 +296,8 @@ function badge() {
   const widest = Math.max(...[...document.querySelectorAll("*")].map((element) => element.scrollWidth));
   node.textContent = [
     `${String(window.innerWidth)}x${String(window.innerHeight)}`,
-    `ancho max ${String(Math.max(widest, root.scrollWidth))}`,
+    // The document is what scrolls; `max` also counts what is clipped on purpose (text only for screen readers).
+    `ancho doc ${String(root.scrollWidth)} max ${String(Math.max(widest, root.scrollWidth))}`,
     `sans ${document.fonts.check('16px "Overpass Variable"') ? "ok" : "NO"}`,
     `esquema ${getComputedStyle(root).colorScheme}`,
     `foco ${document.activeElement?.textContent.trim().slice(0, 24) ?? ""}`,
@@ -331,6 +341,8 @@ async function boot() {
             weak_kdf: state === "solo-lectura",
             save_pending: false,
             recovery: null,
+            // The lock countdown of the bar, next to "Bloquear".
+            locks_in_seconds: 252,
           },
     vaults: [{ path: VAULT_PATH, name: "Cuentas", password: "demo-clave" }],
     recent:
