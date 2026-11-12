@@ -49,6 +49,12 @@ interface Badge {
   readonly bin: boolean;
 }
 
+/** The row whose value is on the clipboard, and the seconds left until the core clears it. */
+interface Stamped {
+  readonly entryId: string;
+  readonly seconds: number;
+}
+
 const NO_LINES: ReadonlyMap<string, GroupLine> = new Map();
 
 interface VaultScreenProps {
@@ -81,6 +87,9 @@ export function VaultScreen({ client, readOnly = false, barEnd, railHead, banner
   const [notice, setNotice] = useState("");
   const [query, setQuery] = useState("");
   const [search, setSearch] = useState<SearchState>({ kind: "idle" });
+  /** RF-74 on the list: which row holds the clipboard and until when. It outlives the detail of that entry. */
+  const [stamp, setStamp] = useState<{ readonly entryId: string; readonly deadline: number } | null>(null);
+  const [now, setNow] = useState(() => Date.now());
   const searchRef = useRef<HTMLInputElement>(null);
   const detailTitleRef = useRef<HTMLHeadingElement>(null);
   const groupsTitleRef = useRef<HTMLHeadingElement>(null);
@@ -138,6 +147,19 @@ export function VaultScreen({ client, readOnly = false, barEnd, railHead, banner
       active = false;
     };
   }, [client, groupId, listAttempt, listRefresh]);
+
+  // The stamp on the copied row counts down with the clipboard and goes away when the core clears it.
+  useEffect(() => {
+    if (stamp === null) return;
+    const timer = setInterval(() => {
+      const at = Date.now();
+      if (at >= stamp.deadline) setStamp(null);
+      else setNow(at);
+    }, 1000);
+    return () => {
+      clearInterval(timer);
+    };
+  }, [stamp]);
 
   // Ctrl+F or Ctrl+K go to the search field from anywhere in the vault.
   useEffect(() => {
@@ -213,6 +235,8 @@ export function VaultScreen({ client, readOnly = false, barEnd, railHead, banner
   }
 
   const searching = query.trim() !== "";
+  const stamped: Stamped | null =
+    stamp === null ? null : { entryId: stamp.entryId, seconds: Math.max(1, Math.ceil((stamp.deadline - now) / 1000)) };
   /** The line colour of every group: by position, so it only changes when the tree does. */
   const lines = tree.kind === "ready" ? assignLines(tree.root) : NO_LINES;
 
@@ -317,6 +341,10 @@ export function VaultScreen({ client, readOnly = false, barEnd, railHead, banner
             root={tree.root}
             readOnly={readOnly}
             onChanged={refresh}
+            onCopied={(deadline) => {
+              setNow(Date.now());
+              setStamp(deadline === null ? null : { entryId: detail.entry.id, deadline });
+            }}
             onDeleted={(message) => {
               setDetail({ kind: "none" });
               setNotice(message);
@@ -453,6 +481,7 @@ export function VaultScreen({ client, readOnly = false, barEnd, railHead, banner
             items={loaded.value}
             groupPaths={null}
             badgeOf={() => badge}
+            stamped={stamped}
             selectedId={selectedId}
             onSelect={selectEntry}
           />
@@ -512,6 +541,7 @@ export function VaultScreen({ client, readOnly = false, barEnd, railHead, banner
                 bin: false,
               };
             }}
+            stamped={stamped}
             selectedId={selectedId}
             onSelect={selectEntry}
           />
@@ -602,6 +632,7 @@ interface EntryTableProps {
   readonly groupPaths: readonly (readonly string[])[] | null;
   /** The badge of the group each row sits in. */
   readonly badgeOf: (index: number) => Badge;
+  readonly stamped: Stamped | null;
   readonly selectedId: string | null;
   readonly onSelect: (entry: SelectedEntry) => void;
 }
@@ -610,7 +641,7 @@ interface EntryTableProps {
  * RF-42: entries in the order the core sends (by title). The URL is text, never a link (RF-78, RF-49). It is a real
  * table drawn as a list of rows: the title button stretches over its row, and the header row stays for screen readers.
  */
-function EntryTable({ items, groupPaths, badgeOf, selectedId, onSelect }: EntryTableProps) {
+function EntryTable({ items, groupPaths, badgeOf, stamped, selectedId, onSelect }: EntryTableProps) {
   return (
     <div className="table-scroll">
       <table className="entries" data-search={groupPaths === null ? undefined : ""}>
@@ -644,9 +675,14 @@ function EntryTable({ items, groupPaths, badgeOf, selectedId, onSelect }: EntryT
               <td className="cell-tags">{entry.tags.join(", ")}</td>
               {groupPaths !== null && <td className="cell-group">{(groupPaths[index] ?? []).join(" › ")}</td>}
               <td className="cell-date">
-                <time dateTime={entry.modified} title={formatDate(entry.modified)}>
+                <time
+                  dateTime={entry.modified}
+                  title={formatDate(entry.modified)}
+                  className={stamped?.entryId === entry.id ? "sr-only" : undefined}
+                >
                   {formatDay(entry.modified)}
                 </time>
+                {stamped?.entryId === entry.id && <span className="stamp">Copiado · {stamped.seconds} s</span>}
               </td>
             </tr>
           ))}
