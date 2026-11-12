@@ -2,9 +2,10 @@
  * Development-only preview (`/preview.html` under `pnpm dev`): the real screens on the fake core, with sample data,
  * to judge the design in a browser. It is not an entry of the production build.
  *
- *   ?tema=oscuro                 forces the dark theme (the same file production loads by media query)
+ *   ?tema=oscuro|claro           forces a theme (dark is the same file production loads by media query)
  *   ?estado=cerrado              the welcome screen instead of the open vault
  *   ?demo=copiado|dialogo|lectura|nueva|ninguna   what the open vault shows (default: copiado)
+ *   ?marco=480x360               draws the preview inside a frame of that exact viewport (for screenshots)
  */
 import { mockIPC } from "@tauri-apps/api/mocks";
 import { StrictMode } from "react";
@@ -16,13 +17,13 @@ import { App } from "./App";
 import { createClient } from "./ipc/client";
 import { createFakeBackend, type FakeEntry, type FakeGroup } from "./ipc/fake";
 import "./styles.css";
+import lightTokens from "./styles/tokens.css?inline";
 import { VaultRoot } from "./vault/VaultRoot";
 
 const params = new URLSearchParams(window.location.search);
 const demo = params.get("demo") ?? "copiado";
 const closed = params.get("estado") === "cerrado";
-
-if (params.get("tema") === "oscuro") await import("./styles/theme-dark.css");
+const frame = /^(\d+)x(\d+)$/.exec(params.get("marco") ?? "");
 
 const VAULT_PATH = "D:/bovedas/cuentas.kdbx";
 
@@ -64,40 +65,6 @@ const ENTRIES: readonly FakeEntry[] = [
   entry("e-shop", "g-shopping", "Tienda de libros", "ana@example.com", "2026-04-18T19:00:00Z"),
   entry("e-old", "g-bin", "Cuenta vieja", "ana", "2026-01-09T12:00:00Z"),
 ];
-
-// The shell asks Tauri for the version; outside Tauri the preview answers for it.
-mockIPC((command) => {
-  if (command === "plugin:app|version") return "0.0.2";
-  throw new Error(`preview: unexpected command ${command}`);
-});
-
-const backend = createFakeBackend({
-  status: closed
-    ? { state: "closed" }
-    : {
-        state: "open",
-        path: VAULT_PATH,
-        name: "Cuentas",
-        read_only: demo === "lectura",
-        weak_kdf: demo === "lectura",
-        save_pending: false,
-        recovery: null,
-      },
-  recent: [{ path: VAULT_PATH, exists: true }],
-  groups: GROUPS,
-  entries: ENTRIES,
-});
-
-const container = document.getElementById("root");
-if (container === null) throw new Error("Missing #root element in preview.html");
-
-createRoot(container).render(
-  <StrictMode>
-    <App>
-      <VaultRoot client={createClient(backend.transport)} />
-    </App>
-  </StrictMode>,
-);
 
 function sleep(ms: number) {
   return new Promise<void>((resolve) => {
@@ -146,19 +113,82 @@ function badge() {
   node.style.cssText =
     "position:fixed;right:4px;bottom:4px;z-index:9;padding:1px 6px;font:11px monospace;color:#000;background:#ffe;";
   const root = document.documentElement;
-  const fonts = document.fonts.check('16px "Overpass Variable"') && document.fonts.check('16px "Overpass Mono Variable"');
+  const widest = Math.max(...[...document.querySelectorAll("*")].map((element) => element.scrollWidth));
   node.textContent = [
     `${String(window.innerWidth)}x${String(window.innerHeight)}`,
-    `scrollW ${String(root.scrollWidth)}`,
-    `fuentes ${fonts ? "ok" : "NO"}`,
+    `ancho max ${String(Math.max(widest, root.scrollWidth))}`,
+    `sans ${document.fonts.check('16px "Overpass Variable"') ? "ok" : "NO"}`,
     `esquema ${getComputedStyle(root).colorScheme}`,
   ].join(" · ");
   document.body.append(node);
 }
 
-void stage()
-  .catch((error: unknown) => {
+async function boot() {
+  const theme = params.get("tema");
+  if (theme === "oscuro") await import("./styles/theme-dark.css");
+  if (theme === "claro") {
+    // The light roles again, after everything else: they win over the dark ones the system preference brought.
+    const style = document.createElement("style");
+    style.textContent = lightTokens;
+    document.head.append(style);
+  }
+
+  // The shell asks Tauri for the version; outside Tauri the preview answers for it.
+  mockIPC((command) => {
+    if (command === "plugin:app|version") return "0.0.2";
+    throw new Error(`preview: unexpected command ${command}`);
+  });
+
+  const backend = createFakeBackend({
+    status: closed
+      ? { state: "closed" }
+      : {
+          state: "open",
+          path: VAULT_PATH,
+          name: "Cuentas",
+          read_only: demo === "lectura",
+          weak_kdf: demo === "lectura",
+          save_pending: false,
+          recovery: null,
+        },
+    recent: [{ path: VAULT_PATH, exists: true }],
+    groups: GROUPS,
+    entries: ENTRIES,
+  });
+
+  const container = document.getElementById("root");
+  if (container === null) throw new Error("Missing #root element in preview.html");
+
+  createRoot(container).render(
+    <StrictMode>
+      <App>
+        <VaultRoot client={createClient(backend.transport)} />
+      </App>
+    </StrictMode>,
+  );
+
+  try {
+    await stage();
+  } catch (error) {
     console.error(error);
-  })
-  .then(() => document.fonts.ready)
-  .then(badge);
+  }
+  await document.fonts.ready;
+  badge();
+}
+
+/** The same preview inside a frame of an exact size: a headless window does not give an exact viewport. */
+function host(width: string, height: string) {
+  const inner = new URLSearchParams(params);
+  inner.delete("marco");
+  const node = document.createElement("iframe");
+  node.src = `/preview.html?${inner.toString()}`;
+  node.width = width;
+  node.height = height;
+  node.title = "Vista previa";
+  node.style.cssText = "display:block;border:0;";
+  document.body.style.cssText = "margin:0;background:#7a7a7a;";
+  document.body.replaceChildren(node);
+}
+
+if (frame === null) void boot();
+else host(frame[1] ?? "", frame[2] ?? "");

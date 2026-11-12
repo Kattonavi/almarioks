@@ -65,7 +65,7 @@
   grid-template-areas:
     "title title date"
     "user  rest  date";
-  grid-template-columns: minmax(0, auto) minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, auto) minmax(0, 1fr) max-content;
   align-content: center;
   align-items: center;
   min-height: calc(var(--row-h) + var(--space-4));
@@ -155,8 +155,10 @@
 /* The separator belongs to the pair: it only shows when both sides have something. */
 .cell-user:not(:empty) ~ .cell-url:not(:empty)::before,
 .entries[data-search] .cell-user:not(:empty) ~ .cell-group:not(:empty)::before {
+  display: inline-block;
+  width: 1em;
+  text-align: center;
   content: "·";
-  margin-inline: var(--space-1);
 }
 
 /* In the list the tags stay for screen readers; search results show the group instead of the address. */
@@ -219,6 +221,18 @@
     height: 1px;
     overflow: hidden;
     clip-path: inset(50%);
+  }
+
+  /* A narrow list gives the stamp its own line under the row. */
+  .entries tbody tr:has(.stamp) {
+    grid-template-areas:
+      "title title title"
+      "user  rest  rest"
+      "date  date  date";
+  }
+
+  .entries .cell-date:has(.stamp) {
+    padding: var(--space-1) 0 0;
   }
 }
 

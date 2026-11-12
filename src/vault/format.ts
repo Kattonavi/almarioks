@@ -17,7 +17,7 @@ export function formatDate(iso: string): string {
   return Number.isNaN(date.getTime()) ? iso : DATE_FORMAT.format(date);
 }
 
-const DAY_FORMAT = new Intl.DateTimeFormat("es-CO", { dateStyle: "medium" });
+const DAY_FORMAT = new Intl.DateTimeFormat("es-CO", { day: "numeric", month: "short", year: "numeric" });
 
 /** The day alone, for a row of the entry list; the full date and time stay in the detail. */
 export function formatDay(iso: string): string {

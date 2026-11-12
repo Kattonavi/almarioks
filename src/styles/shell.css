@@ -358,6 +358,8 @@
 }
 
 .group-actions .actions .btn-danger {
+  justify-self: start;
+  margin-top: var(--space-1);
   border-color: var(--danger);
 }
 
