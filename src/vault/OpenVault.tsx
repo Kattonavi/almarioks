@@ -4,9 +4,10 @@ import { assertNever } from "../assertNever";
 import type { Unlisten, VaultClient } from "../ipc/client";
 import { errorMessage, type AppError, type Result } from "../ipc/errors";
 import type { Recovery, SaveState, VaultStatus } from "../ipc/schemas";
-import { LockIcon, WarningIcon } from "../ui/icons";
+import { InfoIcon, LockIcon, WarningIcon } from "../ui/icons";
 import { Dialog } from "./Dialog";
 import { RecoveryNotice } from "./RecoveryNotice";
+import { formatCountdown } from "./format";
 import { fileNameOf, type VaultRef } from "./state";
 import { VaultScreen } from "./VaultScreen";
 
@@ -73,6 +74,8 @@ interface OpenVaultProps {
   readonly weakKdf: boolean;
   /** `save_pending` of the last status: the same notice as a failed save (RF-23). */
   readonly savePending: boolean;
+  /** Seconds until the vault locks by itself, when the status brings them: shown as reported, never guessed. */
+  readonly locksInSeconds?: number | undefined;
   readonly recovery: Recovery | null;
   /** Bumped after a reload so the vault screens drop what they had and ask the core again. */
   readonly generation: number;
@@ -271,7 +274,10 @@ export function OpenVault(props: OpenVaultProps) {
 
       {readOnly && (
         <section aria-labelledby="read-only-title" className="notice">
-          <h3 id="read-only-title">Bóveda en solo lectura</h3>
+          <h3 id="read-only-title">
+            <InfoIcon />
+            Bóveda en solo lectura
+          </h3>
           <p>
             Esta bóveda usa el formato antiguo KDBX 3.x, así que se abrió en solo lectura: puedes buscar, ver y copiar,
             pero no crear, editar, mover ni borrar entradas o grupos, ni vaciar la papelera.
@@ -330,6 +336,12 @@ export function OpenVault(props: OpenVaultProps) {
         readOnly={readOnly}
         barEnd={
           <>
+            {props.locksInSeconds !== undefined && (
+              <p className="lock-countdown">
+                <span className="label">Se bloquea en</span>{" "}
+                <span className="mono num">{formatCountdown(props.locksInSeconds)}</span>
+              </p>
+            )}
             <button type="button" className="btn-primary" onClick={props.onLock}>
               <LockIcon />
               Bloquear
@@ -356,6 +368,7 @@ export function OpenVault(props: OpenVaultProps) {
       {confirmReload && (
         <Dialog
           title="Recargar el archivo del disco"
+          tone="danger"
           onClose={() => {
             setConfirmReload(false);
           }}
@@ -365,11 +378,12 @@ export function OpenVault(props: OpenVaultProps) {
             app. Lo descartado no se puede recuperar.
           </p>
           <div className="actions">
-            <button type="button" onClick={reload}>
+            <button type="button" className="btn-danger" onClick={reload}>
               Recargar y descartar
             </button>
             <button
               type="button"
+              data-initial-focus=""
               onClick={() => {
                 setConfirmReload(false);
               }}

@@ -17,6 +17,7 @@ import { WelcomeScreen } from "./WelcomeScreen";
 interface OpenInfo {
   readonly weakKdf: boolean;
   readonly savePending: boolean;
+  readonly locksInSeconds: number | undefined;
   readonly generation: number;
 }
 
@@ -27,6 +28,7 @@ function openInfoReducer(
   return {
     weakKdf: action.status.weakKdf,
     savePending: action.status.savePending,
+    locksInSeconds: action.status.locksInSeconds,
     generation: current.generation + (action.remount ? 1 : 0),
   };
 }
@@ -44,7 +46,12 @@ export function VaultRoot({ client }: { readonly client: VaultClient }) {
   const [attempt, setAttempt] = useState(0);
   const epoch = useRef(0);
   /** Flags of the open vault that only its screen needs (RF-17, RF-23); `generation` remounts it after a reload. */
-  const [openInfo, setOpenInfo] = useReducer(openInfoReducer, { weakKdf: false, savePending: false, generation: 0 });
+  const [openInfo, setOpenInfo] = useReducer(openInfoReducer, {
+    weakKdf: false,
+    savePending: false,
+    locksInSeconds: undefined,
+    generation: 0,
+  });
   /** RF-17: the weak-protection notice closed "for this session" (until the app closes), per vault file. */
   const [weakDismissed, setWeakDismissed] = useState<ReadonlySet<string>>(() => new Set());
 
@@ -197,11 +204,17 @@ export function VaultRoot({ client }: { readonly client: VaultClient }) {
   function renderScreen(current: AppState) {
     switch (current.kind) {
       case "loading":
-        return <p role="status">Consultando la bóveda…</p>;
+        return (
+          <p role="status" className="gate pane-state">
+            Consultando la bóveda…
+          </p>
+        );
       case "unavailable":
         return (
-          <section aria-labelledby="unavailable-title">
-            <h2 id="unavailable-title">No se pudo consultar la bóveda</h2>
+          <section aria-labelledby="unavailable-title" className="gate">
+            <h2 id="unavailable-title" className="gate-title">
+              No se pudo consultar la bóveda
+            </h2>
             <p role="alert" className="error">
               {errorMessage(current.error)}
             </p>
@@ -277,6 +290,7 @@ export function VaultRoot({ client }: { readonly client: VaultClient }) {
             readOnly={current.readOnly}
             weakKdf={openInfo.weakKdf}
             savePending={openInfo.savePending}
+            locksInSeconds={openInfo.locksInSeconds}
             recovery={current.recovery}
             generation={openInfo.generation}
             weakDismissed={weakDismissed.has(path)}

@@ -526,17 +526,19 @@ export function EntryPanel({
         return (
           <Dialog
             title={`Borrar ${titleOf(entry)} de forma definitiva`}
+            tone="danger"
             onClose={() => {
               setDialog(null);
             }}
           >
             <p>Está en la papelera: si la borras, se elimina para siempre y no se puede deshacer.</p>
             <div className="actions">
-              <button type="button" onClick={() => void remove(entry, true)}>
+              <button type="button" className="btn-danger" onClick={() => void remove(entry, true)}>
                 Borrar definitivamente
               </button>
               <button
                 type="button"
+                data-initial-focus=""
                 onClick={() => {
                   setDialog(null);
                 }}
@@ -607,7 +609,7 @@ function MoveEntryDialog({ client, entry, root, onClose, onMoved }: MoveEntryDia
           {error === null ? "" : errorMessage(error)}
         </p>
         <div className="actions">
-          <button type="submit" disabled={options.length === 0 || busy}>
+          <button type="submit" className="btn-primary" disabled={options.length === 0 || busy}>
             Mover
           </button>
           <button type="button" onClick={onClose}>

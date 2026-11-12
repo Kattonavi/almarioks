@@ -310,7 +310,7 @@ function NameDialog({ title, initial, submitLabel, onClose, onSubmit, onDone }: 
           {error === null ? "" : error.kind === "name" ? groupNameText(error.problem) : errorMessage(error.error)}
         </p>
         <div className="actions">
-          <button type="submit" disabled={busy}>
+          <button type="submit" className="btn-primary" disabled={busy}>
             {submitLabel}
           </button>
           <button type="button" onClick={onClose}>
@@ -378,7 +378,7 @@ function MoveGroupDialog({ client, root, group, onClose, onDone }: MoveGroupDial
           {error === null ? "" : errorMessage(error)}
         </p>
         <div className="actions">
-          <button type="submit" disabled={options.length === 0 || busy}>
+          <button type="submit" className="btn-primary" disabled={options.length === 0 || busy}>
             Mover
           </button>
           <button type="button" onClick={onClose}>
@@ -414,16 +414,16 @@ function ConfirmDialog({ title, text, confirmLabel, onClose, onConfirm, onDone }
   }
 
   return (
-    <Dialog title={title} onClose={onClose}>
+    <Dialog title={title} tone="danger" onClose={onClose}>
       <p>{text}</p>
       <p role="alert" className="error">
         {error === null ? "" : errorMessage(error)}
       </p>
       <div className="actions">
-        <button type="button" disabled={busy} onClick={() => void confirm()}>
+        <button type="button" className="btn-danger" disabled={busy} onClick={() => void confirm()}>
           {confirmLabel}
         </button>
-        <button type="button" onClick={onClose}>
+        <button type="button" data-initial-focus="" onClick={onClose}>
           Cancelar
         </button>
       </div>

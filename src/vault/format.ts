@@ -81,3 +81,9 @@ export function liveEntryCount(node: GroupNode): number {
   if (node.kind === "recycle_bin") return 0;
   return node.entryCount + node.children.reduce((sum, child) => sum + liveEntryCount(child), 0);
 }
+
+/** Seconds as "4:12", for the lock countdown. */
+export function formatCountdown(seconds: number): string {
+  const whole = Math.max(0, Math.floor(seconds));
+  return `${String(Math.floor(whole / 60))}:${String(whole % 60).padStart(2, "0")}`;
+}

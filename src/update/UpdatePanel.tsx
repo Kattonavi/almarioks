@@ -117,12 +117,14 @@ export function UpdatePanel() {
       </p>
 
       {state.kind === "downloading" && (
-        <progress
-          aria-label="Progreso de la descarga"
-          {...(state.total !== undefined && state.total > 0
-            ? { value: state.downloaded, max: state.total }
-            : {})}
-        />
+        <div className="progress-track">
+          <progress
+            aria-label="Progreso de la descarga"
+            {...(state.total !== undefined && state.total > 0
+              ? { value: state.downloaded, max: state.total }
+              : {})}
+          />
+        </div>
       )}
 
       {state.kind === "available" ? (
@@ -134,7 +136,7 @@ export function UpdatePanel() {
             </>
           )}
           <div className="actions">
-            <button type="button" onClick={() => void onInstall(state.update)}>
+            <button type="button" className="btn-primary" onClick={() => void onInstall(state.update)}>
               Actualizar
             </button>
             <button type="button" onClick={() => { setState({ kind: "idle" }); }}>

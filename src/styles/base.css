@@ -117,6 +117,11 @@ button:hover:not(:disabled) {
   background: var(--hover);
 }
 
+/* Pressed: the control gives one pixel, in every style. */
+button:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
 button:disabled {
   opacity: 0.5;
   cursor: not-allowed;
@@ -134,11 +139,18 @@ button[aria-disabled="true"] {
 
 .btn-primary:hover:not(:disabled) {
   background: var(--panel-hover);
+  border-color: var(--panel-hover);
 }
 
+/* Danger is red text inside a red border; under the pointer it fills, so it is never read as the default action. */
 .btn-danger {
   color: var(--danger);
   border-color: var(--danger);
+}
+
+.btn-danger:hover:not(:disabled) {
+  color: var(--on-danger);
+  background: var(--danger);
 }
 
 .actions {
@@ -162,6 +174,28 @@ textarea {
   background: var(--surface);
   border: 1px solid var(--control-border);
   border-radius: var(--radius);
+}
+
+:is(input, select, textarea):hover:not(:disabled) {
+  border-color: var(--ink);
+}
+
+:is(input, select, textarea):disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* A field with a problem: a heavier border in the danger role, and its message in words right under it. */
+:is(input, select, textarea)[aria-invalid="true"] {
+  border-color: var(--danger);
+  box-shadow: inset 0 0 0 1px var(--danger);
+}
+
+select,
+input[type="checkbox"],
+input[type="radio"],
+.choice > label {
+  cursor: pointer;
 }
 
 input[type="checkbox"],
@@ -201,13 +235,32 @@ legend {
   gap: var(--space-1);
 }
 
-.field > label {
+.field > label,
+.field-label {
   font-size: var(--text-sm);
   font-weight: var(--weight-strong);
 }
 
 .field p {
   margin: 0;
+}
+
+/* A checkbox or a radio with its label: one row, a full 32 px target. */
+.choice {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+  min-height: 32px;
+}
+
+.choice > input {
+  flex: none;
+  margin: 0;
+}
+
+.choice > label {
+  flex: 1;
+  padding-block: var(--space-1);
 }
 
 /* Hints, and paths or file names: long and without spaces, so they wrap instead of widening the page. */
@@ -226,6 +279,7 @@ legend {
   margin: 0;
 }
 
+/* ---- Notices: a bordered strip with an icon and words; colour never carries the message alone. ---- */
 .notice {
   padding: var(--space-3) var(--space-4);
   background: var(--surface);
@@ -235,6 +289,26 @@ legend {
 
 .notice > :last-child {
   margin-bottom: 0;
+}
+
+.notice-icon {
+  position: relative;
+  padding-inline-start: calc(var(--space-4) + 18px + var(--space-3));
+}
+
+.notice-icon > .icon:first-child {
+  position: absolute;
+  top: calc(var(--space-3) + 1px);
+  left: var(--space-4);
+}
+
+.notice-danger {
+  border-color: var(--danger);
+}
+
+.notice-danger > .icon,
+.notice-danger h3 .icon {
+  color: var(--danger);
 }
 
 .release-notes,
@@ -263,10 +337,27 @@ legend {
   border-radius: var(--radius-sm);
 }
 
-/* Strength reads by hatch and by its text, never by colour alone: each level has its own pattern. */
+/*
+ * ---- Strength. It reads by hatch and by its text, never by colour alone: each level has its own pattern (upright
+ * and sparse, slanted and thin, slanted and dense), and the words sit next to it. ----
+ */
+.strength-line {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-3);
+  align-items: center;
+  margin: 0;
+  font-size: var(--text-sm);
+}
+
+.strength > .notice {
+  margin: var(--space-2) 0 0;
+  font-size: var(--text-sm);
+}
+
 meter {
   width: 9rem;
-  height: 10px;
+  height: 12px;
   vertical-align: middle;
   appearance: none;
   background: none;
@@ -274,27 +365,67 @@ meter {
 }
 
 meter::-webkit-meter-bar {
-  height: 10px;
+  height: 12px;
   background: transparent;
   border: 1px solid var(--control-border);
   border-radius: 0;
 }
 
 meter::-webkit-meter-optimum-value {
-  background: repeating-linear-gradient(135deg, var(--ok) 0 4px, transparent 4px 6px);
+  background: repeating-linear-gradient(135deg, var(--ok) 0 5px, transparent 5px 7px);
 }
 
 meter::-webkit-meter-suboptimum-value {
-  background: repeating-linear-gradient(135deg, var(--ink) 0 2px, transparent 2px 6px);
+  background: repeating-linear-gradient(135deg, var(--ink) 0 2px, transparent 2px 7px);
 }
 
 meter::-webkit-meter-even-less-good-value {
-  background: repeating-linear-gradient(90deg, var(--danger) 0 2px, transparent 2px 6px);
+  background: repeating-linear-gradient(90deg, var(--danger) 0 2px, transparent 2px 7px);
 }
 
-/* ---- Native modal dialogs. ---- */
+/*
+ * ---- Progress. Known: an ink bar that fills. Unknown (deriving the key): the same hatch, marching; the track clips
+ * it, so only `transform` moves. With reduced motion it stands still and the sentence above it says what is going on.
+ */
+.progress-track {
+  height: 10px;
+  overflow: hidden;
+  border: 1px solid var(--control-border);
+}
+
+progress {
+  display: block;
+  width: 100%;
+  height: 100%;
+  appearance: none;
+  background: transparent;
+  border: 0;
+}
+
+progress::-webkit-progress-bar {
+  background: transparent;
+}
+
+progress::-webkit-progress-value {
+  background: var(--ink);
+}
+
+progress:indeterminate {
+  width: calc(100% + 16px);
+  background: linear-gradient(135deg, var(--ink) 25%, transparent 25% 50%, var(--ink) 50% 75%, transparent 75%) 0 0 /
+    16px 16px;
+  animation: progress-march 700ms linear infinite;
+}
+
+@keyframes progress-march {
+  to {
+    transform: translateX(-16px);
+  }
+}
+
+/* ---- Native modal dialogs: a title over a signal rule, what it does in words, and the actions at the end. ---- */
 dialog {
-  width: min(var(--content-width), calc(100vw - var(--space-8)));
+  width: min(30rem, calc(100vw - var(--space-8)));
   max-height: calc(100vh - var(--space-8));
   padding: var(--space-6);
   overflow: auto;
@@ -307,12 +438,51 @@ dialog {
   box-shadow: var(--shadow);
 }
 
+dialog > h3 {
+  display: flex;
+  gap: var(--space-2);
+  align-items: flex-start;
+  margin: 0 0 var(--space-4);
+  padding-bottom: var(--space-3);
+  overflow-wrap: anywhere;
+  line-height: 1.25;
+  border-bottom: 2px solid var(--ink);
+}
+
+/* A dialog that destroys something says so before its text: the warning sign, in the danger role. */
+dialog > h3 > .icon {
+  margin-top: 2px;
+  color: var(--danger);
+}
+
+dialog p {
+  max-width: 60ch;
+}
+
+dialog > form > .field > :is(input, select) {
+  width: 100%;
+}
+
 dialog .actions {
   margin-top: var(--space-4);
 }
 
+dialog > .actions:last-child,
+dialog > form > .actions:last-child {
+  justify-content: flex-end;
+  margin-top: var(--space-5);
+}
+
 dialog::backdrop {
   background: var(--backdrop);
+}
+
+@media (max-width: 719px) {
+  dialog {
+    width: calc(100vw - var(--space-4));
+    max-height: calc(100vh - var(--space-4));
+    padding: var(--space-4);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -323,4 +493,67 @@ dialog::backdrop {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+/* ---- Settings and About (P8): three short sections under the title of their dialog. ---- */
+dialog:has(.settings) {
+  width: min(var(--content-width), calc(100vw - var(--space-8)));
+}
+
+.settings > section {
+  padding-block: var(--space-5);
+  border-top: 1px solid var(--rule);
+}
+
+.settings > section:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.settings > section:last-child {
+  padding-bottom: 0;
+}
+
+.settings :is(h2, h3) {
+  margin-bottom: var(--space-3);
+  font-size: var(--text-md);
+}
+
+.settings p {
+  font-size: var(--text-sm);
+}
+
+.settings form {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.settings .field {
+  justify-items: start;
+}
+
+.settings select {
+  min-width: 12rem;
+}
+
+.settings input[type="number"] {
+  width: 7rem;
+}
+
+/* Only the alerts fold away while empty: a polite live region stays rendered, or its next text is not announced. */
+.settings .error:empty {
+  display: none;
+}
+
+.settings .actions {
+  margin-top: 0;
+}
+
+.settings .notice {
+  max-width: 34rem;
+}
+
+.settings .progress-track {
+  max-width: 20rem;
+  margin-bottom: var(--space-3);
 }

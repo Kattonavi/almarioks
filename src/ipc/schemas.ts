@@ -38,6 +38,8 @@ export const vaultStatusSchema = z
       weak_kdf: z.boolean(),
       save_pending: z.boolean(),
       recovery: recoveryWire,
+      /** Optional: seconds until the vault locks by itself. The core does not send it yet. */
+      locks_in_seconds: z.number().int().nonnegative().nullish(),
     }),
   ])
   .transform((wire): VaultStatus => {
@@ -57,6 +59,7 @@ export const vaultStatusSchema = z
           weakKdf: wire.weak_kdf,
           savePending: wire.save_pending,
           recovery: wire.recovery,
+          ...(typeof wire.locks_in_seconds === "number" ? { locksInSeconds: wire.locks_in_seconds } : {}),
         };
     }
   });
@@ -74,6 +77,8 @@ export type VaultStatus =
       readonly weakKdf: boolean;
       readonly savePending: boolean;
       readonly recovery: Recovery | null;
+      /** Seconds until the vault locks by itself; absent while the core does not report it. */
+      readonly locksInSeconds?: number;
     };
 
 // ---------- Small results ----------

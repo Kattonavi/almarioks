@@ -27,6 +27,7 @@ dialog {
   --on-panel-muted: #4a4f59;
 
   --danger: #ff7a85;
+  --on-danger: #16181d;
   --ok: #4cc38a;
 
   --backdrop: rgb(0 0 0 / 65%);

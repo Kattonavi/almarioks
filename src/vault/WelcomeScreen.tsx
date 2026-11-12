@@ -3,6 +3,8 @@ import { useEffect, useState } from "react";
 import type { VaultClient } from "../ipc/client";
 import { errorMessage, type AppError } from "../ipc/errors";
 import type { RecentVault } from "../ipc/schemas";
+import { ChevronRightIcon, FolderIcon, PlusIcon, WarningIcon } from "../ui/icons";
+import { initialOf } from "./lines";
 import { fileNameOf } from "./state";
 
 type RecentState =
@@ -51,13 +53,17 @@ export function WelcomeScreen({ client, onChoose, onCreate }: WelcomeScreenProps
   }
 
   return (
-    <section aria-labelledby="welcome-title">
-      <h2 id="welcome-title">Bienvenida</h2>
-      <div className="actions">
-        <button type="button" onClick={onCreate}>
+    <section aria-labelledby="welcome-title" className="gate">
+      <h2 id="welcome-title" className="gate-title">
+        Bienvenida
+      </h2>
+      <div className="actions gate-actions">
+        <button type="button" className="btn-primary" onClick={onCreate}>
+          <PlusIcon />
           Crear bóveda nueva
         </button>
         <button type="button" onClick={() => void pickAndChoose()}>
+          <FolderIcon />
           Abrir una bóveda…
         </button>
       </div>
@@ -66,7 +72,9 @@ export function WelcomeScreen({ client, onChoose, onCreate }: WelcomeScreenProps
         {actionError === null ? "" : errorMessage(actionError)}
       </p>
 
-      <h3 id="recent-title">Bóvedas recientes</h3>
+      <h3 id="recent-title" className="gate-subtitle">
+        Bóvedas recientes
+      </h3>
       <RecentList
         state={recent}
         onChoose={onChoose}
@@ -87,7 +95,11 @@ interface RecentListProps {
 function RecentList({ state, onChoose, onFind, onForget }: RecentListProps) {
   switch (state.kind) {
     case "loading":
-      return <p role="status">Buscando tus bóvedas recientes…</p>;
+      return (
+        <p role="status" className="pane-state">
+          Buscando tus bóvedas recientes…
+        </p>
+      );
     case "failed":
       return (
         <p role="alert" className="error">
@@ -96,37 +108,43 @@ function RecentList({ state, onChoose, onFind, onForget }: RecentListProps) {
       );
     case "ready":
       if (state.items.length === 0) {
-        return <p>Todavía no has abierto ninguna bóveda. Crea una nueva o abre una que ya tengas.</p>;
+        return (
+          <p className="pane-state">
+            Todavía no has abierto ninguna bóveda. Crea una nueva o abre una que ya tengas.
+          </p>
+        );
       }
       return (
         <ul aria-labelledby="recent-title" className="recent">
           {state.items.map((item) => {
             const name = fileNameOf(item.path);
-            return (
-              <li key={item.path}>
-                {item.exists ? (
-                  <>
-                    <button type="button" onClick={() => { onChoose(item.path); }}>
-                      Abrir {name}
-                    </button>{" "}
-                    <span className="path">{item.path}</span>
-                  </>
-                ) : (
-                  <>
-                    <p>
-                      {name} ya no está en <span className="path">{item.path}</span>. Puede que se haya movido o
-                      borrado.
-                    </p>
-                    <div className="actions">
-                      <button type="button" onClick={onFind}>
-                        Buscar {name}…
-                      </button>
-                      <button type="button" onClick={() => { onForget(item.path); }}>
-                        Quitar {name} de la lista
-                      </button>
-                    </div>
-                  </>
-                )}
+            return item.exists ? (
+              // A vault is a station: the same white badge the root group wears on the rail.
+              <li key={item.path} className="recent-row">
+                <span className="bullet" data-line="station" data-initial={initialOf(name)} aria-hidden="true" />
+                <button type="button" onClick={() => { onChoose(item.path); }}>
+                  Abrir {name}
+                </button>{" "}
+                <span className="path mono">{item.path}</span>
+                <ChevronRightIcon />
+              </li>
+            ) : (
+              <li key={item.path} className="recent-row" data-missing="">
+                <span className="bullet" data-line="neutral" aria-hidden="true">
+                  <WarningIcon />
+                </span>
+                <p>
+                  {name} ya no está en <span className="path mono">{item.path}</span>. Puede que se haya movido o
+                  borrado.
+                </p>
+                <div className="actions">
+                  <button type="button" onClick={onFind}>
+                    Buscar {name}…
+                  </button>
+                  <button type="button" onClick={() => { onForget(item.path); }}>
+                    Quitar {name} de la lista
+                  </button>
+                </div>
               </li>
             );
           })}

@@ -3,6 +3,7 @@ import { useEffect, useRef, useState, type SubmitEvent } from "react";
 import { assertNever } from "../assertNever";
 import type { KeyFileChoice, VaultClient } from "../ipc/client";
 import { errorMessage, type AppError } from "../ipc/errors";
+import { FileIcon, FolderIcon, WarningIcon } from "../ui/icons";
 import { fileNameOf } from "./state";
 
 /** RF-7: wait this long after the last keystroke before asking the core for the strength. */
@@ -203,19 +204,22 @@ export function CreateScreen({ client, onBack, onDone }: CreateScreenProps) {
 
   if (phase.kind === "created") {
     return (
-      <section aria-labelledby="created-title">
-        <h2 id="created-title">Bóveda creada</h2>
-        <div className="notice" role="status">
+      <section aria-labelledby="created-title" className="gate">
+        <h2 id="created-title" className="gate-title">
+          Bóveda creada
+        </h2>
+        <div className="notice notice-icon" role="status">
+          <WarningIcon />
           <p>
-            Tu bóveda usa el archivo llave <span className="path">{phase.keyFilePath}</span>.
+            Tu bóveda usa el archivo llave <span className="path mono">{phase.keyFilePath}</span>.
           </p>
           <p>
             Sin una copia de ese archivo y sin la contraseña no hay forma de recuperarla. Guarda ahora una copia del
             archivo llave en otro lugar seguro, por ejemplo una memoria USB.
           </p>
         </div>
-        <div className="actions">
-          <button type="button" onClick={onDone}>
+        <div className="actions gate-actions">
+          <button type="button" className="btn-primary" onClick={onDone}>
             Ir a la bóveda
           </button>
         </div>
@@ -227,26 +231,46 @@ export function CreateScreen({ client, onBack, onDone }: CreateScreenProps) {
   const formError = phase.kind === "editing" ? phase.error : null;
   const shownError = formError === null ? (pickError === null ? "" : errorMessage(pickError)) : formErrorText(formError);
   const keyPath = keyMode === "none" ? null : keyPaths[keyMode];
+  /** The one error line sits next to the field it is about; what belongs to no field goes above the actions. */
+  const errorAt =
+    formError?.kind === "no-path"
+      ? "path"
+      : formError?.kind === "mismatch"
+        ? "confirm"
+        : formError?.kind === "no-key-file"
+          ? "key"
+          : "form";
+  const errorNode = (
+    <p id="create-error" role="alert" className="error">
+      {shownError}
+    </p>
+  );
 
   return (
-    <section aria-labelledby="create-title">
-      <h2 id="create-title">Crear bóveda</h2>
-      <p id="create-help">
+    <section aria-labelledby="create-title" className="gate">
+      <h2 id="create-title" className="gate-title">
+        Crear bóveda
+      </h2>
+      <p id="create-help" className="gate-help">
         Elige dónde guardar el archivo y protégelo con una contraseña maestra, un archivo llave o los dos.
       </p>
 
-      <form onSubmit={onSubmit} noValidate>
+      <form onSubmit={onSubmit} noValidate className="gate-form">
         <fieldset disabled={creating}>
           <legend>Bóveda nueva</legend>
 
           <div className="field" role="group" aria-labelledby="create-path-label">
-            <span id="create-path-label">Archivo de la bóveda</span>
-            <p className="path">{path ?? "Sin elegir"}</p>
+            <span id="create-path-label" className="field-label">
+              Archivo de la bóveda
+            </span>
+            <p className={path === null ? "path" : "path mono"}>{path ?? "Sin elegir"}</p>
             <div className="actions">
               <button type="button" onClick={() => void pick("vault")}>
+                <FolderIcon />
                 Elegir dónde guardarla…
               </button>
             </div>
+            {errorAt === "path" && errorNode}
           </div>
 
           <div className="field">
@@ -262,10 +286,10 @@ export function CreateScreen({ client, onBack, onDone }: CreateScreenProps) {
               aria-describedby="create-strength"
               onInput={onPasswordInput}
             />
-            <div id="create-strength" aria-live="polite">
+            <div id="create-strength" aria-live="polite" className="strength">
               {score !== null && (
                 <>
-                  <p>
+                  <p className="strength-line">
                     Fortaleza: {strengthLabel(score)} ({score} de 4){" "}
                     <meter min={0} max={4} low={2} high={3} optimum={4} value={score} aria-label="Fortaleza" />
                   </p>
@@ -292,9 +316,10 @@ export function CreateScreen({ client, onBack, onDone }: CreateScreenProps) {
               aria-invalid={formError?.kind === "mismatch"}
               aria-describedby="create-error"
             />
+            {errorAt === "confirm" && errorNode}
           </div>
 
-          <fieldset>
+          <fieldset className="choices">
             <legend>Archivo llave (opcional, recomendado)</legend>
             {(
               [
@@ -303,7 +328,7 @@ export function CreateScreen({ client, onBack, onDone }: CreateScreenProps) {
                 ["generate", "Generar un archivo llave nuevo"],
               ] as const
             ).map(([mode, label]) => (
-              <div key={mode}>
+              <div key={mode} className="choice">
                 <input
                   type="radio"
                   id={`create-key-${mode}`}
@@ -318,17 +343,20 @@ export function CreateScreen({ client, onBack, onDone }: CreateScreenProps) {
             ))}
             {keyMode !== "none" && (
               <div className="field">
-                <p className="path">{keyPath ?? "Sin elegir"}</p>
+                <p className={keyPath === null ? "path" : "path mono"}>{keyPath ?? "Sin elegir"}</p>
                 <div className="actions">
                   <button type="button" onClick={() => void pick(keyMode)}>
+                    <FileIcon />
                     {keyMode === "existing" ? "Elegir archivo llave…" : "Elegir dónde guardar el archivo llave…"}
                   </button>
                 </div>
               </div>
             )}
+            {errorAt === "key" && errorNode}
           </fieldset>
 
-          <div className="notice">
+          <div className="notice notice-icon">
+            <WarningIcon />
             <p>Nadie puede recuperar tu bóveda si olvidas la contraseña maestra: ni AlmarioKS ni nadie más.</p>
             {keyMode !== "none" && (
               <p>
@@ -338,8 +366,12 @@ export function CreateScreen({ client, onBack, onDone }: CreateScreenProps) {
             )}
           </div>
 
-          <div className="actions">
-            <button type="submit">Crear bóveda</button>
+          {errorAt === "form" && errorNode}
+
+          <div className="actions gate-actions">
+            <button type="submit" className="btn-primary">
+              Crear bóveda
+            </button>
             <button type="button" onClick={onBack}>
               Volver a la bienvenida
             </button>
@@ -347,17 +379,16 @@ export function CreateScreen({ client, onBack, onDone }: CreateScreenProps) {
         </fieldset>
       </form>
 
-      <div role="status" aria-live="polite">
+      <div role="status" aria-live="polite" className="deriving">
         {creating && (
           <>
             <p>Creando la bóveda: derivando la llave. Puede tardar unos segundos.</p>
-            <progress aria-label="Creando la bóveda" />
+            <div className="progress-track">
+              <progress aria-label="Creando la bóveda" />
+            </div>
           </>
         )}
       </div>
-      <p id="create-error" role="alert" className="error">
-        {shownError}
-      </p>
     </section>
   );
 }
