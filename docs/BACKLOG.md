@@ -15,3 +15,12 @@ Lo que no cabe en la fase va aquí, un renglón por ítem: `- [origen] qué · s
 - [revisión H0, S3] El consentimiento de actualizar vive solo en la interfaz: al pintar contenido ajeno en la 0.1, revisar W1 (un script en la ventana podría instalar una actualización firmada sin clic) · Bajo hoy, revisar en la spec 001
 - [visión] Significado público de "KS" · Bajo
 - [base] Agregar al `.gitignore` los ajustes locales de Claude Code cuando el proyecto tenga carpeta `.claude/` · Bajo
+- [0.1, T9] Cada cambio confirmado vuelve a derivar la llave al cifrar (~1 s en una bóveda calibrada; medido 53 ms con 64 MiB e I = 2) y las lecturas esperan detrás: sacar el cifrado de la hebra de la orden o reutilizar la llave derivada si la librería lo permite · Alto para la experiencia; revisar antes de la 1.0
+- [0.1, T9] `lock()` y `close()` pueden tardar hasta 5 s escribiendo la recuperación aunque el estado ya sea bloqueado: la app los llama fuera de la hebra de la ventana · Medio
+- [0.1, T9] Casos que hoy responden `Ocupada` o `ArgumentoInvalido` por falta de código propio (desbloquear con una bóveda abierta, guardado anterior aún en el disco, recuperación en curso) · Bajo: decidir códigos en la 0.2
+- [0.1, T6] La poda del historial por tamaño (`HistoryMaxSize`) usa una estimación no contrastada con KeePass y no cuenta adjuntos; las bóvedas nuevas llevan 10 versiones y 6 MiB sin verificar que sean los valores de KeePass · Medio
+- [0.1, T15] En CI las pruebas reales del portapapeles se saltan si el runner no tiene estación de ventana y nextest las muestra como aprobadas: agregar `--success-output final` a ese paso · Medio
+- [0.1, T15] Sincronización del portapapeles con la nube sin verificar (estaba apagada en el PC de pruebas) · Medio: prueba manual de la 1.0
+- [0.1, lab] `zxcvbn` da 4 de 4 a contraseñas de 11 caracteres con sustituciones conocidas: el aviso de contraseña maestra débil (< 3) casi nunca salta. Decide el dueño si se sube el umbral · Medio
+- [0.1] KDBX 4.0 sin fixture propia: todas las de prueba son 4.1 · Bajo
+- [0.1, RF-37] Bloqueo inmediato al bloquear la sesión de Windows: recortable no hecho; el bloqueo por tiempo real sí cubre la suspensión · Medio
