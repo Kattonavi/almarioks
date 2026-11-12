@@ -852,8 +852,11 @@ describe("P4 Bóveda — buscar y copiar con teclado", () => {
 
   it("RF-59: Enter en la búsqueda abre el primer resultado y deja «Copiar contraseña» con el foco", async () => {
     await setup();
-    fireEvent.keyDown(window, { key: "k", ctrlKey: true });
-    expect(document.activeElement).toBe(search());
+    // The shortcut listener is attached in an effect: press again until it is there (focusing twice is harmless).
+    await waitFor(() => {
+      fireEvent.keyDown(window, { key: "k", ctrlKey: true });
+      expect(document.activeElement).toBe(search());
+    });
     fireEvent.change(search(), { target: { value: "GitHub" } });
     // Enter right after typing, while the search is still on its way: it opens the first result when it lands.
     fireEvent.keyDown(search(), { key: "Enter" });

@@ -11,7 +11,7 @@
 //!
 //! The product never reads the clipboard. [`probe`] does, for the integration tests only.
 
-// The only file of the workspace allowed to use `unsafe` (workspace lint `unsafe_code = "deny"`, constitution
+// One of the two files of the workspace allowed to use `unsafe` (the other is `webview/ffi.rs`) (workspace lint `unsafe_code = "deny"`, constitution
 // rule 9): Win32 has no safe API for the clipboard. Every `unsafe` block says why it is sound.
 #![allow(unsafe_code)]
 

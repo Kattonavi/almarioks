@@ -137,6 +137,11 @@ describe("P4 Bóveda", () => {
     fireEvent.click(screen.getByRole("button", { name: "Reintentar" }));
     expect(await groupButton("Personal")).toBeDefined();
 
+    // The screen reads the entries of the group it opens on by itself. Arm the rejection only after that read
+    // has started, or it sometimes takes the rejection meant for the click below.
+    await waitFor(() => {
+      expect(backend.count("entry_list")).toBeGreaterThanOrEqual(1);
+    });
     backend.rejectOnce("entry_list", { code: "NoEncontrado", message: "core text" });
     fireEvent.click(await groupButton("Personal"));
     expect(await screen.findByText(ERROR_MESSAGES.NoEncontrado)).toBeDefined();
@@ -253,8 +258,11 @@ describe("P4 Bóveda", () => {
     await setup();
     await groupButton("Personal");
 
-    fireEvent.keyDown(window, { key: "f", ctrlKey: true });
-    expect(document.activeElement).toBe(searchField());
+    // The shortcut listener is attached in an effect: press again until it is there (focusing twice is harmless).
+    await waitFor(() => {
+      fireEvent.keyDown(window, { key: "f", ctrlKey: true });
+      expect(document.activeElement).toBe(searchField());
+    });
     (await groupButton("Personal")).focus();
     fireEvent.keyDown(window, { key: "k", ctrlKey: true });
     expect(document.activeElement).toBe(searchField());
