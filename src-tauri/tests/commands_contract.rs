@@ -27,7 +27,7 @@ const CANARY: &str = "CANARIO-ALMARIOKS-argumento";
 
 /// Every code of the core. `CoreError` is `non_exhaustive` and does not export its list, so it is repeated here;
 /// `rf_83_the_window_knows_every_code_of_the_core` fails if the window's list and this one drift apart.
-const CORE_ERRORS: [CoreError; 25] = [
+const CORE_ERRORS: [CoreError; 26] = [
     CoreError::Bloqueada,
     CoreError::Ocupada,
     CoreError::ArgumentoInvalido,
@@ -50,6 +50,7 @@ const CORE_ERRORS: [CoreError; 25] = [
     CoreError::GrupoProtegido,
     CoreError::ReglasImposibles,
     CoreError::GuardadoFallido,
+    CoreError::GeneradorNoDisponible,
     CoreError::CambioExterno,
     CoreError::ArchivoNoEncontrado,
     CoreError::ArchivoLlaveNoEncontrado,

@@ -890,7 +890,7 @@ export function createFakeBackend(options: FakeOptions = {}): FakeBackend {
     const sets = (Object.keys(chosen) as (keyof typeof chosen)[])
       .filter((kind) => chosen[kind])
       .map((kind) => Array.from(CHARSETS[kind]).filter((char) => !avoid || !LOOKALIKES.has(char)).join(""));
-    if (!Number.isInteger(length) || length < 8 || length > 128 || sets.length === 0) failWith("ReglasImposibles");
+    if (!Number.isInteger(length) || length < 8 || length > 500 || sets.length === 0) failWith("ReglasImposibles");
     const password = generate(length, sets);
     return { password, score: strength(password) };
   }
