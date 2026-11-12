@@ -303,3 +303,43 @@ estándar de Windows.
   solo con datos falsos de esta prueba. No se borró: es la evidencia. Para limpiarlo, borrar esa carpeta `EBWebView`
   con la app cerrada.
 - Portapapeles vacío.
+- *Actualización:* ese `Web Data` se borró en la reverificación de abajo, que deja instalada otra compilación.
+
+## Reverificación de D-1 y D-2 (modo privado)
+
+> 2026-11-11, misma noche · Compilación de depuración nueva (instalador de las 21:42) cuyo cambio es
+> `"incognito": true` en la ventana de `src-tauri/tauri.conf.json` (WebView2 en modo InPrivate).
+> Scripts: `rv-lib.ps1`, `rv1-preparar-y-recorrer.ps1`, `rv2-inspeccion.ps1`, `rv3-comprobar-y-limpiar.ps1` y el
+> inspector `rv-inspeccionar.py`. Solo se reverificaron D-1 y D-2; D-3 a D-8 siguen como estaban.
+
+**Veredicto: D-1 corregido · D-2 corregido**, en esta compilación de depuración y con el recorrido mínimo de abajo.
+
+| Paso | Resultado | Evidencia |
+|---|---|---|
+| Lo que había antes de borrar | anotado | `EBWebView`: 297 archivos, 69,5 MB. Su `Web Data`: 12 tablas `autofill*` con 34 filas (`autofill_edge_field_values` = 24: 22 en claro y 2 enmascaradas; `autofill_edge_field_client_info` = 10) |
+| **Control positivo** sobre una copia de ese `Web Data` | pasa | El mismo inspector encuentra el título y las notas de la primera corrida en claro y las dos filas enmascaradas, y las identifica como el SHA-1 de 8 bytes de la maestra anterior y de su repetición distinta |
+| **Control positivo** con los canarios nuevos | pasa | Archivo plantado: ve un canario en UTF-8, otro en UTF-16LE y el SHA-1 de 8 bytes de la maestra nueva en decimal |
+| Borrar solo `EBWebView` e instalar `/S` | pasa | Código 0; el exe instalado es el de `target\debug` (igual salvo la marca NSIS) y ya no es el de la primera corrida; `tauri.conf.json` trae `"incognito": true` |
+| Recorrido con canarios nuevos (`CENTINELA-RV-…`) | hecho | Crear bóveda tecleando la maestra, una repetición distinta (rechazada: "no coinciden") y la repetición correcta; entrada con título, usuario, URL, notas, etiqueta y contraseña; grupo; dos búsquedas con Enter; cambio de ajustes; bloquear, desbloquear y cierre normal |
+| `Web Data` tras el recorrido | existe, vacío | 227 328 bytes; sus 12 tablas `autofill*` tienen **0 filas** (antes 34). Ningún campo recordado |
+| Carpeta de datos de WebView2 completa | 0 apariciones | 133 archivos, 5,9 MB, 13 bases SQLite (`Web Data`, `History`, `Login Data`, `Cookies`, `Favicons`…): ningún canario en claro (UTF-8 ni UTF-16LE) y ninguna forma del SHA-1 de la maestra o de su repetición (8 bytes en decimal, con signo, hex, crudos y al revés; SHA-1 completo). Repetido tras un segundo arranque y cierre: 152 archivos, 0 apariciones, 0 filas |
+| Otros sitios | 0 apariciones | Carpeta de ajustes, carpeta de trabajo (bóveda, `.bak`, salida del proceso) y 163 archivos de `%TEMP%` escritos durante la prueba (sin `%TEMP%\claude`). No apareció ninguna carpeta nueva en `%LOCALAPPDATA%` ni en `%TEMP%`: la única `EBWebView` tocada es la del perfil de la app. **Ningún rastro nuevo en otro lugar** |
+| La app abre; fuente | pasa | Bienvenida y bóveda con Overpass y Overpass Mono · `RV01-bienvenida.png`, `RV02-boveda-con-detalle.png` |
+| Ajustes tras reiniciar | pasa | Guardados 15 minutos y 30 s; tras cerrar y abrir, Ajustes muestra "15 minutos" y "30" · `RV04-ajustes.png` |
+| Recientes tras reiniciar | pasa | "Abrir rv-uno.kdbx" en la bienvenida; la bóveda abre, la entrada y el grupo están y copiar funciona · `RV03`, `RV05` |
+| Algo dejó de funcionar | nada visto | Crear, guardar, buscar, bloquear, desbloquear, copiar y cerrar se comportaron como en la primera corrida |
+
+Límites de esta reverificación:
+- Una sola corrida. La comparación es contra la primera, donde las mismas acciones (la primera creación con su
+  repetición, el primer grupo, las entradas) sí dejaron filas; no se repitió la compilación anterior sobre un perfil limpio.
+- La búsqueda ve texto y bases SQLite sin comprimir; no ve dentro de bloques comprimidos (LevelDB, caché). No se
+  inspeccionó la memoria del proceso.
+- Sigue sin comprobarse la compilación de release. Conviene dejar este inspector como paso de la puerta de release
+  (RF-77, "una vez por release").
+- Dato suelto: el primer arranque con el perfil recién creado tardó 7 113 ms en mostrar la ventana (los siguientes,
+  97–140 ms). Afecta a la meta de arranque en frío de ≤ 2 s, que sigue sin medirse bien.
+
+Estado del PC tras la reverificación: instalada y cerrada la compilación nueva (modo privado); carpeta de trabajo
+borrada; la reciente de prueba quitada desde la app; ajustes en 5 minutos y 20 s; portapapeles vacío. La carpeta
+`EBWebView` existe, recreada por esta compilación, sin datos de formularios. La copia del `Web Data` anterior usada
+como control se borró con la carpeta de trabajo.
