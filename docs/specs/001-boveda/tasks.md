@@ -66,7 +66,7 @@ real) → commit → marcar. Las pruebas citan el RF (`rf_NN_…`, `it("RF-NN: �
       Hecho cuando: pruebas de P5 y P6 en verde.
 - [x] T21. Grupos (P7) y papelera. (RF-51 a RF-58)
       Hecho cuando: pruebas de P7 en verde.
-- [ ] T22. Ajustes (P8), avisos de guardado (`GuardadoFallido`, `CambioExterno`), solo lectura y conversión. (RF-14, RF-15, RF-17, RF-23, RF-24, RF-29, RF-73, RF-82)
+- [x] T22. Ajustes (P8), avisos de guardado (`GuardadoFallido`, `CambioExterno`), solo lectura y conversión. (RF-14, RF-15, RF-17, RF-23, RF-24, RF-29, RF-73, RF-82)
       Hecho cuando: pruebas de P8 y de los avisos en verde.
 
 ## Recortables (solo si el corte de 8 h no se disparó)
