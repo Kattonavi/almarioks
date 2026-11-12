@@ -3,6 +3,7 @@ import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { assertNever } from "../assertNever";
 import type { Unlisten, VaultClient } from "../ipc/client";
 import { errorMessage } from "../ipc/errors";
+import { CreateScreen } from "./CreateScreen";
 import { RecoveryNotice } from "./RecoveryNotice";
 import { initialState, reducer, type AppState } from "./state";
 import { UnlockScreen, type UnlockKey } from "./UnlockScreen";
@@ -132,13 +133,11 @@ export function VaultRoot({ client }: { readonly client: VaultClient }) {
             );
           case "create":
             return (
-              <section aria-labelledby="create-title">
-                <h2 id="create-title">Crear bóveda</h2>
-                <p>Crear una bóveda nueva todavía no está disponible en esta versión de desarrollo.</p>
-                <button type="button" onClick={() => { dispatch({ type: "back-to-welcome" }); }}>
-                  Volver a la bienvenida
-                </button>
-              </section>
+              <CreateScreen
+                client={client}
+                onBack={() => { dispatch({ type: "back-to-welcome" }); }}
+                onDone={() => void refresh()}
+              />
             );
           case "unlock": {
             const { vault } = current.view;
