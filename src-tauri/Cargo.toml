@@ -45,7 +45,7 @@ tauri-plugin-updater = "~2.14.1"
 # RF-81: one instance per user session. Registered FIRST in `lib.rs`.
 tauri-plugin-single-instance = "~2.5.5"
 
-# Clipboard (`src/clipboard/ffi.rs`, the only module with `unsafe`): owner window, exclusion formats and
+# Clipboard (`src/clipboard/ffi.rs`, one of the two modules with `unsafe`): owner window, exclusion formats and
 # clear-by-sequence-number, as measured in docs/lab/boveda-0.1 (P1). MIT OR Apache-2.0.
 # `Win32_System_Com` is only for the test probe that enters a single-threaded apartment.
 [target.'cfg(windows)'.dependencies]
@@ -57,6 +57,10 @@ windows = { version = "=0.62.2", features = [
     "Win32_System_Ole",
     "Win32_UI_WindowsAndMessaging",
 ] }
+# WebView2 settings (`src/webview/ffi.rs`, the other module with `unsafe`): Tauri 2.12 does not expose the two
+# that switch off the context menu and the accelerator keys of the browser (D-9). The same crate and version
+# `tauri` and `wry` already bring, so the controller `with_webview` hands over is this type: no new code. MIT.
+webview2-com = "=0.39.1"
 
 # tests/clipboard_win32.rs: asks the WinRT clipboard history whether it kept the canary (RF-72).
 [target.'cfg(windows)'.dev-dependencies]
