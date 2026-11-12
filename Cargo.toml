@@ -14,6 +14,20 @@ publish = false
 [workspace.dependencies]
 almarioks-core = { path = "crates/almarioks-core" }
 keepass = { version = "=0.17.0", features = ["save_kdbx4"] }
+# Errors and secrets of the core.
+thiserror = "=2.0.21"
+secrecy = "=0.10.3"
+zeroize = "=1.9.1"
+# Used ONLY inside `almarioks-core::kdbx` (constitution rule 4). All four are already in the dependency tree of
+# `keepass` 0.17.0 at these exact versions (`cargo tree -p almarioks-core`), so they add no new code to audit:
+# - sha2: the 4-byte `Hash` of a `.keyx` v2 key file (KeePass format), never for the vault crypto itself.
+# - getrandom: the 32 random bytes of a new `.keyx` from the operating system's generator.
+# - hex: the hexadecimal text of a `.keyx` v2.
+# - quick-xml: read a key file exactly like `keepass` does, to validate the `.keyx` v2 hash it does not check.
+sha2 = "=0.11.1"
+getrandom = "=0.4.3"
+hex = "=0.4.3"
+quick-xml = "=0.42.0"
 
 [workspace.lints.rust]
 unsafe_code = "forbid"         # only an `ffi` module may lower it, block by block
@@ -28,6 +42,11 @@ cast_sign_loss = "deny"
 float_arithmetic = "warn"
 dbg_macro = "deny"
 todo = "warn"
+
+# The KDF crate is 7-8x slower without optimizations (docs/lab/boveda-0.1, P4 b): `pnpm tauri dev` and the tests
+# would wait seconds per unlock and calibrate a weaker KDF. Only this crate is optimized in debug.
+[profile.dev.package.rust-argon2]
+opt-level = 3
 
 [profile.release]
 lto = "thin"

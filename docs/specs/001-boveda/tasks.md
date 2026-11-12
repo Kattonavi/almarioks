@@ -6,13 +6,13 @@ real) → commit → marcar. Las pruebas citan el RF (`rf_NN_…`, `it("RF-NN: �
 `pnpm test`. Antes de cada commit: `cargo fmt --check`, `cargo clippy --all-targets --all-features --locked -- -D warnings`.
 
 ## Núcleo (`almarioks-core`)
-- [ ] T1. Esqueleto: módulos `kdbx`, `vault`, `storage`, `search`, `generator`, `strength`, `settings`, `error` con
+- [x] T1. Esqueleto: módulos `kdbx`, `vault`, `storage`, `search`, `generator`, `strength`, `settings`, `error` con
       tipos propios y funciones que compilan y devuelven un valor neutro; dependencias fijadas. (RF: —)
       Hecho cuando: `cargo nextest run --workspace --locked` y `cargo deny check` en verde; `cargo tree -p almarioks-core -i tauri` vacío.
-- [ ] T2. Abrir: pre-lector propio de la cabecera (versión, tamaños de campo, topes del KDF) antes de la librería;
+- [x] T2. Abrir: pre-lector propio de la cabecera (versión, tamaños de campo, topes del KDF) antes de la librería;
       llave con contraseña, archivo llave o ambos; formatos de archivo llave; errores estables por versión. (RF-10 a RF-13, RF-16, RF-87, RF-94)
       Hecho cuando: esas `rf_*` en verde contra las fixtures de KeePass 2 y KeePassXC, incluido el ejemplo 7 y las tres cabeceras que tumban a la librería (`docs/lab/boveda-0.1`).
-- [ ] T3. Crear: Argon2id calibrado, `.keyx` v2 propio con relectura, rechazos. (RF-1 a RF-6)
+- [x] T3. Crear: Argon2id calibrado, `.keyx` v2 propio con relectura, rechazos. (RF-1 a RF-6)
       Hecho cuando: `rf_01_*` a `rf_06_*` en verde; la cabecera de la bóveda creada dice Argon2id, ≥ 64 MiB, 2 a 50 iteraciones.
 - [ ] T4. KDBX 3.x en solo lectura y conversión; aviso de KDF débil. (RF-14, RF-15, RF-17)
       Hecho cuando: `rf_14_*`, `rf_15_*`, `rf_17_*` en verde; el original 3.x queda con el mismo SHA-256 tras convertir.
