@@ -20,12 +20,40 @@ tauri-build = { version = "2.7.4", features = [] }
 [dependencies]
 # Pinned to the 2.12 line by hand: `cargo add tauri` resolves to the 3.0 alpha.
 tauri = { version = "~2.12.5", features = [] }
+# Error codes of the spec (`Bloqueada`, `ArgumentoInvalido`) for the clipboard service.
+almarioks-core = { workspace = true }
+# The copied secret enters the clipboard service as a type that is wiped when dropped (RF-71).
+secrecy = { workspace = true }
+thiserror = { workspace = true }
+# Wipes the UTF-16 copy of the value on its way to the clipboard.
+zeroize = { workspace = true }
 # `generate_context!` emits the `plugins` config of tauri.conf.json as `serde_json` values.
 serde_json = "1.0.149"
 
 # Desktop only (ADR-0003). Pinned to 2.x by hand: `cargo add` resolves to the 3.0 alpha.
 [target.'cfg(any(target_os = "macos", windows, target_os = "linux"))'.dependencies]
 tauri-plugin-updater = "~2.14.1"
+
+# Clipboard (`src/clipboard/ffi.rs`, the only module with `unsafe`): owner window, exclusion formats and
+# clear-by-sequence-number, as measured in docs/lab/boveda-0.1 (P1). MIT OR Apache-2.0.
+# `Win32_System_Com` is only for the test probe that enters a single-threaded apartment.
+[target.'cfg(windows)'.dependencies]
+windows = { version = "=0.62.2", features = [
+    "Win32_Foundation",
+    "Win32_System_Com",
+    "Win32_System_DataExchange",
+    "Win32_System_Memory",
+    "Win32_System_Ole",
+    "Win32_UI_WindowsAndMessaging",
+] }
+
+# tests/clipboard_win32.rs: asks the WinRT clipboard history whether it kept the canary (RF-72).
+[target.'cfg(windows)'.dev-dependencies]
+windows = { version = "=0.62.2", features = [
+    "ApplicationModel_DataTransfer",
+    "Foundation",
+    "Foundation_Collections",
+] }
 
 [dev-dependencies]
 # tests/updater_signature.rs: the real updater plugin on the mock runtime, against a local HTTP server.

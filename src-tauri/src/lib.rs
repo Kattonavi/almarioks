@@ -1,5 +1,7 @@
 //! AlmarioKS desktop app. Thin shell around `almarioks-core`: no vault commands until release 0.1.
 
+pub mod clipboard;
+
 /// Starts the app. Returns the error instead of panicking so `main` decides how to exit.
 ///
 /// # Errors

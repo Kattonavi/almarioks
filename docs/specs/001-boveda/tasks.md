@@ -48,7 +48,7 @@ real) → commit → marcar. Las pruebas citan el RF (`rf_NN_…`, `it("RF-NN: �
 - [ ] T14. Bloqueo en la app: inactividad con reloj inyectable y tiempo real, evento `vault-locked`, recarga de la
       webview, cierre de la app. (RF-29, RF-31, RF-32, RF-36)
       Hecho cuando: `rf_29_*` (incluido el ejemplo 10), `rf_31_*`, `rf_32_*` en verde.
-- [ ] T15. Portapapeles desde Rust (`ffi`): copiar, exclusión de historial y nube, limpieza por número de secuencia,
+- [x] T15. Portapapeles desde Rust (`ffi`): copiar, exclusión de historial y nube, limpieza por número de secuencia,
       al bloquear y al salir; copiar y bloquear en serie. (RF-71 a RF-75, RF-90)
       Hecho cuando: `rf_71_*` a `rf_75_*` y `rf_90_*` en verde, incluido el ejemplo 1 (a–d).
 - [ ] T16. Diálogos de archivo desde Rust, abrir URL, instancia única. (RF-49, RF-81)

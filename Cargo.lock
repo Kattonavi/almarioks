@@ -47,12 +47,17 @@ dependencies = [
 name = "almarioks"
 version = "0.0.2"
 dependencies = [
+ "almarioks-core",
  "base64 0.23.1",
  "minisign",
+ "secrecy",
  "serde_json",
  "tauri",
  "tauri-build",
  "tauri-plugin-updater",
+ "thiserror 2.0.21",
+ "windows",
+ "zeroize",
 ]
 
 [[package]]

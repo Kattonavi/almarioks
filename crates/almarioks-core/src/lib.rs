@@ -5,6 +5,8 @@
 //!
 //! Dependency rule (ADR-0001): only [`kdbx`] names types of the `keepass` crate; the rest sees our own types.
 
+#![forbid(unsafe_code)]
+
 pub mod error;
 pub mod generator;
 pub mod kdbx;

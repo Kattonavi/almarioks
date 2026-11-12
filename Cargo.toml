@@ -42,7 +42,7 @@ chrono = { version = "=0.4.45", default-features = false, features = ["std"] }
 unicode-normalization = { version = "=0.1.26", default-features = false, features = ["std"] }
 
 [workspace.lints.rust]
-unsafe_code = "forbid"         # only an `ffi` module may lower it, block by block
+unsafe_code = "deny"           # only `src-tauri/src/clipboard/ffi.rs` allows it; the other crates `forbid` it in their roots
 
 [workspace.lints.clippy]
 unwrap_used = "deny"
