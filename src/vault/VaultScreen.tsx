@@ -10,6 +10,7 @@ import { EntryPanel } from "./EntryPanel";
 import { findGroup, formatDate, formatDay, liveEntryCount, plural, shown } from "./format";
 import { GroupActions, type GroupChange } from "./GroupActions";
 import { assignLines, initialOf, lineOfPath, type GroupLine } from "./lines";
+import { NO_SAVE_SIGNAL, savingText, type SaveSignal } from "./saveSignal";
 
 /** RF-59: wait this long after the last keystroke before asking the core to search. */
 export const SEARCH_DELAY_MS = 150;
@@ -42,6 +43,11 @@ type DetailState =
   | { readonly kind: "entry"; readonly entry: SelectedEntry }
   | { readonly kind: "new"; readonly groupId: string };
 
+/** The notice of the detail zone: a plain text, or a new entry waiting for its save to reach the disk (RF-21). */
+type Notice = { readonly kind: "text"; readonly text: string } | { readonly kind: "created"; readonly since: number };
+
+const NO_NOTICE: Notice = { kind: "text", text: "" };
+
 /** What a group badge shows: the line colour of the group and its initial (the recycle bin shows its icon). */
 interface Badge {
   readonly line: GroupLine;
@@ -61,6 +67,8 @@ interface VaultScreenProps {
   readonly client: VaultClient;
   /** RF-14: nothing that changes the vault is offered; the notice above the screen says why. */
   readonly readOnly?: boolean;
+  /** RF-21: saves that reached the disk, so "guardada" is said only when it is true. */
+  readonly saveSignal?: SaveSignal;
   /** Frame slots, filled by whoever owns the open vault: the end of the top bar (lock, settings)… */
   readonly barEnd?: ReactNode;
   /** …the head of the group rail (name and file of the vault)… */
@@ -75,7 +83,14 @@ interface VaultScreenProps {
  * the detail. Every vault datum is rendered as a React text child, never as HTML or as a link (RF-78). All its data
  * is local state, so a lock, which unmounts this screen, drops it at once (RF-32).
  */
-export function VaultScreen({ client, readOnly = false, barEnd, railHead, banner }: VaultScreenProps) {
+export function VaultScreen({
+  client,
+  readOnly = false,
+  saveSignal = NO_SAVE_SIGNAL,
+  barEnd,
+  railHead,
+  banner,
+}: VaultScreenProps) {
   const [tree, setTree] = useState<TreeState>({ kind: "loading" });
   const [treeAttempt, setTreeAttempt] = useState(0);
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
@@ -84,7 +99,7 @@ export function VaultScreen({ client, readOnly = false, barEnd, railHead, banner
   /** Asks the list again after a change without showing "Cargando" in between. */
   const [listRefresh, setListRefresh] = useState(0);
   const [detail, setDetail] = useState<DetailState>({ kind: "none" });
-  const [notice, setNotice] = useState("");
+  const [notice, setNotice] = useState<Notice>(NO_NOTICE);
   const [query, setQuery] = useState("");
   const [search, setSearch] = useState<SearchState>({ kind: "idle" });
   /** RF-74 on the list: which row holds the clipboard and until when. It outlives the detail of that entry. */
@@ -230,11 +245,15 @@ export function VaultScreen({ client, readOnly = false, barEnd, railHead, banner
   }
 
   function selectEntry(entry: SelectedEntry) {
-    setNotice("");
+    setNotice(NO_NOTICE);
     setDetail({ kind: "entry", entry });
   }
 
   const searching = query.trim() !== "";
+  const noticeText =
+    notice.kind === "text"
+      ? notice.text
+      : savingText(saveSignal, notice.since, "Entrada creada. Guardándola en el archivo…", "Entrada guardada.");
   const stamped: Stamped | null =
     stamp === null ? null : { entryId: stamp.entryId, seconds: Math.max(1, Math.ceil((stamp.deadline - now) / 1000)) };
   /** The line colour of every group: by position, so it only changes when the tree does. */
@@ -299,7 +318,7 @@ export function VaultScreen({ client, readOnly = false, barEnd, railHead, banner
             <h3 id="detail-title" ref={detailTitleRef} tabIndex={-1} className="sr-only">
               Detalle
             </h3>
-            <div aria-live="polite">{notice !== "" && <p className="notice">{notice}</p>}</div>
+            <div aria-live="polite">{noticeText !== "" && <p className="notice">{noticeText}</p>}</div>
             {renderDetail()}
           </section>
         </div>
@@ -319,7 +338,7 @@ export function VaultScreen({ client, readOnly = false, barEnd, railHead, banner
             client={client}
             mode={{ kind: "create", groupId: group.id, groupName: shown(group.name, "(sin nombre)") }}
             onSaved={(entry) => {
-              setNotice("Entrada guardada.");
+              setNotice({ kind: "created", since: saveSignal.saved });
               setDetail({ kind: "entry", entry: { id: entry.id, title: entry.title } });
               refresh();
             }}
@@ -340,6 +359,7 @@ export function VaultScreen({ client, readOnly = false, barEnd, railHead, banner
             listTitle={detail.entry.title}
             root={tree.root}
             readOnly={readOnly}
+            saveSignal={saveSignal}
             onChanged={refresh}
             onCopied={(deadline) => {
               setNow(Date.now());
@@ -347,7 +367,7 @@ export function VaultScreen({ client, readOnly = false, barEnd, railHead, banner
             }}
             onDeleted={(message) => {
               setDetail({ kind: "none" });
-              setNotice(message);
+              setNotice({ kind: "text", text: message });
               refresh();
               // After the commit: while a modal dialog is open, everything outside it is inert.
               focusDetail.current = true;
@@ -439,7 +459,7 @@ export function VaultScreen({ client, readOnly = false, barEnd, railHead, banner
               type="button"
               className="btn-primary"
               onClick={() => {
-                setNotice("");
+                setNotice(NO_NOTICE);
                 setDetail({ kind: "new", groupId: group.id });
               }}
             >

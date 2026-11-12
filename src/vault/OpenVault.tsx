@@ -7,6 +7,7 @@ import type { Recovery, SaveState, VaultStatus } from "../ipc/schemas";
 import { InfoIcon, LockIcon, WarningIcon } from "../ui/icons";
 import { Dialog } from "./Dialog";
 import { RecoveryNotice } from "./RecoveryNotice";
+import type { SaveSignal } from "./saveSignal";
 import { formatCountdown } from "./format";
 import { fileNameOf, type VaultRef } from "./state";
 import { VaultScreen } from "./VaultScreen";
@@ -100,6 +101,8 @@ export function OpenVault(props: OpenVaultProps) {
     props.savePending ? { kind: "failed", error: null } : { kind: "idle" },
   );
   const [notice, setNotice] = useState("");
+  /** RF-21: how many saves reached the disk since this screen opened (see `SaveSignal`). */
+  const [savedCount, setSavedCount] = useState(0);
   const [busy, setBusy] = useState(false);
   const [confirmReload, setConfirmReload] = useState(false);
   const [convertError, setConvertError] = useState<AppError | null>(null);
@@ -118,7 +121,9 @@ export function OpenVault(props: OpenVaultProps) {
     let unlisten: Unlisten | undefined;
     client
       .onSaveState((state) => {
-        if (!disposed) setSave(viewOf(state));
+        if (disposed) return;
+        setSave(viewOf(state));
+        if (state === "saved") setSavedCount((count) => count + 1);
       })
       .then(
         (stop) => {
@@ -154,9 +159,13 @@ export function OpenVault(props: OpenVaultProps) {
       case "applied":
         focusTitle.current = true;
         setNotice("");
-        setSave(
-          outcome.status.state === "open" && outcome.status.savePending ? { kind: "failed", error: null } : after,
-        );
+        if (outcome.status.state === "open" && outcome.status.savePending) {
+          setSave({ kind: "failed", error: null });
+          return;
+        }
+        setSave(after);
+        // A retry or a save elsewhere that answered without anything pending wrote the file.
+        if (after.kind === "saved") setSavedCount((count) => count + 1);
         return;
       default:
         assertNever(outcome);
@@ -216,6 +225,7 @@ export function OpenVault(props: OpenVaultProps) {
   }
 
   const problem = save.kind === "failed" || save.kind === "external" ? save : null;
+  const saveSignal: SaveSignal = { saved: savedCount, problem: problem !== null };
 
   /** What the person has to know before working: above the work area, never over it. */
   const notices = (
@@ -337,6 +347,7 @@ export function OpenVault(props: OpenVaultProps) {
         key={`${vault.path}#${String(props.generation)}`}
         client={client}
         readOnly={readOnly}
+        saveSignal={saveSignal}
         barEnd={
           <>
             {/* Keyed by the deadline: a new status starts the count from its own moment. */}

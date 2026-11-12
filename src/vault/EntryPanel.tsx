@@ -9,6 +9,11 @@ import { Dialog } from "./Dialog";
 import { EntryForm } from "./EntryForm";
 import { formatDate, groupOptions, isInBin, shown, trailTo } from "./format";
 import { assignLines } from "./lines";
+import { NO_SAVE_SIGNAL, savingText, type SaveSignal } from "./saveSignal";
+
+/** RF-21: an edit the core applied, before and after its save reaches the disk. */
+const WAITING = "Cambios aplicados. Guardando la entrada en el archivo…";
+const DONE = "Entrada guardada.";
 
 /** RF-44: a revealed value hides itself after this long. */
 export const REVEAL_MS = 20_000;
@@ -42,6 +47,8 @@ interface EntryPanelProps {
   readonly root: GroupNode;
   /** RF-14: view, reveal and copy only. */
   readonly readOnly?: boolean;
+  /** RF-21: saves that reached the disk; an edit is "guardada" only after the next one. */
+  readonly saveSignal?: SaveSignal;
   /** The entry changed (edited, moved): the lists must be asked again. */
   readonly onChanged: () => void;
   /** The entry left this view (to the recycle bin or for good). */
@@ -93,6 +100,7 @@ export function EntryPanel({
   listTitle,
   root,
   readOnly = false,
+  saveSignal = NO_SAVE_SIGNAL,
   onChanged,
   onDeleted,
   onCopied,
@@ -105,7 +113,14 @@ export function EntryPanel({
   const [now, setNow] = useState(() => Date.now());
   const [actionError, setActionError] = useState<AppError | null>(null);
   const [status, setStatus] = useState("");
+  /** An edit applied when `saveSignal.saved` was this value, waiting for its save to reach the disk. */
+  const [editSince, setEditSince] = useState<number | null>(null);
   const [dialog, setDialog] = useState<DialogState>(null);
+  /** Any other message replaces the save notice of an earlier edit. */
+  function say(text: string) {
+    setStatus(text);
+    setEditSince(null);
+  }
   const timers = useRef(new Map<FieldName, ReturnType<typeof setTimeout>>());
   const mounted = useRef(false);
   const editRef = useRef<HTMLButtonElement>(null);
@@ -182,7 +197,7 @@ export function EntryPanel({
 
   async function copy(field: FieldName) {
     setActionError(null);
-    setStatus("");
+    say("");
     const result = await client.entryCopy(entryId, field);
     if (!mounted.current) return;
     if (!result.ok) {
@@ -193,7 +208,7 @@ export function EntryPanel({
       // A field that is not protected: no countdown, and the person knows it stays on the clipboard.
       setCopied(null);
       onCopied?.(null);
-      setStatus(`${labelOf(field)}: copiado. No es un dato protegido, así que el portapapeles no se limpia solo.`);
+      say(`${labelOf(field)}: copiado. No es un dato protegido, así que el portapapeles no se limpia solo.`);
       return;
     }
     const at = Date.now();
@@ -205,10 +220,10 @@ export function EntryPanel({
 
   async function openUrl() {
     setActionError(null);
-    setStatus("");
+    say("");
     const result = await client.entryOpenUrl(entryId);
     if (!mounted.current) return;
-    if (result.ok) setStatus("La dirección se abrió en el navegador.");
+    if (result.ok) say("La dirección se abrió en el navegador.");
     else setActionError(result.error);
   }
 
@@ -263,7 +278,8 @@ export function EntryPanel({
         mode={{ kind: "edit", entry }}
         onSaved={(saved, changed) => {
           setLoad({ kind: "ready", entry: saved });
-          setStatus(changed ? "Entrada guardada." : "No había cambios que guardar.");
+          setStatus(changed ? "" : "No había cambios que guardar.");
+          setEditSince(changed ? saveSignal.saved : null);
           focusEdit.current = true;
           setMode("view");
           if (changed) onChanged();
@@ -277,6 +293,7 @@ export function EntryPanel({
   }
 
   const inBin = isInBin(root, entry.groupId);
+  const savedText = editSince === null ? "" : savingText(saveSignal, editSince, WAITING, DONE);
   const secretFields = protectedOf(entry);
   const plainCustom = entry.customFields.filter((field) => !field.protected);
   const secondsLeft = copied === null ? null : Math.max(0, Math.ceil((copied.deadline - now) / 1000));
@@ -452,7 +469,7 @@ export function EntryPanel({
           type="button"
           onClick={() => {
             hideAll();
-            setStatus("");
+            say("");
             setActionError(null);
             setMode("edit");
           }}
@@ -493,6 +510,7 @@ export function EntryPanel({
           </p>
         )}
         {status !== "" && <p>{status}</p>}
+        {status === "" && savedText !== "" && <p>{savedText}</p>}
       </div>
       <p role="alert" className="error">
         {actionError === null ? "" : errorMessage(actionError)}
@@ -516,7 +534,7 @@ export function EntryPanel({
             }}
             onMoved={(groupName) => {
               setDialog(null);
-              setStatus(`${titleOf(entry)} se movió a ${groupName}.`);
+              say(`${titleOf(entry)} se movió a ${groupName}.`);
               setAttempt((value) => value + 1);
               onChanged();
             }}

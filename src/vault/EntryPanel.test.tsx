@@ -302,7 +302,7 @@ describe("P5 Entrada — crear y editar", () => {
     fireEvent.change(screen.getByLabelText("Etiquetas (una por línea)"), { target: { value: "correo\n\n hogar \n" } });
     fireEvent.click(screen.getByRole("button", { name: "Guardar entrada" }));
 
-    expect(await screen.findByText("Entrada guardada.")).toBeDefined();
+    expect(await screen.findByText("Entrada creada. Guardándola en el archivo…")).toBeDefined();
     expect(lastArgs(backend, "entry_create")).toEqual({
       group_id: "group-personal",
       title: "Correo",
@@ -334,7 +334,7 @@ describe("P5 Entrada — crear y editar", () => {
       release();
       await Promise.resolve();
     });
-    expect(await screen.findByText("Entrada guardada.")).toBeDefined();
+    expect(await screen.findByText("Entrada creada. Guardándola en el archivo…")).toBeDefined();
   });
 
   it("RF-41: la contraseña viaja tal cual: sin recortar, sin cambiar mayúsculas ni normalizar", async () => {
@@ -346,7 +346,7 @@ describe("P5 Entrada — crear y editar", () => {
     typePassword(written);
     fireEvent.click(screen.getByRole("button", { name: "Guardar entrada" }));
 
-    expect(await screen.findByText("Entrada guardada.")).toBeDefined();
+    expect(await screen.findByText("Entrada creada. Guardándola en el archivo…")).toBeDefined();
     expect((lastArgs(backend, "entry_create") as { password: string }).password).toBe(written);
   });
 
@@ -374,7 +374,7 @@ describe("P5 Entrada — crear y editar", () => {
 
     fireEvent.change(title(), { target: { value: "\u{1F511}".repeat(255) } });
     save();
-    expect(await screen.findByText("Entrada guardada.")).toBeDefined();
+    expect(await screen.findByText("Entrada creada. Guardándola en el archivo…")).toBeDefined();
 
     fireEvent.click(screen.getByRole("button", { name: "Nueva entrada" }));
     fireEvent.change(await screen.findByLabelText("Título"), { target: { value: "  Banco  " } });
@@ -456,7 +456,7 @@ describe("P5 Entrada — crear y editar", () => {
     fireEvent.change(screen.getByLabelText("Título"), { target: { value: "GitHub personal" } });
     fireEvent.click(screen.getByRole("button", { name: "Guardar entrada" }));
 
-    expect(await screen.findByText("Entrada guardada.")).toBeDefined();
+    expect(await screen.findByText("Cambios aplicados. Guardando la entrada en el archivo…")).toBeDefined();
     expect(lastArgs(backend, "entry_update")).toEqual({ id: "entry-github", title: "GitHub personal" });
     expect(backend.entry("entry-github")?.password).toBe(PASSWORD);
     expect(backend.entry("entry-github")?.history).toBe(1);
@@ -486,7 +486,7 @@ describe("P5 Entrada — crear y editar", () => {
     fireEvent.change(screen.getByLabelText("Notas"), { target: { value: "" } });
     fireEvent.click(screen.getByRole("button", { name: "Guardar entrada" }));
 
-    expect(await screen.findByText("Entrada guardada.")).toBeDefined();
+    expect(await screen.findByText("Cambios aplicados. Guardando la entrada en el archivo…")).toBeDefined();
     expect(lastArgs(backend, "entry_update")).toEqual({ id: "entry-vpn", password: "nueva-clave" });
     expect(backend.entry("entry-vpn")?.username).toBeNull();
     expect(backend.entry("entry-vpn")?.password).toBe("nueva-clave");
@@ -502,7 +502,7 @@ describe("P5 Entrada — crear y editar", () => {
     fireEvent.change(screen.getByLabelText("Etiquetas (una por línea)"), { target: { value: "código" } });
     fireEvent.click(screen.getByRole("button", { name: "Guardar entrada" }));
 
-    expect(await screen.findByText("Entrada guardada.")).toBeDefined();
+    expect(await screen.findByText("Cambios aplicados. Guardando la entrada en el archivo…")).toBeDefined();
     expect(lastArgs(backend, "entry_update")).toEqual({ id: "entry-github", notes: "", tags: ["código"] });
   });
 });
@@ -780,5 +780,64 @@ describe("P5 Entrada — bloqueada", () => {
     for (const value of ["borrador-a-medias", "escrita-sin-guardar", generated]) {
       expect(bodyContains(value)).toBe(false);
     }
+  });
+});
+
+describe("P5 Entrada — el aviso espera al disco", () => {
+  const emitSave = (backend: { emit: (event: string, payload?: unknown) => void }, state: string) => {
+    act(() => {
+      backend.emit("vault-save-state", state);
+    });
+  };
+
+  async function editGitHubTitle() {
+    await openEntry("Trabajo", "GitHub");
+    fireEvent.click(screen.getByRole("button", { name: "Editar" }));
+    await screen.findByRole("form", { name: "Editar GitHub" });
+    fireEvent.change(screen.getByLabelText("Título"), { target: { value: "GitHub personal" } });
+    fireEvent.click(screen.getByRole("button", { name: "Guardar entrada" }));
+  }
+
+  it("RF-21: al editar no dice «Entrada guardada.» hasta que el núcleo confirma `saved`", async () => {
+    const { backend } = await setup();
+    await editGitHubTitle();
+
+    expect(await screen.findByText("Cambios aplicados. Guardando la entrada en el archivo…")).toBeDefined();
+    expect(screen.queryByText("Entrada guardada.")).toBeNull();
+    emitSave(backend, "saving");
+    expect(screen.queryByText("Entrada guardada.")).toBeNull();
+    emitSave(backend, "saved");
+    expect(screen.getByText("Entrada guardada.")).toBeDefined();
+    expect(screen.queryByText("Cambios aplicados. Guardando la entrada en el archivo…")).toBeNull();
+  });
+
+  it("RF-21: RF-23: un `saved` anterior no cuenta, y si el guardado falla manda el aviso de guardado", async () => {
+    const { backend } = await setup();
+    await openEntry("Trabajo", "GitHub");
+    emitSave(backend, "saved");
+    fireEvent.click(screen.getByRole("button", { name: "Editar" }));
+    await screen.findByRole("form", { name: "Editar GitHub" });
+    fireEvent.change(screen.getByLabelText("Título"), { target: { value: "GitHub personal" } });
+    fireEvent.click(screen.getByRole("button", { name: "Guardar entrada" }));
+
+    expect(await screen.findByText("Cambios aplicados. Guardando la entrada en el archivo…")).toBeDefined();
+    expect(screen.queryByText("Entrada guardada.")).toBeNull();
+    emitSave(backend, "failed");
+    expect(screen.getByRole("heading", { name: "No se pudo guardar: tus cambios siguen en memoria" })).toBeDefined();
+    expect(screen.queryByText("Cambios aplicados. Guardando la entrada en el archivo…")).toBeNull();
+    expect(screen.queryByText("Entrada guardada.")).toBeNull();
+  });
+
+  it("RF-21: al crear dice que se está guardando y pasa a «Entrada guardada.» con `saved`", async () => {
+    const { backend } = await setup();
+    await startNewEntry();
+    fireEvent.change(screen.getByLabelText("Título"), { target: { value: "Correo" } });
+    typePassword("clave larga 123");
+    fireEvent.click(screen.getByRole("button", { name: "Guardar entrada" }));
+
+    expect(await screen.findByText("Entrada creada. Guardándola en el archivo…")).toBeDefined();
+    expect(screen.queryByText("Entrada guardada.")).toBeNull();
+    emitSave(backend, "saved");
+    expect(await screen.findByText("Entrada guardada.")).toBeDefined();
   });
 });
