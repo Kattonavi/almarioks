@@ -190,8 +190,9 @@
 }
 
 /*
- * ---- Open vault: one bar on top and three columns below it, at full height: rail | list | detail. The window
- * never goes under 1000 × 640 (RF-104), so there is a single composition and no narrower one. ----
+ * ---- Open vault: one bar on top and two columns below it, at full height: rail | list. The entry opens in a window
+ * over them (RF-43). The window of the app never goes under 1000 × 640 (RF-104), so there is a single composition and
+ * no narrower one. ----
  */
 .open-vault {
   display: grid;
@@ -306,7 +307,7 @@
   color: var(--ink);
 }
 
-/* ---- Work area: notices, then list | detail. ---- */
+/* ---- Work area: notices, then the list. ---- */
 .work {
   display: grid;
   grid-area: 1 / 2 / 3 / 3;
@@ -384,33 +385,20 @@
   font-size: var(--text-sm);
 }
 
-/* The list keeps its width; the detail takes the rest and never goes under its minimum. */
+/* The list takes everything the rail leaves. */
 .vault-zones {
   display: grid;
   grid-row: 2;
-  grid-template-columns: var(--list-w) minmax(var(--detail-min-w), 1fr);
+  grid-template-columns: minmax(0, 1fr);
   min-height: 0;
 }
 
+/* What scrolls is its table (`vault.css`): the header and the foot of the list stay still. */
 .list-pane {
   min-width: 0;
-  overflow-y: auto;
+  min-height: 0;
+  overflow: hidden;
   background: var(--surface);
-  border-inline-end: 1px solid var(--rule);
-}
-
-/* A column: what it shows on top and, pushed to its foot, the copy notice. */
-.detail-pane {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  padding: var(--space-6) var(--space-8);
-  overflow-y: auto;
-  container: detail / inline-size;
-}
-
-.detail-pane > .pane-state {
-  margin: 3rem 0 0;
 }
 
 .pane-state {
@@ -418,6 +406,7 @@
 }
 
 .list-pane > .pane-state {
+  flex: none;
   margin: 0;
-  padding: var(--space-6) var(--space-4);
+  padding: var(--space-6);
 }

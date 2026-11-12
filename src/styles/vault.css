@@ -1,17 +1,21 @@
-/* The two work zones of the open vault: the entry list and the detail of an entry. */
+/* The work zone of the open vault: the entry list, as a table, and the window of an entry over it. */
 
 /*
- * ---- List header: the name of what the list shows on one line, how many entries under it, and the main action. ----
+ * ---- The list is a column: its header (the name of what it shows on one line, how many entries under it, and the
+ * main action), the table, which takes the room left and is the part that scrolls, and its foot. ----
  */
 .list-pane {
+  display: flex;
+  flex-direction: column;
   container: list / inline-size;
 }
 
 .list-head {
   display: flex;
+  flex: none;
   align-items: center;
   gap: var(--space-3);
-  padding: 14px var(--space-4);
+  padding: 14px var(--space-6);
   border-bottom: 1px solid var(--rule);
 }
 
@@ -49,30 +53,104 @@
 }
 
 /*
- * ---- Rows of 60 px. A real table drawn as a list: the circle with the initial of the entry on the colour of its
- * group, the title button stretched over the row, the user and the site on the second line, and the day it was
- * modified closing the row. ----
+ * ---- The table (RF-42). A real table laid out as rows of flexible cells: the title, the user and the site share the
+ * room left and never go under 160, 120 and 120 px; the password (112), the day (80) and the actions (92) keep their
+ * width. With 16 px at both ends of a row and 8 px between columns the minimums add up to 756 px, which fit in the
+ * smallest window (1000 - 232 = 768); the wrapper scrolls sideways only as a safety net. A row is 52 px over its rule
+ * and the row of labels 36 px over its own. ----
  */
-.entries,
-.entries tbody {
-  display: block;
-  width: 100%;
-}
-
-.entries tbody tr {
+.table-scroll {
+  --entry-head-h: 36px;
+  --entry-row-h: 52px;
   --entry-badge: 32px;
 
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  /* A row the focus brings into view stops under the row of labels, not behind it. */
+  scroll-padding-top: var(--entry-head-h);
+}
+
+.entries,
+.entries thead,
+.entries tbody {
+  display: block;
+}
+
+.entries {
+  min-width: 756px;
+}
+
+.entries tr {
   position: relative;
-  display: grid;
-  grid-template-areas:
-    "title title date"
-    "user  rest  date";
-  grid-template-columns: minmax(0, auto) minmax(0, 1fr) max-content;
-  align-content: center;
+  box-sizing: content-box;
+  display: flex;
   align-items: center;
-  min-height: 60px;
-  padding: var(--space-2) var(--space-4) var(--space-2) calc(var(--space-4) + var(--entry-badge) + var(--space-3));
+  gap: var(--space-2);
+  padding: 0 var(--space-4);
   border-bottom: 1px solid var(--rule);
+}
+
+.entries :is(th, td) {
+  min-width: 0;
+  padding: 0 var(--space-2);
+  font-weight: var(--weight-regular);
+  text-align: start;
+}
+
+.entries .cell-title {
+  flex: 1.6 1 160px;
+}
+
+.entries :is(.cell-user, .cell-url) {
+  flex: 1.2 1 120px;
+}
+
+.entries .cell-password {
+  flex: 0 0 112px;
+}
+
+.entries .cell-date {
+  flex: 0 0 80px;
+}
+
+.entries .cell-actions {
+  flex: 0 0 92px;
+}
+
+/* The row of labels stays in sight while the rows scroll under it. */
+.entries thead {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--surface);
+}
+
+.entries thead tr {
+  height: var(--entry-head-h);
+}
+
+.entries thead th {
+  overflow: hidden;
+  font-size: var(--text-xs);
+  letter-spacing: 0.04em;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: var(--ink-muted);
+}
+
+/* "Modificada" is wider than its 80 px: it runs on over the column of the actions, which has no label. */
+.entries thead .cell-date {
+  overflow: visible;
+}
+
+/* A double click is an order here (RF-106), not a way to select a word. */
+.entries tbody tr {
+  min-height: var(--entry-row-h);
+  cursor: default;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 .entries tbody tr:hover {
@@ -87,150 +165,204 @@
   background: var(--panel);
 }
 
-.entries tbody tr:has(button:focus-visible) {
+.entries tbody tr:has(.cell-title button:focus-visible) {
   outline: var(--focus-width) solid var(--focus);
   outline-offset: calc(-1 * var(--focus-width));
 }
 
-.entries th {
-  grid-area: title;
+.entries tbody :is(th, td) {
+  display: flex;
+  align-items: center;
+  height: var(--entry-row-h);
+}
+
+/* Long text is cut with an ellipsis: nothing in a row takes two lines. */
+.cell-text {
   min-width: 0;
-  padding: 0;
-  text-align: start;
-}
-
-.entries .bullet {
-  position: absolute;
-  top: 50%;
-  left: var(--space-4);
-  width: var(--entry-badge);
-  height: var(--entry-badge);
-  font-size: var(--text-control);
-  transform: translateY(-50%);
-}
-
-.entries th button {
-  display: block;
-  max-width: 100%;
-  min-height: 0;
-  padding: 0;
   overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The title cell is its button: the circle with the initial of the entry on the colour of its group, and the title. */
+.entries tbody .cell-title {
+  padding: 0;
+}
+
+.entries .cell-title button {
+  justify-content: flex-start;
+  gap: var(--space-3);
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  padding: 0 var(--space-2);
   font-size: var(--text-md);
   line-height: var(--leading);
   text-align: start;
-  text-overflow: ellipsis;
-  white-space: nowrap;
   color: inherit;
   background: none;
   border: 0;
+  border-radius: 0;
+  cursor: default;
 }
 
-.entries th button:focus-visible {
+.entries .cell-title button:focus-visible {
   outline: none;
 }
 
 /* The row answers to the pointer and to the press; its title button does not paint a second patch inside it. */
-.entries th button:hover:not(:disabled),
-.entries th button:active:not(:disabled) {
+.entries .cell-title button:hover:not(:disabled),
+.entries .cell-title button:active:not(:disabled) {
   background: none;
   transform: none;
 }
 
-.entries th button::after {
-  position: absolute;
-  inset: 0;
-  content: "";
+.entries .bullet {
+  width: var(--entry-badge);
+  height: var(--entry-badge);
+  font-size: var(--text-control);
 }
 
-.entries td {
-  min-width: 0;
-  padding: 0;
-  overflow: hidden;
-  font-size: var(--text-sm);
-  text-overflow: ellipsis;
-  white-space: nowrap;
+/* What is secondary in a row: the mask, the day and the dash of a cell without data. */
+.entries tbody :is(.cell-password, .cell-date, [data-empty]) {
   color: var(--ink-muted);
 }
 
-.entries tr[data-selected] td {
+.entries tbody tr[data-selected] :is(.cell-password, .cell-date, [data-empty]) {
   color: var(--on-panel-muted);
 }
 
-.cell-user {
-  grid-area: user;
+/* RF-105: always the same marks, in the data face. The value is not in the list, so neither is its length. */
+.entries .mask {
+  font: var(--weight-regular) var(--text-control) / 1 var(--font-mono);
+  letter-spacing: 0.08em;
 }
 
-.cell-url {
-  grid-area: rest;
-}
-
-/*
- * The separator belongs to the pair: it only shows when both sides have something. It is drawn, not typed: the
- * middle dot of the font does not sit in the middle of its space.
- */
-.cell-user:not(:empty) ~ .cell-url:not(:empty)::before,
-.dot-sep::before {
-  display: inline-block;
-  width: 3px;
-  height: 3px;
-  margin: 0 6px;
-  vertical-align: middle;
-  content: "";
-  background: currentcolor;
-  border-radius: var(--radius-round);
-}
-
-/* The typed dot stays in the text (it is what is read and copied); only the drawn one is seen. */
-.dot-sep {
-  font-size: 0;
-}
-
-/* Without a font size there is no middle to hang from: the dot is lifted to the middle of the small text around it. */
-.dot-sep::before {
-  vertical-align: 3px;
+.entries tbody .cell-date {
+  font-size: var(--text-sm);
+  white-space: nowrap;
 }
 
 /*
  * The tags and, in the search results, the path of the group stay in the table for screen readers: the row says the
- * group with the colour of its circle.
+ * group with the colour of its circle. They are out of the flow, so they add no width.
  */
-.cell-tags,
-.cell-group {
+.entries :is(.cell-tags, .cell-group) {
   position: absolute;
   width: 1px;
   height: 1px;
+  padding: 0;
   overflow: hidden;
   clip-path: inset(50%);
   white-space: nowrap;
 }
 
-.entries .cell-date {
-  grid-area: date;
-  padding-inline-start: var(--space-3);
-  overflow: visible;
+/*
+ * Every row keeps the 92 px of its last cell; only the chosen one fills it, with two icon buttons of 44 px: "Copiar
+ * contraseña" on a plate in the ink of the row, and "Abrir la entrada" without one.
+ */
+.entries tbody .cell-actions {
+  justify-content: flex-end;
+  gap: var(--space-1);
+  padding: 0;
 }
 
-[data-density="compact"] .entries tbody tr {
-  grid-template-areas: "title user date";
-  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) auto;
-  column-gap: var(--space-3);
-  min-height: var(--row-h);
-  padding-block: var(--space-1);
+.entries .cell-actions button {
+  width: var(--control-h);
+  height: var(--control-h);
+  min-height: 0;
+  padding: 0;
+  border: 0;
 }
 
-[data-density="compact"] .entries .cell-url {
-  display: none;
+.row-copy {
+  color: var(--panel);
+  background: var(--on-panel);
+}
+
+.row-copy:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--on-panel) 86%, var(--panel));
+}
+
+.row-open {
+  color: var(--on-panel);
+}
+
+.row-open:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--on-panel) 9%, transparent);
+}
+
+[data-density="compact"] .table-scroll {
+  --entry-row-h: 36px;
+  --entry-badge: 24px;
 }
 
 /*
- * ---- Detail. Header: the circle of the entry, its title with the group under it, and at the end "Editar" and the
- * menu with the rest of what can be asked of the entry. ----
+ * ---- The foot of the list: what the last order left to say, the copy notice while no window is open, and the line
+ * that says what a double click does in each column. ----
  */
-.detail-pane > [aria-live] .notice {
-  margin-bottom: var(--space-5);
+.list-foot {
+  flex: none;
+  margin-top: auto;
+  padding-top: var(--space-4);
 }
 
-/* The blocks of the detail, 20 px apart: header, card, dates, and what the last order left to say. */
+.list-notice p,
+.list-error {
+  max-width: none;
+  margin: 0;
+  padding: 0 var(--space-6) var(--space-2);
+  font-size: var(--text-sm);
+}
+
+.list-notice p {
+  color: var(--ink-muted);
+}
+
+.list-error:empty {
+  display: none;
+}
+
+.list-foot > .toast-zone:not(:empty) {
+  padding: 0 var(--space-4) var(--space-3);
+}
+
+.list-hint {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-5);
+  margin: 0;
+  padding: 10px var(--space-6);
+  font-size: var(--text-sm);
+  color: var(--ink-muted);
+  border-top: 1px solid var(--rule);
+}
+
+.list-hint-key {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-weight: var(--weight-strong);
+  color: var(--ink);
+}
+
+.list-hint-key > .icon {
+  width: 16px;
+  height: 16px;
+}
+
+/*
+ * ---- The window of an entry (RF-43): a modal sheet whose content brings its own head. Header: the circle of the
+ * entry, its title with the group under it, and at the end "Editar", the menu with the rest of what can be asked of
+ * the entry, and "Cerrar". ----
+ */
+dialog[data-layout="entry"] {
+  width: min(600px, calc(100vw - var(--space-8)));
+  border-radius: var(--radius-dialog);
+}
+
+/* The blocks of the entry, 20 px apart: header, card, dates, and what the last order left to say. */
 .entry {
   display: flex;
   flex-direction: column;
@@ -308,7 +440,8 @@
   display: flex;
 }
 
-.entry-more {
+.entry-more,
+.entry-close {
   width: var(--control-h);
   padding: 0;
 }
@@ -427,16 +560,6 @@
 }
 
 /*
- * In the narrowest detail (the 1000 px window) the bar is shorter, so the buttons stay inside the card. It is still
- * a fixed width, the same for every value.
- */
-@container detail (max-width: 25rem) {
-  .secret[data-masked] {
-    width: calc(5 * var(--mask-period));
-  }
-}
-
-/*
  * A shown secret is read whole: it cannot be selected or put in a `title`, so it breaks into lines instead of being
  * cut with an ellipsis.
  */
@@ -490,23 +613,29 @@
 }
 
 /*
- * ---- The copy notice: a light plate at the foot of the detail zone, centred, with a green check. It stays in sight
- * while the zone scrolls. ----
+ * ---- The copy notice: a light plate, centred, with a green check. At the foot of the list, over the line of the
+ * double click; inside the window of an entry while it is open, where it stays in sight while the window scrolls. ----
  */
 .toast-zone {
-  position: sticky;
-  bottom: 0;
   display: flex;
   justify-content: center;
-  margin-top: auto;
   pointer-events: none;
+}
+
+dialog[data-layout="entry"] > .toast-zone {
+  position: sticky;
+  bottom: 0;
+}
+
+dialog[data-layout="entry"] > .toast-zone:not(:empty) {
+  margin-top: var(--space-5);
 }
 
 .toast {
   display: flex;
   gap: 10px;
   align-items: center;
-  margin: var(--space-5) 0 0;
+  margin: 0;
   padding: 10px var(--space-4);
   font-weight: var(--weight-strong);
   color: var(--on-panel);
@@ -519,9 +648,4 @@
   height: 16px;
   color: var(--on-panel-ok);
   stroke-width: 2.5;
-}
-
-/* The way back from the detail to the list belonged to the one-column window, which no longer exists (RF-104). */
-.back-to-list {
-  display: none;
 }

@@ -127,6 +127,26 @@ export function CloseIcon() {
   );
 }
 
+/** A window: the entry opened in its own (the second button of the chosen row). */
+export function WindowIcon() {
+  return (
+    <Icon>
+      <rect x="3" y="5" width="18" height="14" rx="2" />
+      <path d="M3 10h18" />
+    </Icon>
+  );
+}
+
+/** A mouse: what the line at the foot of the list is about (double click). */
+export function MouseIcon() {
+  return (
+    <Icon>
+      <rect x="7" y="3" width="10" height="18" rx="5" />
+      <path d="M12 7v4" />
+    </Icon>
+  );
+}
+
 export function OpenLinkIcon() {
   return (
     <Icon>

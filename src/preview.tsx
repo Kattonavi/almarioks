@@ -408,6 +408,8 @@ async function stageOpen(backend: FakeBackend) {
     default:
   }
   await click(".entries button", "GitHub");
+  // RF-106: the click chose the row; the window of the entry opens with a double click on its title.
+  (await find(".entries .cell-title button", "GitHub")).dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
   // Icon buttons have no text: they are found by their name.
   await find('button[aria-label="Copiar contraseña"]', /^/);
   if (state === "menu-entrada" || state === "dialogo-mover") {

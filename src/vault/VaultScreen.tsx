@@ -1,13 +1,21 @@
-import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
+import {
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type ReactNode,
+} from "react";
 
 import { assertNever } from "../assertNever";
-import type { VaultClient } from "../ipc/client";
+import type { FieldName, VaultClient } from "../ipc/client";
 import { errorMessage, type AppError, type Result } from "../ipc/errors";
 import type { EntrySummary, GroupNode, SearchResult } from "../ipc/schemas";
-import { CheckIcon, PlusIcon, SearchIcon } from "../ui/icons";
+import { CheckIcon, CopyIcon, MouseIcon, PlusIcon, SearchIcon, WindowIcon } from "../ui/icons";
+import { Dialog } from "./Dialog";
 import { EntryDialog } from "./EntryDialog";
-import { EntryPanel, type CopyNotice } from "./EntryPanel";
-import { findGroup, formatDate, formatShortDay, plural, shortSite, shown, trailTo } from "./format";
+import { copyNoticeOf, EntryPanel, type CopyNotice } from "./EntryPanel";
+import { findGroup, formatShortDay, plural, shortSite, shown, trailTo } from "./format";
 import { useGroupActions, type GroupChange } from "./GroupActions";
 import { GroupMenuButton, GroupRail } from "./GroupRail";
 import { assignLines, entryInitial, entryLine, lineOfPath, type GroupLine } from "./lines";
@@ -41,12 +49,12 @@ interface SelectedEntry {
   readonly title: string | null;
 }
 
-/** What the detail zone shows. */
+/** The entry the list has chosen, and whether its window is open over the list (RF-43). */
 type DetailState =
   | { readonly kind: "none" }
-  | { readonly kind: "entry"; readonly entry: SelectedEntry };
+  | { readonly kind: "entry"; readonly entry: SelectedEntry; readonly open: boolean };
 
-/** The notice of the detail zone: a plain text, or a new entry waiting for its save to reach the disk (RF-21). */
+/** The notice of the list: a plain text, or a new entry waiting for its save to reach the disk (RF-21). */
 type Notice = { readonly kind: "text"; readonly text: string } | { readonly kind: "created"; readonly since: number };
 
 const NO_NOTICE: Notice = { kind: "text", text: "" };
@@ -127,9 +135,9 @@ interface VaultScreenProps {
 }
 
 /**
- * P4: the open vault (RF-42, RF-50, RF-59, RF-64, RF-78, RF-92, RF-102), with P5 in the detail zone. A signal frame
- * (top bar with the search, rail with the groups) around two work zones: entries of what the rail has open or search
- * results, and the detail. Every vault datum is rendered as a React text child, never as HTML or as a link (RF-78).
+ * P4: the open vault (RF-42, RF-50, RF-59, RF-64, RF-78, RF-92, RF-102), with P5 in a window over it (RF-43). A signal
+ * frame (top bar with the search, rail with the groups) around the work zone: the entries of what the rail has open,
+ * or the search results, as a table. Every vault datum is rendered as a React text child, never as HTML or as a link (RF-78).
  * All its data is local state, so a lock, which unmounts this screen, drops it at once (RF-32).
  */
 export function VaultScreen({
@@ -154,21 +162,30 @@ export function VaultScreen({
   const [notice, setNotice] = useState<Notice>(NO_NOTICE);
   const [query, setQuery] = useState("");
   const [search, setSearch] = useState<SearchState>({ kind: "idle" });
-  /** RF-74: the last copy, for the notice at the foot of the detail zone. It outlives the detail of that entry. */
+  /** RF-74: the last copy, for the notice at the foot of the list or of the window. It outlives that window. */
   const [copyNotice, setCopyNotice] = useState<CopyNotice | null>(null);
+  /** What an order given from the list (copy, open the site) could not do. */
+  const [listError, setListError] = useState<AppError | null>(null);
+  /** The title of the window of the entry: the dialog takes its name from it. */
+  const windowTitleId = useId();
   const [now, setNow] = useState(() => Date.now());
   const searchRef = useRef<HTMLInputElement>(null);
   const listPaneRef = useRef<HTMLElement>(null);
   /** RF-59: Enter pressed while the search was still on its way: open the first result when it lands. */
   const openFirst = useRef(false);
-  /** The entry opened from the keyboard: its detail takes the focus once loaded (`seq` asks again for the same one). */
+  /** The entry opened from the keyboard: its window takes the focus once loaded (`seq` asks again for the same one). */
   const [keyboardOpen, setKeyboardOpen] = useState<{ readonly entryId: string; readonly seq: number } | null>(null);
-  const detailTitleRef = useRef<HTMLHeadingElement>(null);
   const groupsTitleRef = useRef<HTMLHeadingElement>(null);
   /** After a group action removed what had focus, focus goes back to the tree once it is painted. */
   const focusTree = useRef(false);
-  const focusDetail = useRef(false);
-  /** After "Volver a la lista": the row of the entry that was open takes the focus once the list is shown again. */
+  /** After an entry left (to the bin or for good): the title of the list takes the focus. */
+  const focusList = useRef(false);
+  /**
+   * The entry whose "Copiar contraseña" takes the focus once its row is chosen and in the list: the first result
+   * after Enter in the search (RF-59), or an entry just created, whose row arrives with the next list.
+   */
+  const focusCopy = useRef<string | null>(null);
+  /** RF-108: after the window closes, the row of its entry takes the focus. */
   const focusRow = useRef<string | null>(null);
   const searchSeq = useRef(0);
   const searchTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -197,9 +214,9 @@ export function VaultScreen({
   }, [client, treeAttempt]);
 
   useEffect(() => {
-    if (!focusDetail.current) return;
-    focusDetail.current = false;
-    detailTitleRef.current?.focus();
+    if (!focusList.current) return;
+    focusList.current = false;
+    listPaneRef.current?.querySelector<HTMLElement>("#entries-title")?.focus();
   }, [detail]);
 
   useEffect(() => {
@@ -213,6 +230,19 @@ export function VaultScreen({
     // shownItems and rowButtons read the state of this same render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [detail]);
+
+  // After every render: the row may arrive later than the choice (a new entry waits for the list to be asked again).
+  useEffect(() => {
+    const entryId = focusCopy.current;
+    if (entryId === null || detail.kind !== "entry" || detail.entry.id !== entryId) return;
+    // While a modal dialog is open everything behind it is inert: the focus waits for it to close.
+    if (document.querySelector("dialog[open]") !== null) return;
+    const button = listPaneRef.current?.querySelector<HTMLElement>("table.entries tbody tr[data-selected] .row-copy");
+    if (button === null || button === undefined) return;
+    focusCopy.current = null;
+    // The focus brings the row into view when it is out of sight.
+    button.focus();
+  });
 
   useEffect(() => {
     if (!focusTree.current) return;
@@ -297,7 +327,7 @@ export function VaultScreen({
         if (!mounted.current || mine !== searchSeq.current) return;
         setSearch(result.ok ? { kind: "done", items: result.value } : { kind: "failed", error: result.error });
         const first = result.ok ? result.value[0] : undefined;
-        if (openFirst.current && first !== undefined) openFromKeyboard({ id: first.id, title: first.title });
+        if (openFirst.current && first !== undefined) chooseFromKeyboard({ id: first.id, title: first.title });
         openFirst.current = false;
       });
     }, SEARCH_DELAY_MS);
@@ -310,6 +340,7 @@ export function VaultScreen({
 
   /** A group, or `null` for "Todas las entradas". Choosing in the rail ends a search: the list shows what was chosen. */
   function selectGroup(id: string | null) {
+    focusCopy.current = null;
     settleCopyNotice();
     setSelectedGroupId(id);
     setDetail({ kind: "none" });
@@ -350,23 +381,85 @@ export function VaultScreen({
     setCopyNotice((current) => (current !== null && current.deadline !== null && current.deadline > at ? current : null));
   }
 
+  /**
+   * RF-106: a click on any cell chooses its row, and nothing else. Choosing the row that is already chosen changes
+   * nothing: the second click of a double click must find the row as the first one left it.
+   */
   function selectEntry(entry: SelectedEntry) {
+    if (detail.kind === "entry" && detail.entry.id === entry.id) return;
+    focusCopy.current = null;
     settleCopyNotice();
     setNotice(NO_NOTICE);
+    setListError(null);
     setKeyboardOpen(null);
-    setDetail({ kind: "entry", entry });
+    setDetail({ kind: "entry", entry, open: false });
   }
 
-  /** RF-59, UX "buscar y copiar en 3 pasos": open from the keyboard and hand the focus to the detail. */
-  function openFromKeyboard(entry: SelectedEntry) {
+  /** RF-43: the window of the entry, over the list. */
+  function openWindow(entry: SelectedEntry) {
+    focusCopy.current = null;
+    setNotice(NO_NOTICE);
+    setListError(null);
+    setKeyboardOpen(null);
+    setDetail({ kind: "entry", entry, open: true });
+  }
+
+  /** RF-108: back to the list. The entry stays chosen and its row takes the focus. */
+  function closeWindow(entry: SelectedEntry) {
+    focusRow.current = entry.id;
+    setKeyboardOpen(null);
+    setDetail({ kind: "entry", entry, open: false });
+  }
+
+  /** RF-71, RF-106: a copy asked from the list. Always through the core: the window never holds what is copied. */
+  async function copyFromList(entry: SelectedEntry, field: FieldName) {
+    setListError(null);
+    const result = await client.entryCopy(entry.id, field);
+    if (!mounted.current) return;
+    if (!result.ok) {
+      setListError(result.error);
+      return;
+    }
+    // The notice first and the clock after it: the other way round the count could start one second too high.
+    const copied = copyNoticeOf(field, result.value.clearsInSeconds);
+    setNow(Date.now());
+    setCopyNotice(copied);
+  }
+
+  /**
+   * RF-59, "buscar y copiar en 3 pasos": Enter in the search chooses the first result and leaves the focus on its
+   * "Copiar contraseña", so the next Enter copies. The window does not open by itself.
+   */
+  function chooseFromKeyboard(entry: SelectedEntry) {
     settleCopyNotice();
     setNotice(NO_NOTICE);
+    setListError(null);
+    setKeyboardOpen(null);
+    focusCopy.current = entry.id;
+    setDetail({ kind: "entry", entry, open: false });
+  }
+
+  /** RF-43, RF-59: Enter on the title of a row opens its window and hands it the focus ("Copiar contraseña"). */
+  function openFromKeyboard(entry: SelectedEntry) {
+    focusCopy.current = null;
+    settleCopyNotice();
+    setNotice(NO_NOTICE);
+    setListError(null);
     setKeyboardOpen((current) => ({ entryId: entry.id, seq: (current?.seq ?? 0) + 1 }));
-    setDetail({ kind: "entry", entry });
+    setDetail({ kind: "entry", entry, open: true });
   }
 
   function rowButtons(): HTMLButtonElement[] {
     return [...(listPaneRef.current?.querySelectorAll<HTMLButtonElement>("table.entries tbody th button") ?? [])];
+  }
+
+  /** RF-49, RF-106: the site of an entry, which the core opens in the browser (only `http` and `https`). */
+  async function openSiteFromList(entry: SelectedEntry) {
+    setListError(null);
+    const result = await client.entryOpenUrl(entry.id);
+    if (!mounted.current) return;
+    if (result.ok) setNotice({ kind: "text", text: "La dirección se abrió en el navegador." });
+    else setListError(result.error);
   }
 
   /** The list that answers what is asked right now, or `null` while it is on its way. */
@@ -399,7 +492,7 @@ export function VaultScreen({
           return;
         }
         const first = shownItems()[0];
-        if (first !== undefined) openFromKeyboard({ id: first.id, title: first.title });
+        if (first !== undefined) chooseFromKeyboard({ id: first.id, title: first.title });
         return;
       }
       default:
@@ -437,6 +530,14 @@ export function VaultScreen({
       ? notice.text
       : savingText(saveSignal, notice.since, "Entrada creada. Guardándola en el archivo…", "Entrada guardada.");
   const copyText = copyNoticeText(copyNotice, now);
+  /** RF-74: the one notice of a copy. It is said where the person is looking: in the window while it is open. */
+  const toast = copyText !== "" && (
+    <p className="toast">
+      <CheckIcon />
+      {copyText}
+    </p>
+  );
+  const windowOpen = detail.kind === "entry" && detail.open;
   /** The line colour of every group: by position, so it only changes when the tree does. */
   const lines = tree.kind === "ready" ? assignLines(tree.root) : NO_LINES;
 
@@ -459,14 +560,16 @@ export function VaultScreen({
             aria-keyshortcuts="Control+F Control+K"
             aria-describedby="vault-search-help"
             onChange={(event) => {
+              focusCopy.current = null;
               onQueryChange(event.target.value);
             }}
             onKeyDown={onSearchKeyDown}
           />
           <kbd aria-hidden="true">Ctrl K</kbd>
           <p id="vault-search-help" className="sr-only">
-            Atajo: Ctrl+F o Ctrl+K. Enter abre el primer resultado y flecha abajo lleva a la lista, donde las
-            flechas recorren las entradas, Enter abre una y Escape vuelve aquí. Escape limpia la búsqueda.
+            Atajo: Ctrl+F o Ctrl+K. Enter elige el primer resultado y lleva a su botón de copiar contraseña. Flecha
+            abajo lleva a la lista, donde las flechas recorren las entradas, Enter abre una y Escape vuelve aquí.
+            Escape limpia la búsqueda.
           </p>
         </div>
         {/* The lock countdown, the lock button and the settings come from whoever owns the open vault. */}
@@ -484,37 +587,42 @@ export function VaultScreen({
         </nav>
       </div>
 
-      <div className="work" data-detail={detail.kind}>
+      <div className="work">
         <div className="work-banner">{banner}</div>
         <div className="vault-zones">
           <section ref={listPaneRef} aria-labelledby="entries-title" className="list-pane">
             {searching ? renderSearch() : renderGroup()}
-          </section>
-
-          <section aria-labelledby="detail-title" className="detail-pane">
-            {/* The focus target after an entry leaves; the entry title is the visible heading of this zone. */}
-            <h3 id="detail-title" ref={detailTitleRef} tabIndex={-1} className="sr-only">
-              Detalle
-            </h3>
-            <div aria-live="polite">{noticeText !== "" && <p className="notice">{noticeText}</p>}</div>
-            {renderDetail()}
-            {/* RF-74: the one place that says a copy happened, at the foot of the zone; `role="status"` announces it. */}
-            <div role="status" className="toast-zone">
-              {copyText !== "" && (
-                <p className="toast">
-                  <CheckIcon />
-                  {copyText}
-                </p>
-              )}
+            <div className="list-foot">
+              {/* What the last order left to say (a new entry, one sent to the bin) and what it could not do. */}
+              <div aria-live="polite" className="list-notice">
+                {noticeText !== "" && <p>{noticeText}</p>}
+              </div>
+              <p role="alert" className="error list-error">
+                {listError === null ? "" : errorMessage(listError)}
+              </p>
+              {/* RF-74: a copy is said here while no window is open; `role="status"` announces it. */}
+              <div role="status" className="toast-zone">
+                {!windowOpen && toast}
+              </div>
+              <p className="list-hint">
+                <span className="list-hint-key">
+                  <MouseIcon />
+                  Doble clic
+                </span>
+                <span>en el título: abre la entrada</span>
+                <span>en usuario o contraseña: copia</span>
+                <span>en el sitio: lo abre en el navegador</span>
+              </p>
             </div>
           </section>
         </div>
       </div>
+      {renderWindow()}
       {renderNewEntry()}
     </div>
   );
 
-  /** RF-100: "Nueva entrada" is a dialog over the vault; the list and the detail stay behind it as they were. */
+  /** RF-100: "Nueva entrada" is a dialog over the vault; the list stays behind it as it was. */
   function renderNewEntry() {
     if (newEntryIn === null || tree.kind !== "ready") return null;
     const group = findGroup(tree.root, newEntryIn) ?? tree.root;
@@ -529,54 +637,73 @@ export function VaultScreen({
           setNewEntryIn(null);
         }}
         onSaved={(entry) => {
-          // The new entry is the chosen one. The focus goes to its detail once it is loaded, as when an entry is
-          // opened from the keyboard (the dialog gives it back to "Nueva entrada" first).
+          // The new entry is the chosen one, and its window does not open by itself. The focus goes to its "Copiar
+          // contraseña" once its row is in the list (the dialog gives it back to "Nueva entrada" first).
           settleCopyNotice();
           setNotice({ kind: "created", since: saveSignal.saved });
-          setKeyboardOpen((current) => ({ entryId: entry.id, seq: (current?.seq ?? 0) + 1 }));
-          setDetail({ kind: "entry", entry: { id: entry.id, title: entry.title } });
+          setListError(null);
+          setKeyboardOpen(null);
+          focusCopy.current = entry.id;
+          setDetail({ kind: "entry", entry: { id: entry.id, title: entry.title }, open: false });
           refresh();
         }}
       />
     );
   }
 
-  function renderDetail() {
+  /**
+   * RF-43, RF-108: the entry in a modal window over the list. The panel is mounted only while the window is open, so
+   * closing it (or a lock, which unmounts the whole screen) drops every value it was showing.
+   */
+  function renderWindow() {
     switch (detail.kind) {
       case "none":
-        return <p className="pane-state">Elige una entrada para ver su detalle.</p>;
-      case "entry":
-        if (tree.kind !== "ready") return null;
+        return null;
+      case "entry": {
+        if (!detail.open || tree.kind !== "ready") return null;
+        const { entry } = detail;
         return (
-          <EntryPanel
-            key={detail.entry.id}
-            client={client}
-            entryId={detail.entry.id}
-            listTitle={detail.entry.title}
-            root={tree.root}
-            readOnly={readOnly}
-            saveSignal={saveSignal}
-            focusRequest={keyboardOpen?.entryId === detail.entry.id ? keyboardOpen.seq : 0}
-            onBack={() => {
-              focusRow.current = detail.entry.id;
-              setKeyboardOpen(null);
-              setDetail({ kind: "none" });
+          <Dialog
+            layout="entry"
+            labelledBy={windowTitleId}
+            onClose={() => {
+              closeWindow(entry);
             }}
-            onChanged={refresh}
-            onCopied={(copy) => {
-              setNow(Date.now());
-              setCopyNotice(copy);
-            }}
-            onDeleted={(message) => {
-              settleCopyNotice();
-              setDetail({ kind: "none" });
-              setNotice({ kind: "text", text: message });
-              refresh();
-              // After the commit: while a modal dialog is open, everything outside it is inert.
-              focusDetail.current = true;
-            }}
-          />
+          >
+            <EntryPanel
+              key={entry.id}
+              client={client}
+              entryId={entry.id}
+              listTitle={entry.title}
+              root={tree.root}
+              readOnly={readOnly}
+              saveSignal={saveSignal}
+              focusRequest={keyboardOpen?.entryId === entry.id ? keyboardOpen.seq : 0}
+              titleId={windowTitleId}
+              onClose={() => {
+                closeWindow(entry);
+              }}
+              onChanged={refresh}
+              onCopied={(copy) => {
+                setNow(Date.now());
+                setCopyNotice(copy);
+              }}
+              onDeleted={(message) => {
+                settleCopyNotice();
+                setDetail({ kind: "none" });
+                setNotice({ kind: "text", text: message });
+                refresh();
+                // After the commit: while a modal dialog is open, everything outside it is inert.
+                focusList.current = true;
+              }}
+            />
+            {/* RF-74: while the window is open the copy notice is said inside it. */}
+            <div role="status" className="toast-zone">
+              {toast}
+            </div>
+          </Dialog>
         );
+      }
       default:
         return assertNever(detail);
     }
@@ -660,7 +787,9 @@ export function VaultScreen({
       return (
         <header className="list-head">
           <div className="list-title">
-            <h3 id="entries-title">Entradas</h3>
+            <h3 id="entries-title" tabIndex={-1}>
+              Entradas
+            </h3>
           </div>
         </header>
       );
@@ -677,7 +806,7 @@ export function VaultScreen({
         <header className="list-head">
           <div className="list-title">
             {/* One line, cut with an ellipsis: the whole name is in the `title`. */}
-            <h3 id="entries-title" title={groupName}>
+            <h3 id="entries-title" tabIndex={-1} title={groupName}>
               {group === null ? (
                 groupName
               ) : (
@@ -727,6 +856,9 @@ export function VaultScreen({
             }
             selectedId={selectedId}
             onSelect={selectEntry}
+            onOpen={openWindow}
+            onCopy={(entry, field) => void copyFromList(entry, field)}
+            onOpenSite={(entry) => void openSiteFromList(entry)}
             onRowKeyDown={onRowKeyDown}
           />
         )}
@@ -741,7 +873,7 @@ export function VaultScreen({
         <header className="list-head">
           <div className="list-title">
             {/* It reads "Resultados"; its name stays "Resultados de la búsqueda". */}
-            <h3 id="entries-title">
+            <h3 id="entries-title" tabIndex={-1}>
               {/* The space is its own text node: inside the hidden span it would be trimmed out of the name. */}
               Resultados <span className="sr-only">de la búsqueda</span>
             </h3>
@@ -785,6 +917,9 @@ export function VaultScreen({
             }
             selectedId={selectedId}
             onSelect={selectEntry}
+            onOpen={openWindow}
+            onCopy={(entry, field) => void copyFromList(entry, field)}
+            onOpenSite={(entry) => void openSiteFromList(entry)}
             onRowKeyDown={onRowKeyDown}
           />
         )}
@@ -801,68 +936,204 @@ interface EntryTableProps {
   readonly lineOf: (index: number) => GroupLine;
   readonly selectedId: string | null;
   readonly onSelect: (entry: SelectedEntry) => void;
+  /** RF-43: the window of the entry. */
+  readonly onOpen: (entry: SelectedEntry) => void;
+  /** RF-71: a copy, which the core makes. */
+  readonly onCopy: (entry: SelectedEntry, field: FieldName) => void;
+  /** RF-49: the site, which the core opens in the browser. */
+  readonly onOpenSite: (entry: SelectedEntry) => void;
   /** RF-59: arrows move between rows, Enter opens one, Escape goes back to the search. */
   readonly onRowKeyDown: (event: ReactKeyboardEvent<HTMLButtonElement>, entry: SelectedEntry) => void;
 }
 
+/** RF-105: what the password cell draws. Always the same marks: it says nothing of the value, not even its length. */
+const PASSWORD_MASK = "••••••••";
+
+/** RF-105: the password cell of a row. The list never gets the value; this is the one place that decides what it draws. */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- the entry is what RF-105 will read (`hasPassword`)
+function passwordCell(_entry: EntrySummary): ReactNode {
+  // RF-105: hasPassword arrives with the core change; until then the mask is always shown
+  return (
+    <>
+      <span className="mask" aria-hidden="true">
+        {PASSWORD_MASK}
+      </span>
+      <span className="sr-only">Oculta</span>
+    </>
+  );
+}
+
 /**
- * RF-42: entries in the order the core sends (by title). The URL is text, never a link (RF-78, RF-49). It is a real
- * table drawn as a list of rows: the title button stretches over its row, and the header row stays for screen readers.
- * Each row opens with a circle: the initial of the entry's own title on the colour of its group. It is decoration
- * drawn by CSS from `data-initial`, so it adds no text to the row; a protected title never reaches it.
+ * RF-42: the entries as a table, in the order the core sends (by title): title, user, a fixed mask for the password,
+ * site and the day it was modified. The URL is text, never a link (RF-78, RF-49). The tags and, in search results,
+ * the group stay in the table for screen readers. Each row opens with a circle: the initial of the entry's own title
+ * on the colour of its group, drawn by CSS from `data-initial`, so it adds no text; a protected title never reaches
+ * it. Only the chosen row shows its two buttons, in a cell every row has: choosing a row moves nothing.
+ *
+ * RF-106: a click on a cell chooses its row; a double click does what the `title` of the cell says. The first click
+ * of a double click paints the row as chosen, and the second one has to land on the same element: no cell is
+ * mounted, unmounted or changes its type or its `key` when its row is chosen. A cell without data has no help and
+ * its double click does nothing. A `title` here never carries the value of a field.
  */
-function EntryTable({ items, groupPaths, lineOf, selectedId, onSelect, onRowKeyDown }: EntryTableProps) {
+function EntryTable({
+  items,
+  groupPaths,
+  lineOf,
+  selectedId,
+  onSelect,
+  onOpen,
+  onCopy,
+  onOpenSite,
+  onRowKeyDown,
+}: EntryTableProps) {
   const today = new Date();
   return (
     <div className="table-scroll">
       <table className="entries" data-search={groupPaths === null ? undefined : ""}>
-        <thead className="sr-only">
+        <thead>
           <tr>
-            <th scope="col">Título</th>
-            <th scope="col">Usuario</th>
-            <th scope="col">Sitio</th>
-            <th scope="col">Etiquetas</th>
-            {groupPaths !== null && <th scope="col">Grupo</th>}
-            <th scope="col">Modificada</th>
+            <th scope="col" className="cell-title">
+              Título
+            </th>
+            <th scope="col" className="cell-user">
+              Usuario
+            </th>
+            <th scope="col" className="cell-password">
+              Contraseña
+            </th>
+            <th scope="col" className="cell-url">
+              Sitio
+            </th>
+            <th scope="col" className="cell-tags">
+              Etiquetas
+            </th>
+            {groupPaths !== null && (
+              <th scope="col" className="cell-group">
+                Grupo
+              </th>
+            )}
+            <th scope="col" className="cell-date">
+              Modificada
+            </th>
+            <th scope="col" className="cell-actions">
+              <span className="sr-only">Acciones</span>
+            </th>
           </tr>
         </thead>
         <tbody>
-          {items.map((entry, index) => (
-            <tr key={entry.id} data-selected={entry.id === selectedId ? "" : undefined}>
-              <th scope="row">
-                <span
-                  className="bullet"
-                  data-line={lineOf(index)}
-                  data-initial={entryInitial(entry.title)}
-                  aria-hidden="true"
-                />
-                <button
-                  type="button"
-                  aria-current={entry.id === selectedId ? "true" : undefined}
-                  onClick={() => {
-                    onSelect({ id: entry.id, title: entry.title });
-                  }}
-                  onKeyDown={(event) => {
-                    onRowKeyDown(event, { id: entry.id, title: entry.title });
+          {items.map((entry, index) => {
+            const chosen = entry.id === selectedId;
+            const picked: SelectedEntry = { id: entry.id, title: entry.title };
+            // A protected title arrives as `null` and reads "(protegido)": its value never reaches a name.
+            const title = shown(entry.title, "(sin título)");
+            const noUser = entry.username === "";
+            const noSite = entry.url === "";
+            const select = () => {
+              onSelect(picked);
+            };
+            return (
+              <tr key={entry.id} data-selected={chosen ? "" : undefined}>
+                <th scope="row" className="cell-title">
+                  <button
+                    type="button"
+                    title="Doble clic para abrir la entrada"
+                    aria-current={chosen ? "true" : undefined}
+                    onClick={select}
+                    onDoubleClick={() => {
+                      onOpen(picked);
+                    }}
+                    onKeyDown={(event) => {
+                      onRowKeyDown(event, picked);
+                    }}
+                  >
+                    <span
+                      className="bullet"
+                      data-line={lineOf(index)}
+                      data-initial={entryInitial(entry.title)}
+                      aria-hidden="true"
+                    />
+                    <span className="cell-text">{title}</span>
+                  </button>
+                </th>
+                <td
+                  className="cell-user"
+                  data-empty={noUser ? "" : undefined}
+                  title={noUser ? undefined : "Doble clic para copiar el usuario"}
+                  onClick={select}
+                  onDoubleClick={() => {
+                    // A protected user arrives as `null`: the core copies it all the same.
+                    if (!noUser) onCopy(picked, "UserName");
                   }}
                 >
-                  {shown(entry.title, "(sin título)")}
-                </button>
-              </th>
-              <td className="cell-user">{shown(entry.username)}</td>
-              {/* The row shows the site without `https://`; the whole address is in the `title`. */}
-              <td className="cell-url" title={entry.url === null || entry.url === "" ? undefined : entry.url}>
-                {entry.url === null ? shown(entry.url) : shortSite(entry.url)}
-              </td>
-              <td className="cell-tags">{entry.tags.join(", ")}</td>
-              {groupPaths !== null && <td className="cell-group">{(groupPaths[index] ?? []).join(" › ")}</td>}
-              <td className="cell-date">
-                <time dateTime={entry.modified} title={formatDate(entry.modified)}>
-                  {formatShortDay(entry.modified, today)}
-                </time>
-              </td>
-            </tr>
-          ))}
+                  <span className="cell-text">{shown(entry.username, "—")}</span>
+                </td>
+                <td
+                  className="cell-password"
+                  title="Doble clic para copiar la contraseña"
+                  onClick={select}
+                  onDoubleClick={() => {
+                    onCopy(picked, "Password");
+                  }}
+                >
+                  {passwordCell(entry)}
+                </td>
+                {/* The row shows the site without `https://`; the whole address is in the window of the entry. */}
+                <td
+                  className="cell-url"
+                  data-empty={noSite ? "" : undefined}
+                  title={noSite ? undefined : "Doble clic para abrir el sitio en el navegador"}
+                  onClick={select}
+                  onDoubleClick={() => {
+                    if (!noSite) onOpenSite(picked);
+                  }}
+                >
+                  <span className="cell-text">
+                    {entry.url === null ? shown(entry.url) : noSite ? "—" : shortSite(entry.url)}
+                  </span>
+                </td>
+                <td className="cell-tags">{entry.tags.join(", ")}</td>
+                {groupPaths !== null && <td className="cell-group">{(groupPaths[index] ?? []).join(" › ")}</td>}
+                <td
+                  className="cell-date"
+                  title="Doble clic para abrir la entrada"
+                  onClick={select}
+                  onDoubleClick={() => {
+                    onOpen(picked);
+                  }}
+                >
+                  <time dateTime={entry.modified}>{formatShortDay(entry.modified, today)}</time>
+                </td>
+                <td className="cell-actions">
+                  {chosen && (
+                    <>
+                      <button
+                        type="button"
+                        className="row-copy"
+                        aria-label={`Copiar contraseña de ${title}`}
+                        title="Copiar contraseña"
+                        onClick={() => {
+                          onCopy(picked, "Password");
+                        }}
+                      >
+                        <CopyIcon />
+                      </button>
+                      <button
+                        type="button"
+                        className="row-open"
+                        aria-label={`Abrir ${title}`}
+                        title="Abrir la entrada"
+                        onClick={() => {
+                          onOpen(picked);
+                        }}
+                      >
+                        <WindowIcon />
+                      </button>
+                    </>
+                  )}
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>

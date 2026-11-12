@@ -225,7 +225,9 @@ describe("P4 Bóveda — solo lectura y protección débil", () => {
     expect(screen.queryByRole("button", { name: /^Más acciones de / })).toBeNull();
     expect(screen.queryByRole("button", { name: "Nuevo grupo" })).toBeNull();
 
+    // RF-106: a double click on the title opens the window of the entry.
     fireEvent.click(await screen.findByRole("button", { name: "Banco" }));
+    fireEvent.doubleClick(screen.getByRole("button", { name: "Banco" }));
     await screen.findByRole("heading", { name: "Banco", level: 4 });
     expect(screen.queryByRole("button", { name: "Editar" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Enviar a la papelera" })).toBeNull();
