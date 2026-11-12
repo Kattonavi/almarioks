@@ -17,6 +17,7 @@
     "updater:allow-install",
     "allow-vault-status",
     "allow-vault-create",
+    "allow-vault-create-location",
     "allow-vault-open",
     "allow-vault-lock",
     "allow-vault-close",

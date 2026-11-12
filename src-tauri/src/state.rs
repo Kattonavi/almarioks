@@ -23,6 +23,10 @@ use crate::{
 /// tests give a fixed one.
 pub type KdfChooser = dyn Fn() -> CoreResult<NewVaultKdf> + Send + Sync;
 
+/// Asks the system for the person's Documents folder (RF-97), every time it is needed: the person can move it
+/// while the app runs. `None` if the system has none to give. The tests give a temporary folder.
+pub type DocumentsFolder = dyn Fn() -> Option<PathBuf> + Send + Sync;
+
 /// Name of the settings file inside the app's configuration folder (RF-82).
 pub const SETTINGS_FILE_NAME: &str = "settings.json";
 
@@ -42,6 +46,8 @@ pub struct AppParts {
     pub reloader: Arc<dyn WebviewReloader>,
     /// The KDF of a vault created or converted here (RF-2).
     pub new_vault_kdf: Arc<KdfChooser>,
+    /// The person's Documents folder, where new vaults are proposed (RF-97).
+    pub documents_dir: Arc<DocumentsFolder>,
 }
 
 /// The state managed by Tauri: `tauri::State<'_, AppState>` in every command.
@@ -56,6 +62,7 @@ pub struct AppState {
     /// The session of the core with its lock, its inactivity timer and its events (`crate::lock`).
     lock: Arc<LockCenter>,
     new_vault_kdf: Arc<KdfChooser>,
+    documents_dir: Arc<DocumentsFolder>,
 }
 
 impl AppState {
@@ -78,6 +85,7 @@ impl AppState {
             url_opener: parts.url_opener,
             lock,
             new_vault_kdf: parts.new_vault_kdf,
+            documents_dir: parts.documents_dir,
         }
     }
 
@@ -97,6 +105,14 @@ impl AppState {
     #[must_use]
     pub fn new_vault_kdf(&self) -> Arc<KdfChooser> {
         Arc::clone(&self.new_vault_kdf)
+    }
+
+    /// The person's Documents folder as the system gives it now (RF-97), or `None` if it gives none or one that
+    /// is not a full path. Asks the system: call it from `spawn_blocking`.
+    #[must_use]
+    pub fn documents_dir(&self) -> Arc<DocumentsFolder> {
+        let ask = Arc::clone(&self.documents_dir);
+        Arc::new(move || ask().filter(|folder| folder.is_absolute()))
     }
 
     /// The settings and recent vaults.

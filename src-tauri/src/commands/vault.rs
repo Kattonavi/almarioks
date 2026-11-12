@@ -117,7 +117,7 @@ fn remember(settings: &SettingsStore, path: &Path) {
 }
 
 /// A path the window sends: any text but the empty one.
-fn path_arg(text: &str) -> Result<PathBuf, AppError> {
+pub(super) fn path_arg(text: &str) -> Result<PathBuf, AppError> {
     if text.is_empty() {
         return Err(AppError::invalid_argument());
     }
@@ -201,7 +201,7 @@ pub struct VaultSaveAsArgs {
 }
 
 /// Whether anything (a file, a folder or a link) is at `path`.
-fn something_at(path: &Path) -> bool {
+pub(super) fn something_at(path: &Path) -> bool {
     path.symlink_metadata().is_ok()
 }
 

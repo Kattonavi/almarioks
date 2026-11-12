@@ -44,4 +44,6 @@ pub const COMMANDS: &[&str] = &[
     "activity",
     // Not a row of that table yet: the window calls it right before it installs an update (review 0.1, C-1).
     "app_prepare_update",
+    // Not a row of that table yet either: where a new vault is proposed to go, and its key file (RF-97, RF-99).
+    "vault_create_location",
 ];

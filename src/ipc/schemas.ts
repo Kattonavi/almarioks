@@ -89,6 +89,32 @@ export const unitSchema = z.union([z.null(), z.undefined()]).transform(() => und
 /** `pick_*`: the path chosen in the native dialog, or nothing if it was cancelled. */
 export const pickedPathSchema = nonEmpty.nullable();
 
+/**
+ * `vault_create_location` (RF-97 to RF-99): where the new vault and the key file beside it would go. `*File` is the
+ * file name with its extension, to show it; `*Exists` says that something is already at that path, so creating there
+ * would answer `ArchivoExiste`.
+ */
+export const createLocationSchema = z
+  .object({
+    vault_path: nonEmpty,
+    vault_file: nonEmpty,
+    key_file_path: nonEmpty,
+    key_file: nonEmpty,
+    in_default_folder: z.boolean(),
+    vault_exists: z.boolean(),
+    key_file_exists: z.boolean(),
+  })
+  .transform((wire) => ({
+    vaultPath: wire.vault_path,
+    vaultFile: wire.vault_file,
+    keyFilePath: wire.key_file_path,
+    keyFile: wire.key_file,
+    inDefaultFolder: wire.in_default_folder,
+    vaultExists: wire.vault_exists,
+    keyFileExists: wire.key_file_exists,
+  }));
+export type CreateLocation = z.output<typeof createLocationSchema>;
+
 export const recentListSchema = z.array(z.object({ path: nonEmpty, exists: z.boolean() }));
 export type RecentVault = z.output<typeof recentListSchema>[number];
 

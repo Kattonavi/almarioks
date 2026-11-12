@@ -1,6 +1,7 @@
 import { toAppError, type Result } from "./errors";
 import {
   copySchema,
+  createLocationSchema,
   deletePreviewSchema,
   entryDetailSchema,
   entryHistorySchema,
@@ -17,6 +18,7 @@ import {
   unitSchema,
   vaultStatusSchema,
   type AutoLockMinutes,
+  type CreateLocation,
   type DeletePreview,
   type EntryDetail,
   type EntrySummary,
@@ -98,6 +100,13 @@ export type FieldName = string;
 /** One method per command of plan.md. Every response is validated with `safeParse` before it reaches the UI. */
 export interface VaultClient {
   vaultStatus(): Promise<Result<VaultStatus>>;
+  /**
+   * RF-97 to RF-99: where a vault called `name` would be created and where its new key file would go, without
+   * writing anything. `chosenPath` is `null` while the person has not chosen another location (the answer is then
+   * Documents › AlmarioKS › `<name>.kdbx`), or the path `pickVaultToCreate` answered (the answer is that same path).
+   * `ErrorInterno` with `null` means the system gave no Documents folder: ask for a location with the dialog.
+   */
+  vaultCreateLocation(name: string, chosenPath: string | null): Promise<Result<CreateLocation>>;
   vaultCreate(input: CreateVaultInput): Promise<Result<VaultStatus>>;
   vaultOpen(input: OpenVaultInput): Promise<Result<VaultStatus>>;
   vaultLock(): Promise<Result<undefined>>;
@@ -188,6 +197,9 @@ export function createClient(transport: Transport): VaultClient {
 
   return {
     vaultStatus: () => call("vault_status", vaultStatusSchema),
+    // `chosen_path` always travels, also as `null`: the core refuses a call without it.
+    vaultCreateLocation: (name, chosenPath) =>
+      call("vault_create_location", createLocationSchema, { name, chosen_path: chosenPath }),
     vaultCreate: ({ path, name, password, keyFile }) =>
       call("vault_create", vaultStatusSchema, {
         path,

@@ -58,6 +58,7 @@ fn needs_open_vault(command: &str) -> bool {
         | "search" => true,
         "vault_status"
         | "vault_create"
+        | "vault_create_location"
         | "vault_open"
         | "vault_lock"
         | "vault_close"
@@ -217,6 +218,29 @@ fn rf_76_no_command_and_no_event_hands_a_protected_value_to_the_window() {
         })),
     );
     assert_eq!(generated["password"].as_str().unwrap().chars().count(), 20);
+
+    // Where a new vault would go (RF-97): paths, names and booleans, with or without a chosen location.
+    let proposed = sweep.ok(
+        "vault_create_location",
+        Some(json!({ "name": "Nueva", "chosen_path": null })),
+    );
+    assert_eq!(proposed["vault_file"], "Nueva.kdbx");
+    let chosen = sweep.ok(
+        "vault_create_location",
+        Some(json!({ "name": "Nueva", "chosen_path": rig.path("nueva.kdbx") })),
+    );
+    assert_eq!(
+        chosen.as_object().unwrap().keys().collect::<Vec<_>>(),
+        [
+            "in_default_folder",
+            "key_file",
+            "key_file_exists",
+            "key_file_path",
+            "vault_exists",
+            "vault_file",
+            "vault_path"
+        ]
+    );
 
     // Creating a vault with the canary as master password, and closing it.
     let created = sweep.ok(

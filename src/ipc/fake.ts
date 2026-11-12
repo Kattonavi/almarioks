@@ -225,6 +225,40 @@ export function hasForbidden(text: string): boolean {
   return FORBIDDEN.test(text);
 }
 
+/** The folder the fake proposes new vaults in (RF-97): its "Documents › AlmarioKS". */
+export const FAKE_DEFAULT_FOLDER = "D:/Documentos/AlmarioKS";
+
+const DEFAULT_FILE_STEM = "bóveda";
+const MAX_FILE_STEM_CHARS = 100;
+/** The characters Windows refuses in a file name, and every control character. */
+const NOT_IN_A_FILE_NAME = /[\\/:*?"<>|\p{Cc}]/gu;
+const END_DOTS_AND_SPACES = /[.\p{White_Space}]+$/u;
+const END_SPACES = /\p{White_Space}+$/u;
+const DEVICE_NAME = /^(?:CON|PRN|AUX|NUL|CONIN\$|CONOUT\$|(?:COM|LPT)[0-9¹²³])$/u;
+
+/**
+ * RF-97: the file name (without extension) of a vault called `name`. The same steps, in the same order, as
+ * `almarioks_core::location::file_stem`; both are tested against `tests/fixtures/location/file-names.json`.
+ */
+export function fileStem(name: string): string {
+  const kept = trimSpace(name.replace(NOT_IN_A_FILE_NAME, "")).replace(END_DOTS_AND_SPACES, "");
+  // By code points, like the core: `slice` on the string would count UTF-16 units and could split a character.
+  const stem = Array.from(kept).slice(0, MAX_FILE_STEM_CHARS).join("").replace(END_DOTS_AND_SPACES, "");
+  if (stem === "") return DEFAULT_FILE_STEM;
+  const dot = stem.indexOf(".");
+  const base = dot === -1 ? stem : stem.slice(0, dot);
+  const rest = dot === -1 ? "" : stem.slice(dot);
+  // ASCII letters only, like the core: `toUpperCase` on the whole text would turn `ı` into `I`.
+  const device = base.replace(END_SPACES, "").replace(/[a-z]/g, (letter) => letter.toUpperCase());
+  return DEVICE_NAME.test(device) ? `${base}_${rest}` : stem;
+}
+
+/** RF-99: the key file beside a vault file: `.keyx` in the place of a final `.kdbx`, or added to any other name. */
+export function keyFileName(vaultFile: string): string {
+  const stem = /\.kdbx$/i.test(vaultFile) ? vaultFile.slice(0, -".kdbx".length) : vaultFile;
+  return `${stem}.keyx`;
+}
+
 function byTitle(a: { title: string | null; id: string }, b: { title: string | null; id: string }): number {
   const ta = fold(a.title ?? "");
   const tb = fold(b.title ?? "");
@@ -487,6 +521,41 @@ export function createFakeBackend(options: FakeOptions = {}): FakeBackend {
     status = opened;
     remember(path);
     return status;
+  }
+
+  function somethingAt(path: string): boolean {
+    return files.has(path) || vaults.some((vault) => vault.path === path);
+  }
+
+  /** RF-97 to RF-99: paths only; nothing is added to the fake disk. */
+  function vaultCreateLocation(args: Record<string, unknown>) {
+    onlyKeys(args, ["name", "chosen_path"]);
+    const name = requiredString(args.name);
+    // Always sent: a missing key is not "nothing chosen".
+    if (!("chosen_path" in args)) failWith("ArgumentoInvalido");
+    const chosen = args.chosen_path === null ? null : requiredString(args.chosen_path);
+
+    let folder = `${FAKE_DEFAULT_FOLDER}/`;
+    let vaultFile = `${fileStem(name)}.kdbx`;
+    if (chosen !== null) {
+      // The folder keeps its last separator, so the key file is joined the way the chosen path was written.
+      const cut = Math.max(chosen.lastIndexOf("/"), chosen.lastIndexOf("\\")) + 1;
+      folder = chosen.slice(0, cut);
+      vaultFile = chosen.slice(cut);
+      if (vaultFile === "" || vaultFile === "." || vaultFile === "..") failWith("ArgumentoInvalido");
+    }
+    const keyFile = keyFileName(vaultFile);
+    const vaultPath = `${folder}${vaultFile}`;
+    const keyFilePath = `${folder}${keyFile}`;
+    return {
+      vault_path: vaultPath,
+      vault_file: vaultFile,
+      key_file_path: keyFilePath,
+      key_file: keyFile,
+      in_default_folder: folder === `${FAKE_DEFAULT_FOLDER}/`,
+      vault_exists: somethingAt(vaultPath),
+      key_file_exists: somethingAt(keyFilePath),
+    };
   }
 
   async function vaultCreate(args: Record<string, unknown>): Promise<WireStatus> {
@@ -817,6 +886,8 @@ export function createFakeBackend(options: FakeOptions = {}): FakeBackend {
         return vaultOpen(args);
       case "vault_create":
         return vaultCreate(args);
+      case "vault_create_location":
+        return vaultCreateLocation(args);
       case "vault_lock":
         if (status.state === "open") status = { state: "locked", path: status.path, recovery: null };
         clipboard = null;
