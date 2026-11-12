@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>AlmarioKS · Tablero de llaves</title>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;700&family=Barlow+Semi+Condensed:wght@600;700&family=Red+Hat+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root{--board:#2F4A43;--board2:#3B5B53;--cream:#F3EFE4;--card:#FFFDF7;--ink:#1C1F1E;--ink2:#55605B;--rule:#DCD6C6;--brass:#C9A227;--brass-ink:#5E4A05;
+--t-rojo:#C8372D;--t-azul:#2B5FA8;--t-verde:#3E8E5A;--t-amarillo:#E3B22C;--on-board:#E7EFEA}
+*{box-sizing:border-box;margin:0}
+body{width:1440px;height:900px;overflow:hidden;font:400 15px/1.45 Barlow,sans-serif;color:var(--ink);background:var(--cream);display:grid;grid-template-rows:72px 56px 1fr}
+::selection{background:var(--brass);color:var(--ink)}
+svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex:none}
+button{font:500 14px Barlow,sans-serif;border:0;border-radius:6px;padding:9px 14px;display:inline-flex;gap:8px;align-items:center;cursor:pointer}
+header{background:var(--board);color:var(--on-board);display:flex;align-items:center;gap:24px;padding:0 28px}
+.brand{font:700 24px "Barlow Semi Condensed";letter-spacing:.02em}
+.search{flex:1;max-width:620px;background:var(--card);color:var(--ink2);border-radius:6px;display:flex;align-items:center;gap:10px;padding:11px 14px}
+.search kbd{margin-left:auto;font:600 12px "Red Hat Mono";border:1px solid var(--rule);border-radius:4px;padding:1px 6px}
+.lockin{margin-left:auto;font:400 13px "Red Hat Mono"}
+.btn-lock{background:var(--brass);color:var(--ink)}
+.tabs{background:var(--board2);display:flex;align-items:flex-end;gap:4px;padding:0 28px}
+.tabs a{color:var(--on-board);text-decoration:none;font:600 15px "Barlow Semi Condensed";padding:12px 18px 13px;border-radius:8px 8px 0 0;display:flex;gap:9px;align-items:center}
+.tabs a.on{background:var(--cream);color:var(--ink)}
+.tabs a small{font:400 12px "Red Hat Mono"}
+.dot{width:10px;height:10px;border-radius:50%}
+.wrap{display:grid;grid-template-columns:1fr 560px;overflow:hidden}
+.list{padding:26px 28px;overflow:hidden}
+.list-head{display:flex;align-items:baseline;gap:14px;margin-bottom:16px}
+.list-head h1{font:700 30px/1 "Barlow Semi Condensed"}
+.list-head p{color:var(--ink2)}
+.btn-new{margin-left:auto;background:var(--board);color:var(--on-board)}
+.crumb{font:500 13px Barlow;color:var(--ink2);margin-bottom:14px}
+table{width:100%;border-collapse:collapse;background:var(--card);border:1px solid var(--rule);border-radius:8px;overflow:hidden}
+th{font:500 12px Barlow;color:var(--ink2);text-align:left;padding:10px 14px;border-bottom:1px solid var(--rule)}
+td{padding:11px 14px;border-bottom:1px solid var(--rule);vertical-align:middle}
+tr:last-child td{border-bottom:0}
+.hook{font:600 13px "Red Hat Mono";color:var(--brass-ink);background:#F1E3A8;border-radius:4px;padding:3px 8px}
+.keytag{display:inline-flex;align-items:center;gap:9px;font-weight:700}
+.keytag i{width:14px;height:22px;border-radius:3px 3px 7px 7px;display:block}
+td.mono{font:400 13px "Red Hat Mono";color:var(--ink2)}
+tr.on td{background:#E8F0EB}
+tr.on .keytag{color:var(--board)}
+.state{font:600 12px "Red Hat Mono";color:#2F6B45}
+aside{background:var(--card);border-left:1px solid var(--rule);padding:30px 34px;overflow:hidden}
+.plate{display:flex;align-items:center;gap:16px;margin-bottom:22px}
+.plate .big{width:56px;height:76px;border-radius:8px 8px 22px 22px;background:var(--t-azul);display:grid;place-items:start center;padding-top:9px}
+.plate .big b{width:14px;height:14px;border-radius:50%;background:var(--card);display:block}
+.plate h2{font:700 38px/1 "Barlow Semi Condensed"}
+.plate p{color:var(--ink2);margin-top:4px}
+.field{display:grid;grid-template-columns:120px 1fr auto;align-items:center;gap:12px;padding:15px 0;border-top:1px solid var(--rule)}
+.field label{font:500 13px Barlow;color:var(--ink2)}
+.field output{font-size:16px}
+.pw{font:600 18px "Red Hat Mono";letter-spacing:.18em;color:var(--ink)}
+.ghost{background:transparent;border:1px solid var(--rule);color:var(--ink);padding:7px 10px}
+.primary{background:var(--board);color:var(--on-board)}
+.meter{display:inline-flex;gap:3px;margin-right:10px;vertical-align:middle}
+.meter i{width:30px;height:8px;border-radius:2px;background:var(--t-verde)}
+.tag{font:500 12px Barlow;background:#ECE6D6;border-radius:4px;padding:3px 9px;margin-right:6px}
+.notes{padding:16px 0;border-top:1px solid var(--rule);color:var(--ink2);max-width:52ch}
+.foot{display:flex;gap:10px;margin-top:18px}
+.danger{background:transparent;border:1px solid var(--t-rojo);color:#A12A22}
+</style>
+</head>
+<body>
+<svg style="display:none"><symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></symbol><symbol id="i-copy" viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="1.5"/><path d="M5 15V5h10"/></symbol><symbol id="i-eye" viewBox="0 0 24 24"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></symbol><symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="9" rx="1.5"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></symbol><symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol></svg>
+<header>
+  <div class="brand">AlmarioKS</div>
+  <div class="search"><svg><use href="#i-search"/></svg>Buscar una cuenta por nombre, usuario o sitio<kbd>Ctrl K</kbd></div>
+  <div class="lockin">Se bloquea en 4:12</div>
+  <button class="btn-lock"><svg><use href="#i-lock"/></svg>Bloquear</button>
+</header>
+<nav class="tabs">
+  <a href="#"><span class="dot" style="background:var(--t-rojo)"></span>Personal <small>12</small></a>
+  <a href="#" class="on"><span class="dot" style="background:var(--t-azul)"></span>Trabajo <small>8</small></a>
+  <a href="#"><span class="dot" style="background:var(--t-verde)"></span>Bancos <small>4</small></a>
+  <a href="#"><span class="dot" style="background:var(--t-amarillo)"></span>Compras <small>9</small></a>
+  <a href="#" style="margin-left:auto">Papelera <small>2</small></a>
+</nav>
+<div class="wrap">
+  <section class="list">
+    <div class="list-head"><h1>Trabajo</h1><p>8 cuentas</p><button class="btn-new"><svg><use href="#i-plus"/></svg>Nueva cuenta</button></div>
+    <p class="crumb">cuentas.kdbx › Trabajo · subgrupo: Clientes (5)</p>
+    <table>
+      <thead><tr><th>Gancho</th><th>Cuenta</th><th>Usuario</th><th>Sitio</th><th>Cambió</th></tr></thead>
+      <tbody>
+        <tr><td><span class="hook">T-01</span></td><td><span class="keytag"><i style="background:var(--t-azul)"></i>Correo de la oficina</span></td><td class="mono">sara@example.com</td><td class="mono">correo.example.com</td><td class="mono">ayer</td></tr>
+        <tr><td><span class="hook">T-02</span></td><td><span class="keytag"><i style="background:var(--t-azul)"></i>Figma</span></td><td class="mono">sara@example.com</td><td class="mono">figma.com</td><td class="mono">12 oct</td></tr>
+        <tr class="on"><td><span class="hook">T-03</span></td><td><span class="keytag"><i style="background:var(--t-azul)"></i>GitHub</span></td><td class="mono">sara@example.com</td><td class="mono">github.com</td><td class="mono">hace 3 días</td></tr>
+        <tr><td><span class="hook">T-04</span></td><td><span class="keytag"><i style="background:var(--t-azul)"></i>Jira</span></td><td class="mono">sara.g</td><td class="mono">example.atlassian.net</td><td class="mono">3 sep</td></tr>
+        <tr><td><span class="hook">T-05</span></td><td><span class="keytag"><i style="background:var(--t-azul)"></i>Nómina</span></td><td class="mono">1032456789</td><td class="mono">nomina.example.com</td><td class="state">Copiada · se borra en 14 s</td></tr>
+        <tr><td><span class="hook">T-06</span></td><td><span class="keytag"><i style="background:var(--t-azul)"></i>Railway</span></td><td class="mono">sara@example.com</td><td class="mono">railway.com</td><td class="mono">28 ago</td></tr>
+        <tr><td><span class="hook">T-07</span></td><td><span class="keytag"><i style="background:var(--t-azul)"></i>Slack</span></td><td class="mono">sara@example.com</td><td class="mono">example.slack.com</td><td class="mono">15 ago</td></tr>
+        <tr><td><span class="hook">T-08</span></td><td><span class="keytag"><i style="background:var(--t-azul)"></i>VPN de la oficina</span></td><td class="mono">sgomez</td><td class="mono">—</td><td class="mono">2 jul</td></tr>
+      </tbody>
+    </table>
+  </section>
+  <aside>
+    <div class="plate"><div class="big"><b></b></div><div><h2>GitHub</h2><p>Gancho T-03 · modificada hace 3 días</p></div></div>
+    <div class="field"><label>Usuario</label><output>sara@example.com</output><button class="ghost"><svg><use href="#i-copy"/></svg>Copiar</button></div>
+    <div class="field"><label>Contraseña</label><output class="pw">••••••••••••</output><span><button class="ghost"><svg><use href="#i-eye"/></svg>Mostrar</button> <button class="primary"><svg><use href="#i-copy"/></svg>Copiar</button></span></div>
+    <div class="field"><label>Fortaleza</label><output><span class="meter"><i></i><i></i><i></i><i></i></span>Fuerte · 4 de 4</output><span></span></div>
+    <div class="field"><label>Dirección</label><output>https://github.com</output><button class="ghost">Abrir</button></div>
+    <div class="field"><label>Etiquetas</label><output><span class="tag">código</span><span class="tag">trabajo</span></output><span></span></div>
+    <p class="notes">Cuenta de la organización. Renovar el token de acceso en enero.</p>
+    <div class="foot"><button class="ghost">Editar</button><button class="ghost">Mover de grupo</button><button class="danger">Enviar a la papelera</button></div>
+  </aside>
+</div>
+</body>
+</html>
