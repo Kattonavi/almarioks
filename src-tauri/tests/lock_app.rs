@@ -1,5 +1,5 @@
 //! The lock as the app runs it (T14; spec 001, section D): by inactivity with clocks the test moves (RF-29 and the
-//! worked example 10), by order of the person (RF-28), on exit (RF-36, RF-75), and what happens around it: the
+//! worked example 10), by order of the person (RF-28), on exit and before an update (RF-36, RF-75), and around it: the
 //! clipboard (RF-31, RF-73), the event and the reload of the webview (RF-32). No test sleeps: the heartbeat that
 //! production runs every second is called by hand.
 
@@ -10,7 +10,7 @@ mod common;
 
 use std::time::Duration;
 
-use almarioks_lib::lock::{IdleTimer, VAULT_LOCKED_EVENT, idle_between};
+use almarioks_lib::lock::{IdleTimer, VAULT_LOCKED_EVENT, VAULT_SAVE_STATE_EVENT, idle_between};
 use common::{
     error_code,
     vault::{CANARY, FakeIdleClock, Rig},
@@ -371,4 +371,169 @@ fn rf_75_exit_leaves_alone_what_another_app_copied() {
 
     almarioks_lib::shutdown(rig.app.handle());
     assert_eq!(rig.clipboard.text().as_deref(), Some("hola"));
+}
+
+// ---------- RF-36, RF-75 (review 0.1, C-1): the window is about to install an update ----------
+
+/// The recovery files next to the canary vault of `rig`.
+fn recovery_files(rig: &Rig) -> Vec<String> {
+    std::fs::read_dir(rig.dir.path())
+        .unwrap()
+        .map(|entry| entry.unwrap().file_name().to_string_lossy().into_owned())
+        .filter(|name| name.starts_with("canario.kdbx.recuperacion-"))
+        .collect()
+}
+
+#[test]
+fn rf_36_rf_75_prepare_update_closes_the_vault_and_clears_the_clipboard_without_touching_the_window()
+ {
+    let rig = Rig::new("update-prepare");
+    let vault = rig.open_canary_vault();
+    rig.args(
+        "entry_copy",
+        json!({ "id": vault.bank, "field": "Password" }),
+    )
+    .unwrap();
+    assert_eq!(rig.clipboard.text(), Some(format!("{CANARY}-password")));
+
+    // On Windows the installer ends the process and the app never sees that exit: this is the exit.
+    assert_eq!(rig.plain("app_prepare_update"), Ok(Value::Null));
+
+    assert_eq!(
+        rig.plain("vault_status").unwrap(),
+        json!({ "state": "closed" })
+    );
+    assert_eq!(rig.clipboard.text(), None, "RF-75");
+    assert_eq!(
+        error_code(&rig.args("entry_get", json!({ "id": vault.bank }))),
+        "Bloqueada"
+    );
+    // The window holds the downloaded update and is about to install it: a reload would lose it.
+    assert_eq!(rig.reloader.count(), 0);
+    assert_eq!(rig.events.count(VAULT_LOCKED_EVENT), 0);
+    // Nothing was pending: no recovery file.
+    assert_eq!(recovery_files(&rig), Vec::<String>::new());
+
+    // Asking twice is harmless.
+    assert_eq!(rig.plain("app_prepare_update"), Ok(Value::Null));
+    assert_eq!(rig.state(), "closed");
+    assert_eq!(rig.reloader.count(), 0);
+    assert_eq!(rig.events.count(VAULT_LOCKED_EVENT), 0);
+
+    // The page was not reloaded, so it still holds what it had read: the next lock or close tells the window
+    // and reloads it (RF-32), as after any unlock.
+    assert_eq!(rig.plain("vault_close"), Ok(Value::Null));
+    assert_eq!(rig.events.count(VAULT_LOCKED_EVENT), 1);
+    assert_eq!(rig.reloader.count(), 1);
+}
+
+#[test]
+fn rf_36_rf_75_prepare_update_leaves_alone_what_another_app_copied() {
+    let rig = Rig::new("update-other");
+    let vault = rig.open_canary_vault();
+    rig.args(
+        "entry_copy",
+        json!({ "id": vault.bank, "field": "Password" }),
+    )
+    .unwrap();
+    rig.clipboard.other_app_copies("hola");
+
+    rig.plain("app_prepare_update").unwrap();
+    assert_eq!(rig.state(), "closed");
+    assert_eq!(rig.clipboard.text().as_deref(), Some("hola"));
+}
+
+#[test]
+fn rf_36_rf_75_prepare_update_writes_the_recovery_file_of_a_save_that_failed() {
+    let rig = Rig::new("update-recovery");
+    let vault = rig.open_canary_vault();
+    // A folder sits where a save writes its temporary file: every save of this vault fails, on the real disk.
+    let in_the_way = std::path::PathBuf::from(format!("{}.tmp", vault.path));
+    std::fs::create_dir(&in_the_way).unwrap();
+    std::fs::write(in_the_way.join("ocupado"), b"x").unwrap();
+    rig.args(
+        "entry_update",
+        json!({ "id": vault.bank, "title": "Banco 2" }),
+    )
+    .unwrap();
+    rig.events.wait_for(VAULT_SAVE_STATE_EVENT, "\"failed\"");
+    assert_eq!(rig.plain("vault_status").unwrap()["save_pending"], true);
+    assert_eq!(recovery_files(&rig), Vec::<String>::new());
+
+    assert_eq!(rig.plain("app_prepare_update"), Ok(Value::Null));
+
+    // RF-33: by the time the command answers, what was not saved is in its recovery file; the installer may
+    // end the process right after.
+    assert_eq!(rig.state(), "closed");
+    let recovered = recovery_files(&rig);
+    assert_eq!(recovered.len(), 1, "one recovery file: {recovered:?}");
+    assert_eq!(rig.reloader.count(), 0);
+    assert_eq!(rig.events.count(VAULT_LOCKED_EVENT), 0);
+
+    // RF-34: the next unlock says where the changes are.
+    let opened = rig
+        .args(
+            "vault_open",
+            json!({ "path": vault.path, "password": common::vault::master() }),
+        )
+        .unwrap();
+    assert_eq!(opened["recovery"]["kind"], "saved");
+    assert!(
+        opened["recovery"]["path"]
+            .as_str()
+            .unwrap()
+            .ends_with(&recovered[0])
+    );
+}
+
+#[test]
+fn rf_29_rf_36_after_prepare_update_the_vault_opens_again_and_still_locks_by_inactivity() {
+    let rig = Rig::new("update-goes-on");
+    let vault = rig.open_canary_vault();
+    rig.plain("app_prepare_update").unwrap();
+    assert_eq!(rig.state(), "closed");
+
+    // The installer did not start and the person goes on: the app is not left "exiting".
+    rig.idle_clock.advance(HOUR);
+    assert!(!rig.heartbeat(), "a closed vault has nothing to lock");
+    let opened = rig
+        .args(
+            "vault_open",
+            json!({ "path": vault.path, "password": common::vault::master() }),
+        )
+        .unwrap();
+    assert_eq!(opened["state"], "open");
+    assert_eq!(opened["locks_in_seconds"], 300);
+    assert_eq!(
+        rig.args("entry_get", json!({ "id": vault.bank })).unwrap()["title"],
+        "Banco"
+    );
+
+    rig.idle_clock.advance(4 * 60 + 59);
+    assert!(!rig.heartbeat());
+    assert_eq!(rig.state(), "open");
+    rig.idle_clock.advance(1);
+    assert!(
+        rig.heartbeat(),
+        "RF-29: the inactivity lock is still running"
+    );
+    assert_eq!(rig.state(), "locked");
+    // And this lock is an ordinary one: the window is told and reloaded (RF-32).
+    assert_eq!(rig.events.count(VAULT_LOCKED_EVENT), 1);
+    assert_eq!(rig.reloader.count(), 1);
+
+    // The copy of a value is cleared by a later preparation too.
+    rig.args(
+        "vault_open",
+        json!({ "path": vault.path, "password": common::vault::master() }),
+    )
+    .unwrap();
+    rig.args(
+        "entry_copy",
+        json!({ "id": vault.bank, "field": "Password" }),
+    )
+    .unwrap();
+    rig.plain("app_prepare_update").unwrap();
+    assert_eq!(rig.state(), "closed");
+    assert_eq!(rig.clipboard.text(), None);
 }

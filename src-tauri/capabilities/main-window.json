@@ -20,6 +20,7 @@
     "allow-vault-open",
     "allow-vault-lock",
     "allow-vault-close",
+    "allow-app-prepare-update",
     "allow-vault-convert",
     "allow-vault-retry-save",
     "allow-vault-save-as",

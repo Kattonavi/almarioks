@@ -175,6 +175,13 @@ pub fn install<R: Runtime>(app: &AppHandle<R>, parts: AppParts) -> Result<(), Se
     app.manage(AppState::new(parts, Arc::new(AppWindow(app.clone()))));
     // Updater (ADR-0003): nothing is checked at startup. The window asks only when the user clicks,
     // and the plugin verifies the signature against the `pubkey` in tauri.conf.json before installing.
+    //
+    // On Windows the plugin's `install` starts the installer and ends the process with `std::process::exit`:
+    // `RunEvent::Exit`, and with it `shutdown`, never comes. The only hook on that path is the plugin's own
+    // `on_before_exit`, which its `Builder` does not expose (the plugin sets it to `cleanup_before_exit`), so
+    // there is no second barrier here short of reimplementing check, download and install in Rust. What closes
+    // the vault and clears the clipboard before an update is the command `app_prepare_update`, which the window
+    // must await BEFORE `install()` (`tests/commands_contract.rs` reads `UpdatePanel.tsx` to hold it to that).
     #[cfg(desktop)]
     app.plugin(tauri_plugin_updater::Builder::new().build())?;
     Ok(())

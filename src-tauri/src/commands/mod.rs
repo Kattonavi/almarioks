@@ -46,6 +46,7 @@ pub fn handler<R: tauri::Runtime>() -> impl Fn(tauri::ipc::Invoke<R>) -> bool + 
         vault::vault_open,
         vault::vault_lock,
         vault::vault_close,
+        vault::app_prepare_update,
         vault::vault_convert,
         vault::vault_retry_save,
         vault::vault_save_as,

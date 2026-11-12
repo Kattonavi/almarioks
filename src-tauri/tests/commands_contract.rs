@@ -586,3 +586,82 @@ fn helper_is_app_error_tells_our_errors_from_tauri_text() {
     assert!(!is_app_error(&Err(json!("Command x not allowed by ACL"))));
     assert!(!is_app_error(&Ok(json!({ "code": "X", "message": "y" }))));
 }
+
+// ---------- RF-36, RF-75 (review 0.1, C-1): the window prepares the update before it installs it ----------
+
+/// The calls that close the vault before an update: the command of the client, or the prop the panel gets it by.
+const PREPARATIONS: [&str; 2] = ["beforeInstall", "prepareUpdate"];
+
+/// Whether `before` (TypeScript, without comments) has an awaited call of one of [`PREPARATIONS`]:
+/// `await beforeInstall(`, `await props.beforeInstall(`, `await client.prepareUpdate(`. A declaration of the prop,
+/// a call nobody awaits and an optional call (`beforeInstall?.()`, which does nothing when the prop is missing)
+/// do not count.
+fn awaits_a_preparation(before: &str) -> bool {
+    PREPARATIONS.iter().any(|name| {
+        before.match_indices(name).any(|(at, _)| {
+            let (head, tail) = before.split_at(at);
+            let receiver =
+                head.trim_end_matches(|c: char| c.is_alphanumeric() || c == '_' || c == '.');
+            let called = tail
+                .strip_prefix(name)
+                .is_some_and(|rest| rest.starts_with('('));
+            called && receiver.ends_with("await ")
+        })
+    })
+}
+
+/// Whether the source installs an update at all, and never without having awaited a preparation earlier.
+fn prepares_before_every_install(source: &str) -> bool {
+    let code: String = source
+        .lines()
+        .map(|line| line.split_once("//").map_or(line, |(code, _)| code))
+        .collect::<Vec<_>>()
+        .join("\n");
+    let installs: Vec<usize> = code.match_indices(".install(").map(|(at, _)| at).collect();
+    !installs.is_empty()
+        && installs
+            .into_iter()
+            .all(|at| awaits_a_preparation(code.split_at(at).0))
+}
+
+#[test]
+fn rf_36_rf_75_the_check_of_the_update_panel_tells_a_prepared_install_from_a_bare_one() {
+    for prepared in [
+        "await update.download(onEvent);\nawait beforeInstall();\nawait update.install();",
+        "await props.beforeInstall();\ntry {\n  await update.install();\n} catch {}",
+        "await client.prepareUpdate();\nawait update.install();",
+    ] {
+        assert!(prepares_before_every_install(prepared), "{prepared}");
+    }
+    for bare in [
+        // What 0.1 shipped before the fix.
+        "await update.download(onEvent);\nawait update.install();",
+        // Declared, never called.
+        "type Props = { beforeInstall: () => Promise<void> };\nawait update.install();",
+        "function Panel({ beforeInstall }: Props) {}\nawait update.install();",
+        // Called after, not awaited, commented out, or optional.
+        "await update.install();\nawait beforeInstall();",
+        "void beforeInstall();\nawait update.install();",
+        "// await beforeInstall();\nawait update.install();",
+        "await beforeInstall?.();\nawait update.install();",
+        // The second install is prepared, the first is not.
+        "await a.install();\nawait beforeInstall();\nawait b.install();",
+        // Nothing installs: the check would be holding nothing.
+        "await beforeInstall();",
+    ] {
+        assert!(!prepares_before_every_install(bare), "{bare}");
+    }
+}
+
+#[test]
+#[ignore = "pendiente de la fusión de la ventana (C-1)"]
+fn rf_36_rf_75_the_window_prepares_the_update_before_it_installs_it() {
+    // On Windows the updater's `install()` ends the process without `RunEvent::Exit`, and the plugin offers no
+    // hook to the app (`src/lib.rs`, `install`): the vault is closed and the clipboard cleared only because the
+    // window awaits `app_prepare_update` first. This reads the panel as text, like `rf_83` reads `errors.ts`.
+    let panel = read("../src/update/UpdatePanel.tsx");
+    assert!(
+        prepares_before_every_install(&panel),
+        "src/update/UpdatePanel.tsx calls `install()` without awaiting `beforeInstall()` or `prepareUpdate()` first"
+    );
+}
