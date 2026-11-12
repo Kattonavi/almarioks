@@ -446,8 +446,9 @@ las pantallas la fija ese prototipo; aquí solo va lo que cambia de comportamien
 - RF-96: CUANDO el dueño crea una bóveda, EL SISTEMA pedirá primero su nombre y lo guardará como nombre de la bóveda,
   aunque el archivo se llame distinto.
 - RF-97: MIENTRAS el dueño no elija otra ubicación, EL SISTEMA propondrá `Documentos › AlmarioKS › <nombre>.kdbx`,
-  quitando del nombre de archivo los caracteres que Windows no admite (`\ / : * ? " < > |`) y usando `bóveda` si queda
-  vacío, y creará la carpeta `AlmarioKS` al crear la bóveda si no existe.
+  quitando del nombre de archivo los caracteres que Windows no admite (`\ / : * ? " < > |` y los de control),
+  los puntos y espacios finales, cortándolo a 100 caracteres, evitando los nombres reservados (`CON`, `NUL`, `COM1`…)
+  y usando `bóveda` si queda vacío; y creará la carpeta `AlmarioKS` al crear la bóveda si no existe (solo esa carpeta).
 - RF-98: SI en la ubicación propuesta ya existe un archivo con ese nombre, ENTONCES EL SISTEMA no creará la bóveda ni
   tocará ese archivo (RF-4) y pedirá cambiar el nombre o la ubicación.
 - RF-99: DONDE el dueño elija "Crear uno nuevo" como archivo llave, EL SISTEMA lo creará junto a la bóveda, con su

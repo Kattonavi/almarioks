@@ -56,3 +56,8 @@ Lo que no cabe en la fase va aquí, un renglón por ítem: `- [origen] qué · s
 - [QA 0.1] Un texto no protegido (título, usuario, notas) copiado con Ctrl+C desde la página sobrevive al bloqueo y no se limpia por tiempo (no entra al historial de Win+V): decidir si las notas merecen el trato de un valor protegido · Medio, para seguridad
 - [QA 0.1] Con un valor protegido mostrado, Ctrl+A + Ctrl+C no copia nada (tampoco el resto del texto): efecto del arreglo de R-4 · Bajo
 - [QA 0.1] Sin probar en la ventana real: arrastrar un valor mostrado hacia otra ventana y la contraseña candidata del generador · Bajo
+- [pase de interacción] Duplicar una entrada: el prototipo lo muestra en el menú de la entrada y el núcleo no lo tiene · Medio
+- [pase de interacción] Tema claro como opción en Ajustes (hoy la app es siempre oscura; los valores claros siguen en `tokens.css`) · Bajo
+- [pase de interacción] Elegir con un diálogo dónde crear el archivo llave nuevo: dejó de ofrecerse (se crea junto a la bóveda); el comando `pick_new_key_file` sigue existiendo sin uso · Bajo
+- [pase de interacción] Ventana por debajo de 1000 × 640 y versión de una sola columna · Bajo
+- [pase de interacción] `vault_create_location` dice si existe cualquier ruta que nombre la ventana: revisar con seguridad · para la revisión del delta

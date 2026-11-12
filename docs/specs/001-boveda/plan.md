@@ -98,6 +98,11 @@ muestra "(protegido)".
     inactividad vivo. La ventana lo llama y espera después de verificar la firma y antes de `install()`, porque el
     actualizador termina el proceso sin pasar por el cierre normal de la app (revisión 0.1, C-1 / S-1). Si
     `install()` falla, la ventana vuelve a la bienvenida en la siguiente consulta de estado (≤ 5 s).
+20. `vault_create_location{name, chosen_path}` (RF-97 a RF-99; `chosen_path` viaja siempre, `null` o texto): no
+    escribe nada. Responde `{vault_path, vault_file, key_file_path, key_file, in_default_folder, vault_exists,
+    key_file_exists}`: sin `chosen_path`, `Documentos\AlmarioKS\<archivo>.kdbx` (la regla del nombre de archivo vive
+    en `almarioks_core::location`); con él, esa misma ruta; siempre con el archivo llave al lado. `ErrorInterno` si el
+    sistema no da Documentos. `vault_create` crea la carpeta solo si la ruta es exactamente la propuesta.
 
 ## Concurrencia y bloqueo (RF-30, RF-33, RF-88 a RF-90)
 - Un solo dueño del estado: todas las operaciones de la bóveda, la copia al portapapeles y el bloqueo pasan por el
