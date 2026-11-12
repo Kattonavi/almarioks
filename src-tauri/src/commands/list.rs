@@ -5,8 +5,14 @@
 
 /// Commands of this build, in the order of the contract table of `docs/specs/001-boveda/plan.md`.
 pub const COMMANDS: &[&str] = &[
+    "pick_vault_to_open",
+    "pick_vault_to_create",
+    "pick_key_file",
+    "pick_new_key_file",
     "recent_list",
     "recent_remove",
+    "password_strength",
+    "generate_password",
     "settings_get",
     "settings_set",
 ];

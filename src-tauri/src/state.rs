@@ -10,7 +10,10 @@ use std::{
 
 use almarioks_core::{CoreResult, settings::Settings};
 
-use crate::clipboard::{ClipboardError, ClipboardService};
+use crate::{
+    clipboard::{ClipboardError, ClipboardService},
+    commands::{dialogs::FileDialogs, url::UrlOpener},
+};
 
 /// Name of the settings file inside the app's configuration folder (RF-82).
 pub const SETTINGS_FILE_NAME: &str = "settings.json";
@@ -21,6 +24,10 @@ pub struct AppParts {
     pub settings_file: PathBuf,
     /// The clipboard service, or why it could not start. The app starts either way; copying answers the error.
     pub clipboard: Result<ClipboardService, ClipboardError>,
+    /// Who asks the person for a file (the system's dialogs).
+    pub dialogs: Arc<dyn FileDialogs>,
+    /// Who opens a validated URL (the default browser).
+    pub url_opener: Arc<dyn UrlOpener>,
 }
 
 /// The state managed by Tauri: `tauri::State<'_, AppState>` in every command.
@@ -30,6 +37,8 @@ pub struct AppParts {
 pub struct AppState {
     settings: Arc<SettingsStore>,
     clipboard: Result<Arc<ClipboardService>, ClipboardError>,
+    dialogs: Arc<dyn FileDialogs>,
+    url_opener: Arc<dyn UrlOpener>,
     // The session of the core (the open vault, its lock and the inactivity timer) goes here: T13/T14.
 }
 
@@ -40,6 +49,8 @@ impl AppState {
         Self {
             settings: Arc::new(SettingsStore::new(parts.settings_file)),
             clipboard: parts.clipboard.map(Arc::new),
+            dialogs: parts.dialogs,
+            url_opener: parts.url_opener,
         }
     }
 
@@ -55,6 +66,18 @@ impl AppState {
     /// [`ClipboardError::Unavailable`] if it could not start with the app.
     pub fn clipboard(&self) -> Result<Arc<ClipboardService>, ClipboardError> {
         self.clipboard.clone()
+    }
+
+    /// The file dialogs.
+    #[must_use]
+    pub fn dialogs(&self) -> Arc<dyn FileDialogs> {
+        Arc::clone(&self.dialogs)
+    }
+
+    /// The opener of URLs, for `commands::url::open_url` (RF-49).
+    #[must_use]
+    pub fn url_opener(&self) -> Arc<dyn UrlOpener> {
+        Arc::clone(&self.url_opener)
     }
 }
 

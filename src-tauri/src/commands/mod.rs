@@ -17,9 +17,12 @@
 //! of the entry and call [`url::open_url`].
 
 pub mod args;
+pub mod dialogs;
 pub mod error;
 mod list;
+pub mod passwords;
 pub mod settings;
+pub mod url;
 
 pub use args::{SecretArg, expect_no_args, parse_args};
 pub use error::{APP_ONLY_CODES, AppError, INTERNAL_CODE};
@@ -29,6 +32,12 @@ pub use list::COMMANDS;
 pub fn handler<R: tauri::Runtime>() -> impl Fn(tauri::ipc::Invoke<R>) -> bool + Send + Sync + 'static
 {
     tauri::generate_handler![
+        dialogs::pick_vault_to_open,
+        dialogs::pick_vault_to_create,
+        dialogs::pick_key_file,
+        dialogs::pick_new_key_file,
+        passwords::password_strength,
+        passwords::generate_password,
         settings::recent_list,
         settings::recent_remove,
         settings::settings_get,

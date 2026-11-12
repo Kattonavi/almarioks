@@ -14,8 +14,14 @@
     "updater:allow-check",
     "updater:allow-download",
     "updater:allow-install",
+    "allow-pick-vault-to-open",
+    "allow-pick-vault-to-create",
+    "allow-pick-key-file",
+    "allow-pick-new-key-file",
     "allow-recent-list",
     "allow-recent-remove",
+    "allow-password-strength",
+    "allow-generate-password",
     "allow-settings-get",
     "allow-settings-set"
   ]

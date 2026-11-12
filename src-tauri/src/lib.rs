@@ -1,6 +1,8 @@
 //! AlmarioKS desktop app. Thin shell around `almarioks-core`: the commands of the window, the clipboard and the
 //! plugins. The vault itself lives in the core.
 
+use std::sync::Arc;
+
 use tauri::{AppHandle, Manager, Runtime, plugin::Plugin};
 
 pub mod clipboard;
@@ -8,6 +10,7 @@ pub mod commands;
 pub mod state;
 
 use clipboard::ClipboardService;
+use commands::{dialogs::SystemDialogs, url::SystemUrlOpener};
 use state::{AppParts, AppState, SETTINGS_FILE_NAME};
 
 /// What can stop the app from starting.
@@ -21,13 +24,17 @@ pub fn context<R: Runtime>() -> tauri::Context<R> {
 }
 
 /// The plugins registered on the builder, in the order they are registered.
+///
+/// `tauri-plugin-dialog` is here only so Rust can open file dialogs (`commands::dialogs`): the capability grants
+/// the window none of its commands. `tauri-plugin-opener` is not registered at all: `commands::url` calls its
+/// `open_url` function directly.
 #[must_use]
 pub fn plugins<R: Runtime>() -> Vec<Box<dyn Plugin<R>>> {
-    Vec::new()
+    vec![Box::new(tauri_plugin_dialog::init())]
 }
 
-/// The parts of the real app: the settings file in the configuration folder Tauri gives (never a fixed path)
-/// and the Windows clipboard.
+/// The parts of the real app: the settings file in the configuration folder Tauri gives (never a fixed path),
+/// the Windows clipboard, the system's file dialogs and the default browser.
 ///
 /// # Errors
 /// The configuration folder of the app cannot be resolved.
@@ -37,6 +44,8 @@ pub fn system_parts<R: Runtime>(app: &AppHandle<R>) -> Result<AppParts, SetupErr
         settings_file,
         // If the clipboard cannot start the app starts anyway; copying answers the error.
         clipboard: system_clipboard(),
+        dialogs: Arc::new(SystemDialogs::new(app.clone())),
+        url_opener: Arc::new(SystemUrlOpener),
     })
 }
 

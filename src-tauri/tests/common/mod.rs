@@ -10,11 +10,18 @@
 // Tests may panic on purpose: a failed unwrap is a failed test (R-2 exception, scoped to the tests).
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
-use std::path::{Path, PathBuf};
+use std::{
+    path::{Path, PathBuf},
+    sync::{Arc, Mutex},
+};
 
 use almarioks_lib::{
     app_builder,
     clipboard::ClipboardError,
+    commands::{
+        dialogs::{DialogUnavailable, FileDialogs, FilePick},
+        url::{UrlOpenFailed, UrlOpener, UrlToOpen},
+    },
     plugins,
     state::{AppParts, SETTINGS_FILE_NAME},
 };
@@ -72,11 +79,96 @@ pub fn test_plugins() -> Vec<Box<dyn Plugin<MockRuntime>>> {
         .collect()
 }
 
-/// The parts of a test app: settings in `dir`, no clipboard.
+/// The person in front of the dialogs: answers what the test decided and remembers what was asked.
+#[derive(Clone, Default)]
+pub struct FakeDialogs(Arc<Mutex<FakeDialogsState>>);
+
+#[derive(Default)]
+struct FakeDialogsState {
+    answer: Option<PathBuf>,
+    unavailable: bool,
+    asked: Vec<FilePick>,
+}
+
+impl FakeDialogs {
+    /// The person will choose `path` in every dialog.
+    pub fn will_choose(&self, path: impl Into<PathBuf>) {
+        self.0.lock().unwrap().answer = Some(path.into());
+    }
+
+    /// The person will close every dialog without choosing.
+    pub fn will_cancel(&self) {
+        self.0.lock().unwrap().answer = None;
+    }
+
+    /// The system will fail to show the dialogs.
+    pub fn will_fail(&self) {
+        self.0.lock().unwrap().unavailable = true;
+    }
+
+    /// The dialogs shown so far, in order.
+    pub fn asked(&self) -> Vec<FilePick> {
+        self.0.lock().unwrap().asked.clone()
+    }
+}
+
+impl FileDialogs for FakeDialogs {
+    fn pick(&self, pick: FilePick) -> Result<Option<PathBuf>, DialogUnavailable> {
+        let mut state = self.0.lock().unwrap();
+        state.asked.push(pick);
+        if state.unavailable {
+            return Err(DialogUnavailable);
+        }
+        Ok(state.answer.clone())
+    }
+}
+
+/// A browser that only writes down what it was asked to open.
+#[derive(Clone, Default)]
+pub struct FakeOpener(Arc<Mutex<FakeOpenerState>>);
+
+#[derive(Default)]
+struct FakeOpenerState {
+    opened: Vec<String>,
+    fail: bool,
+}
+
+impl FakeOpener {
+    /// Everything handed to the system so far.
+    pub fn opened(&self) -> Vec<String> {
+        self.0.lock().unwrap().opened.clone()
+    }
+
+    /// The system will refuse to open anything.
+    pub fn will_fail(&self) {
+        self.0.lock().unwrap().fail = true;
+    }
+}
+
+impl UrlOpener for FakeOpener {
+    fn open(&self, url: &UrlToOpen) -> Result<(), UrlOpenFailed> {
+        let mut state = self.0.lock().unwrap();
+        if state.fail {
+            return Err(UrlOpenFailed);
+        }
+        state.opened.push(url.as_str().to_owned());
+        Ok(())
+    }
+}
+
+/// The parts of a test app: settings in `dir`, no clipboard, a person who cancels every dialog and a browser
+/// that opens nothing.
 pub fn test_parts(dir: &TempDir) -> AppParts {
+    parts_with(dir, &FakeDialogs::default())
+}
+
+/// The parts of a test app whose dialogs the test controls.
+pub fn parts_with(dir: &TempDir, dialogs: &FakeDialogs) -> AppParts {
     AppParts {
         settings_file: dir.settings_file(),
         clipboard: Err(ClipboardError::Unavailable),
+        dialogs: Arc::new(dialogs.clone()),
+        url_opener: Arc::new(FakeOpener::default()),
     }
 }
 
