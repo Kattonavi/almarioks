@@ -95,7 +95,7 @@ desinstalar.
 ## Specs
 | # | Feature | Spec | Estado |
 |---|---|---|---|
-| 001 | Bóveda (0.1) | `docs/specs/001-boveda/spec.md` | se escribe al empezar la 0.1 |
+| 001 | Bóveda (0.1) | `docs/specs/001-boveda/spec.md` | borrador revisado y construido (2026-11-11); decisiones por confirmar en la propia spec |
 | 002 | Navegador (0.2) | `docs/specs/002-navegador/spec.md` | se escribe al empezar la 0.2 |
 | 003 | Importar CSV e idiomas (1.0) | `docs/specs/003-importar-idiomas/spec.md` | se escribe al empezar la 1.0 |
 

@@ -5,6 +5,7 @@
 > `docs/AMENAZAS.md` §4, `docs/ARQUITECTURA.md`, los ADR 0001 y 0002 y `docs/BACKLOG.md`. Cada decisión que tomó la
 > directora por defecto lleva **[por confirmar]** y está reunida en "Decisiones por defecto". Todas son reversibles.
 > Revisión de QA con contexto fresco: 25 hallazgos (4 críticos), incorporados; ver `revision.md`.
+> Validación independiente del núcleo desde esta spec: `validacion-nucleo.md` (83 pruebas, 1 defecto, corregido).
 
 ## Contexto y objetivo
 El H0 dejó una app que instala, abre y se actualiza, pero no guarda nada. Esta fase la convierte en un gestor de
@@ -372,6 +373,61 @@ Las pruebas citan el número: `rf_NN_…` en Rust, `it("RF-NN: …")` en TypeScr
 | D12 | Al bloquear con cambios pendientes, las llaves se sueltan **antes** de escribir la recuperación, que usa una copia ya cifrada | Cumple la regla 7 de la constitución sin excepciones. Precisa el orden del ADR-0002 (pasos 3 y 4), no lo contradice | RF-33 |
 | D13 | Una URL sin esquema no se abre | Anteponer `https://` en silencio abre lo que el dueño no escribió | RF-49 |
 | D14 | La 0.1 se construyó con D1 a D13 sin confirmar | El dueño pidió avanzar de noche; todas son reversibles | — |
+
+## Decisiones tomadas al construir [por confirmar]
+Salieron al implementar; en cada una se eligió lo más conservador. Ninguna cambia el formato del archivo.
+
+**Abrir y crear**
+- Una contraseña vacía cuenta como "sin contraseña": con archivo llave se usa solo el archivo; sin él, `LlaveVacia`.
+  No se puede abrir una bóveda de KeePass hecha a propósito con contraseña vacía.
+- Un `.keyx` versión 2 sin `Hash` se acepta sin verificar; uno cuyo contenido no es hexadecimal da
+  `ArchivoLlaveDanado`; un archivo llave que existe pero no se puede leer también.
+- Un KDF con identificador desconocido da `ArchivoDanado`. Las bóvedas nuevas usan ChaCha20 como cifrado y guardan
+  hasta 10 versiones o 6 MiB de historial por entrada.
+- La calibración del KDF se hace una vez por ejecución de la app.
+
+**Entradas, grupos y búsqueda**
+- Si varios campos fallan a la vez se informa el primero, en este orden: título, usuario, URL, contraseña, notas,
+  etiquetas. En las etiquetas se revisa primero la cantidad y luego el largo. Una etiqueta con tabulación es
+  `EtiquetaInvalida` (KeePass separa las etiquetas con ese carácter).
+- Un título protegido se ordena como vacío. Una fecha que falta en el archivo se muestra como 1970-01-01.
+- Mostrar un campo también entrega un campo no protegido si se le pide. Renombrar la raíz no cambia el nombre de la
+  base en los metadatos.
+- Una papelera que existe pero está desactivada se reactiva y se reutiliza.
+- Una palabra de la búsqueda que queda vacía al plegarla se descarta.
+- Convertir una bóveda que ya es KDBX 4 responde `ArgumentoInvalido`.
+- Desde el formulario no se puede dejar vacía una contraseña existente (campo vacío = no cambiar).
+
+**Guardar, bloquear y sesión**
+- Si otra app borró el archivo de la bóveda, guardar responde `CambioExterno` y no lo vuelve a crear.
+- Si falla actualizar el `.bak` después de reemplazar el archivo, el guardado cuenta como hecho.
+- El nombre del archivo de recuperación lleva la hora en UTC. Si escribirlo tarda más de 5 s se informa "se
+  perdieron"; si el archivo aparece después, el siguiente desbloqueo dice que sí quedó.
+- Responden `Ocupada`: desbloquear mientras el bloqueo anterior aún escribe la recuperación o un guardado anterior
+  sigue en manos del disco, y guardar en otra ruta o recargar con un guardado en curso. Desbloquear con una bóveda
+  ya abierta responde `ArgumentoInvalido`. En la app, abrir justo después de bloquear espera a que ese bloqueo termine.
+- La inactividad se mide con el mayor entre el reloj monótono y el de pared; si el reloj de pared retrocede más de
+  2 s, se bloquea.
+- Tras bloquear, la ventana se recarga solo si hubo un intento de desbloqueo desde la última recarga.
+
+**Portapapeles y app**
+- Copiar un campo no protegido (el usuario) no programa limpieza, pero sí se limpia al bloquear y al salir.
+- Códigos que la spec no tenía y la app usa: `PortapapelesNoDisponible` (otra app tiene el portapapeles) y
+  `ErrorInterno` (fallo de la propia app: diálogo que no se pudo mostrar, navegador que no abrió).
+- Abrir una dirección exige `esquema://host`, rechaza caracteres de control y abre la dirección ya analizada, no el
+  texto crudo. `usuario:clave@host` se permite.
+- El selector de archivo llave ofrece `.keyx`, `.key` y todos los archivos.
+- `window.alert` y `window.confirm` no funcionan en la ventana (los intercepta el complemento de diálogos y la
+  capacidad los rechaza); la interfaz usa sus propios diálogos.
+- Si no se puede guardar la lista de bóvedas recientes, abrir no falla.
+
+**Para la revisión de seguridad de la fase**
+- `password_strength` recibe la contraseña maestra en cada pausa de escritura, y Tauri guarda una copia del cuerpo de
+  la petición que la app no puede borrar.
+- `Session::convert` retiene la llave durante unas tres derivaciones y no tiene prueba propia en el núcleo.
+- Cada cambio vuelve a derivar la llave al cifrar; una orden que ya está cifrando termina antes de soltar las llaves
+  al bloquear (como mucho una derivación, nunca atada al disco).
+- El único `unsafe` del proyecto está en `src-tauri/src/clipboard/ffi.rs`.
 
 ## Propuestas al dueño sobre la constitución (no se cambió nada)
 - Regla 4: nombrar como excepción el generador y validador de `.keyx` (hoy está en "Reglas específicas del proyecto").
