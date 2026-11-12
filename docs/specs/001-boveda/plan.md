@@ -93,6 +93,11 @@ muestra "(protegido)".
 17. `group_delete_preview` responde `GrupoProtegido` si el grupo no se puede borrar.
 18. Formulario de entrada: las etiquetas se escriben una por línea; desde el formulario no se puede dejar vacía una
     contraseña existente (campo vacío = no cambiar). Vaciarla a propósito queda fuera de la 0.1.
+19. `app_prepare_update` (sin argumentos, responde vacío): cierra la bóveda como al salir (con su recuperación) y
+    vacía el portapapeles si es nuestro, sin recargar la ventana ni emitir `vault-locked`, y con el bloqueo por
+    inactividad vivo. La ventana lo llama y espera después de verificar la firma y antes de `install()`, porque el
+    actualizador termina el proceso sin pasar por el cierre normal de la app (revisión 0.1, C-1 / S-1). Si
+    `install()` falla, la ventana vuelve a la bienvenida en la siguiente consulta de estado (≤ 5 s).
 
 ## Concurrencia y bloqueo (RF-30, RF-33, RF-88 a RF-90)
 - Un solo dueño del estado: todas las operaciones de la bóveda, la copia al portapapeles y el bloqueo pasan por el

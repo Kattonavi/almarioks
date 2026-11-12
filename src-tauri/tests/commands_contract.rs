@@ -654,7 +654,6 @@ fn rf_36_rf_75_the_check_of_the_update_panel_tells_a_prepared_install_from_a_bar
 }
 
 #[test]
-#[ignore = "pendiente de la fusión de la ventana (C-1)"]
 fn rf_36_rf_75_the_window_prepares_the_update_before_it_installs_it() {
     // On Windows the updater's `install()` ends the process without `RunEvent::Exit`, and the plugin offers no
     // hook to the app (`src/lib.rs`, `install`): the vault is closed and the clipboard cleared only because the
