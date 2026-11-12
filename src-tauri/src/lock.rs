@@ -188,6 +188,10 @@ struct AppEvents {
     exiting: AtomicBool,
     /// A lock could not clear the clipboard (the system refused it): the heartbeat tries again.
     clear_owed: AtomicBool,
+    /// An unlock was asked for since the last reload: the page may hold the key that was typed, or what it read
+    /// of the vault. A page that was reloaded and has unlocked nothing since holds nothing, and is not reloaded
+    /// again: so a page that asked for a lock while it started could never reload itself in a loop.
+    page_holds_something: AtomicBool,
 }
 
 impl AppEvents {
@@ -220,7 +224,9 @@ impl SessionEvents for AppEvents {
         self.clear_clipboard();
         if !self.exiting.load(Ordering::SeqCst) {
             self.window.vault_locked();
-            self.reloader.reload();
+            if self.page_holds_something.swap(false, Ordering::SeqCst) {
+                self.reloader.reload();
+            }
         }
         self.locked.bump();
     }
@@ -277,6 +283,7 @@ impl LockCenter {
             locked: LockSignal::default(),
             exiting: AtomicBool::new(false),
             clear_owed: AtomicBool::new(false),
+            page_holds_something: AtomicBool::new(false),
         });
         let for_session: Arc<dyn SessionEvents> = events.clone();
         let session = Arc::new(Session::new(
@@ -299,6 +306,16 @@ impl LockCenter {
     #[must_use]
     pub fn session(&self) -> Arc<Session> {
         Arc::clone(&self.session)
+    }
+
+    /// A vault is about to be opened or created with a key the person typed. From here on the page may hold
+    /// something worth forgetting, also if the unlock fails: the next lock or close reloads it (RF-32, AMENAZAS
+    /// W2). Typing the key is activity too.
+    pub fn unlocking(&self) {
+        self.events
+            .page_holds_something
+            .store(true, Ordering::SeqCst);
+        self.activity();
     }
 
     /// The person used the window, or a vault is being opened: the inactivity count starts again (RF-29).

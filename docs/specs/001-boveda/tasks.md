@@ -51,7 +51,7 @@ real) → commit → marcar. Las pruebas citan el RF (`rf_NN_…`, `it("RF-NN: �
       Hecho cuando: esas `rf_*` en verde, con un archivo de ajustes dañado.
 
 ## App (`src-tauri`)
-- [ ] T13. Comandos del contrato de `plan.md`, errores `{ code, message }`, lista de comandos en `build.rs` y permisos
+- [x] T13. Comandos del contrato de `plan.md`, errores `{ code, message }`, lista de comandos en `build.rs` y permisos
       en la capacidad; prueba de contrato con canario; `invoke` no listado. (RF-76, RF-79, RF-80, RF-83, RF-93)
       Hecho cuando: `rf_76_*`, `rf_79_*`, `rf_80_*`, `rf_83_*` en verde sobre la app de pruebas de Tauri.
       Avance (base y comandos sin sesión): `AppError`, argumentos estrictos (`commands::parse_args`), lista única
@@ -59,9 +59,14 @@ real) → commit → marcar. Las pruebas citan el RF (`rf_NN_…`, `it("RF-NN: �
       `recent_*`, `settings_*`, `password_strength` y `generate_password`; `rf_79_*`, `rf_80_*`, `rf_83_*` y
       `rf_84_*` en verde (`src-tauri/tests/commands_*.rs`). Falta: los comandos de la bóveda (`vault_*`,
       `group_*`, `entry_*`, `search`, `activity`) sobre la sesión del núcleo, `rf_76_*` y `rf_93_*`.
-- [ ] T14. Bloqueo en la app: inactividad con reloj inyectable y tiempo real, evento `vault-locked`, recarga de la
+- [x] T14. Bloqueo en la app: inactividad con reloj inyectable y tiempo real, evento `vault-locked`, recarga de la
       webview, cierre de la app. (RF-29, RF-31, RF-32, RF-36)
       Hecho cuando: `rf_29_*` (incluido el ejemplo 10), `rf_31_*`, `rf_32_*` en verde.
+      Hecho (T13 y T14): comandos de la bóveda sobre la sesión del núcleo en
+      `src-tauri/src/commands/{vault,groups,entries}.rs` y bloqueo en `src-tauri/src/lock.rs`; `rf_76_*`, `rf_90_*`,
+      `rf_93_*`, `rf_29_*`, `rf_31_*`, `rf_28_rf_32_*` y `rf_36_rf_75_*` en `src-tauri/tests/{commands_vault,lock_app}.rs`.
+      No incluye `entry_history` (RF-85, recortable). Verificación manual por release: la recarga real de la
+      webview al bloquear (el runtime de pruebas acepta la llamada y no recarga nada).
 - [x] T15. Portapapeles desde Rust (`ffi`): copiar, exclusión de historial y nube, limpieza por número de secuencia,
       al bloquear y al salir; copiar y bloquear en serie. (RF-71 a RF-75, RF-90)
       Hecho cuando: `rf_71_*` a `rf_75_*` y `rf_90_*` en verde, incluido el ejemplo 1 (a–d).

@@ -243,6 +243,17 @@ fn rf_28_rf_32_vault_lock_locks_tells_the_window_and_reloads_the_webview() {
         json!({ "state": "closed" })
     );
     assert_eq!(rig.events.count(VAULT_LOCKED_EVENT), 2);
+    // Nothing was unlocked since the reload: the page holds nothing and is not reloaded again.
+    assert_eq!(rig.reloader.count(), 1);
+
+    // A key typed for an unlock that failed is in the page too: the next lock or close reloads it (AMENAZAS W2).
+    let wrong = rig.args(
+        "vault_open",
+        json!({ "path": vault.path, "password": "equivocada" }),
+    );
+    assert_eq!(error_code(&wrong), "LlaveIncorrecta");
+    rig.plain("vault_close").unwrap();
+    assert_eq!(rig.reloader.count(), 2);
 }
 
 #[test]
