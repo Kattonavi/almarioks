@@ -496,9 +496,11 @@ dialog[data-layout="entry"] {
   display: grid;
   grid-template-columns: 104px minmax(0, 1fr);
   column-gap: var(--space-3);
-  align-items: center;
+  /* From the top: label, first line of the value and buttons stay level when a value takes many lines. */
+  align-items: start;
   min-height: 56px;
-  padding: var(--space-1) var(--space-2) var(--space-1) var(--space-4);
+  /* 6 + the 44 px of the buttons + 5 + the rule under the row: 56. */
+  padding: 6px var(--space-2) 5px var(--space-4);
   border-bottom: 1px solid var(--rule);
 }
 
@@ -507,6 +509,9 @@ dialog[data-layout="entry"] {
 }
 
 .card-row > dt {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
   overflow-wrap: anywhere;
   font-size: var(--text-sm);
   color: var(--ink-muted);
@@ -542,7 +547,8 @@ dialog[data-layout="entry"] {
 .card-value {
   flex: 1;
   min-width: 0;
-  padding-block: var(--space-2);
+  /* One line plus this relief is the 44 px of the buttons: the first line of a long value stays level with them. */
+  padding-block: 11px;
   overflow-wrap: anywhere;
 }
 
@@ -606,7 +612,7 @@ dialog[data-layout="entry"] {
 .card-row .secret:not([data-masked]) {
   flex: 1;
   min-width: 0;
-  padding-block: var(--space-2);
+  padding-block: 11px;
   letter-spacing: 0.06em;
 }
 
@@ -625,6 +631,11 @@ dialog[data-layout="entry"] {
   min-height: 0;
 }
 
+.card-row-notes > dt {
+  display: block;
+  min-height: 0;
+}
+
 .card-notes {
   flex: 1;
   min-width: 0;
@@ -634,6 +645,8 @@ dialog[data-layout="entry"] {
 
 /* RF-107: both dates with their hour. Each one stays whole; when they do not fit, the line breaks between them. */
 .entry > .entry-dates {
+  display: flex;
+  flex-wrap: wrap;
   margin-top: var(--space-4);
   font-size: var(--text-sm);
   color: var(--ink-muted);
@@ -641,6 +654,25 @@ dialog[data-layout="entry"] {
 
 .entry-date {
   white-space: nowrap;
+}
+
+/*
+ * The dot between the two dates is drawn, with the same room on each side; its text (" · ") stays for whoever reads
+ * the line aloud or copies it.
+ */
+.entry-dates > .dot-sep {
+  display: flex;
+  align-items: center;
+  font-size: 0;
+}
+
+.entry-dates > .dot-sep::before {
+  width: 3px;
+  height: 3px;
+  margin-inline: 6px;
+  content: "";
+  background: currentColor;
+  border-radius: var(--radius-round);
 }
 
 .entry-status p {

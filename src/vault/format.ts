@@ -10,11 +10,15 @@ export function shown(value: string | null, empty = ""): string {
   return value === "" ? empty : value;
 }
 
-const DATE_FORMAT = new Intl.DateTimeFormat("es-CO", { dateStyle: "medium", timeStyle: "short" });
+const TIME_FORMAT = new Intl.DateTimeFormat("es-CO", { hour: "numeric", minute: "2-digit" });
 
+/**
+ * RF-107: the day and the hour of this computer, to the minute: "2 mar 2026, 9:14 a. m.". The day is written as
+ * `formatDay` writes it (the locale's own medium date is "2/03/2026").
+ */
 export function formatDate(iso: string): string {
   const date = new Date(iso);
-  return Number.isNaN(date.getTime()) ? iso : DATE_FORMAT.format(date);
+  return Number.isNaN(date.getTime()) ? iso : `${formatDay(iso)}, ${TIME_FORMAT.format(date)}`;
 }
 
 const DAY_FORMAT = new Intl.DateTimeFormat("es-CO", { day: "numeric", month: "short", year: "numeric" });

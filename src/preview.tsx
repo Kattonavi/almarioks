@@ -368,7 +368,11 @@ async function stageEntryDialog(container: HTMLElement, backend: FakeBackend) {
       await click("button", "Opciones del generador");
       // The exact length, up to 500: the slider stays at its end and what is in the field is generated again.
       await fill("entry-dialog-password-length-exact", "500");
-      await find(".strength-row", /Fortaleza/);
+      // The new password takes a moment to land: the measures are read once the field has its 500 characters.
+      for (let attempt = 0; attempt < 100; attempt += 1) {
+        if (document.querySelector<HTMLInputElement>("#entry-dialog-password")?.value.length === 500) break;
+        await sleep(30);
+      }
     }
   }
 }
