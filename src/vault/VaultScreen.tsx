@@ -7,6 +7,7 @@ import type { EntrySummary, GroupNode, SearchResult } from "../ipc/schemas";
 import { EntryForm } from "./EntryForm";
 import { EntryPanel } from "./EntryPanel";
 import { findGroup, formatDate, liveEntryCount, plural, shown } from "./format";
+import { GroupActions, type GroupChange } from "./GroupActions";
 
 /** RF-59: wait this long after the last keystroke before asking the core to search. */
 export const SEARCH_DELAY_MS = 150;
@@ -63,6 +64,9 @@ export function VaultScreen({ client }: VaultScreenProps) {
   const [search, setSearch] = useState<SearchState>({ kind: "idle" });
   const searchRef = useRef<HTMLInputElement>(null);
   const detailTitleRef = useRef<HTMLHeadingElement>(null);
+  const groupsTitleRef = useRef<HTMLHeadingElement>(null);
+  /** After a group action removed what had focus, focus goes back to the tree once it is painted. */
+  const focusTree = useRef(false);
   const searchSeq = useRef(0);
   const searchTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const mounted = useRef(false);
@@ -89,7 +93,13 @@ export function VaultScreen({ client }: VaultScreenProps) {
     };
   }, [client, treeAttempt]);
 
-  const selectedExists = tree.kind === "ready" && selectedGroupId !== null && findGroup(tree.root, selectedGroupId);
+  useEffect(() => {
+    if (!focusTree.current) return;
+    focusTree.current = false;
+    groupsTitleRef.current?.focus();
+  }, [tree]);
+
+  const selectedExists =tree.kind === "ready" && selectedGroupId !== null && findGroup(tree.root, selectedGroupId);
   const groupId = tree.kind === "ready" ? (selectedExists ? selectedGroupId : tree.root.id) : null;
 
   useEffect(() => {
@@ -159,6 +169,18 @@ export function VaultScreen({ client }: VaultScreenProps) {
     if (query.trim() !== "") onQueryChange(query);
   }
 
+  /** P7: the core answered with the new tree. */
+  function onGroupChange(change: GroupChange) {
+    setTree({ kind: "ready", root: change.root });
+    setSelectedGroupId(change.select);
+    setListRefresh((value) => value + 1);
+    if (query.trim() !== "") onQueryChange(query);
+    if (change.removed) {
+      setDetail({ kind: "none" });
+      focusTree.current = true;
+    }
+  }
+
   function selectEntry(entry: SelectedEntry) {
     setNotice("");
     setDetail({ kind: "entry", entry });
@@ -196,7 +218,9 @@ export function VaultScreen({ client }: VaultScreenProps) {
 
       <div className="vault-zones">
         <nav aria-labelledby="groups-title" className="vault-zone">
-          <h3 id="groups-title">Grupos</h3>
+          <h3 id="groups-title" ref={groupsTitleRef} tabIndex={-1}>
+            Grupos
+          </h3>
           {renderTree()}
         </nav>
 
@@ -282,8 +306,17 @@ export function VaultScreen({ client }: VaultScreenProps) {
             </button>
           </>
         );
-      case "ready":
-        return <GroupList nodes={[tree.root]} selectedId={groupId} onSelect={selectGroup} />;
+      case "ready": {
+        const group = groupId === null ? undefined : findGroup(tree.root, groupId);
+        return (
+          <>
+            <GroupList nodes={[tree.root]} selectedId={groupId} onSelect={selectGroup} />
+            {group !== undefined && (
+              <GroupActions client={client} root={tree.root} group={group} onChange={onGroupChange} />
+            )}
+          </>
+        );
+      }
       default:
         return assertNever(tree);
     }
