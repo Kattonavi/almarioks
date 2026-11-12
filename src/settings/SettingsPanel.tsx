@@ -5,6 +5,7 @@ import { assertNever } from "../assertNever";
 import type { VaultClient } from "../ipc/client";
 import { errorMessage, type AppError } from "../ipc/errors";
 import { AUTO_LOCK_MINUTES, type AutoLockMinutes } from "../ipc/schemas";
+import { WarningIcon } from "../ui/icons";
 import { UpdatePanel } from "../update/UpdatePanel";
 
 export type SettingsClient = Pick<VaultClient, "settingsGet" | "settingsSet">;
@@ -230,7 +231,7 @@ export function SettingsPanel({ client, readVersion = getVersion }: SettingsPane
               </p>
             )}
             <div className="actions">
-              <button type="submit" disabled={save.kind === "saving"}>
+              <button type="submit" className="btn-primary" disabled={save.kind === "saving"}>
                 Guardar ajustes
               </button>
             </div>
@@ -242,14 +243,17 @@ export function SettingsPanel({ client, readVersion = getVersion }: SettingsPane
 
       <section aria-labelledby="about-title">
         <h3 id="about-title">Acerca de AlmarioKS</h3>
-        <p aria-live="polite">
+        <p aria-live="polite" className="num">
           {version.kind === "loading"
             ? "Leyendo la versión…"
             : version.kind === "ready"
               ? `Versión ${version.version}`
               : "No se pudo leer la versión."}
         </p>
-        <p>Versión de desarrollo: no la uses con tus contraseñas reales.</p>
+        <p className="notice notice-icon">
+          <WarningIcon />
+          Versión de desarrollo: no la uses con tus contraseñas reales.
+        </p>
         <p>
           Software libre con licencia GPL-3.0: puedes usarlo, estudiarlo, compartirlo y modificarlo. Tus bóvedas son
           archivos KDBX que también abren en KeePass 2 y KeePassXC.

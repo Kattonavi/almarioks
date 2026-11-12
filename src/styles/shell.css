@@ -645,3 +645,21 @@
     height: 32px;
   }
 }
+
+/* The lock countdown, when the core reports it: data in the bar, next to the action it announces. */
+.lock-countdown {
+  margin: 0;
+  font-size: var(--text-sm);
+  white-space: nowrap;
+  color: var(--ink-muted);
+}
+
+.lock-countdown .mono {
+  color: var(--ink);
+}
+
+@media (max-width: 719px) {
+  .lock-countdown .label {
+    display: none;
+  }
+}

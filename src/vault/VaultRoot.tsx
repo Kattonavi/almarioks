@@ -17,6 +17,7 @@ import { WelcomeScreen } from "./WelcomeScreen";
 interface OpenInfo {
   readonly weakKdf: boolean;
   readonly savePending: boolean;
+  readonly locksInSeconds: number | undefined;
   readonly generation: number;
 }
 
@@ -27,6 +28,7 @@ function openInfoReducer(
   return {
     weakKdf: action.status.weakKdf,
     savePending: action.status.savePending,
+    locksInSeconds: action.status.locksInSeconds,
     generation: current.generation + (action.remount ? 1 : 0),
   };
 }
@@ -44,7 +46,12 @@ export function VaultRoot({ client }: { readonly client: VaultClient }) {
   const [attempt, setAttempt] = useState(0);
   const epoch = useRef(0);
   /** Flags of the open vault that only its screen needs (RF-17, RF-23); `generation` remounts it after a reload. */
-  const [openInfo, setOpenInfo] = useReducer(openInfoReducer, { weakKdf: false, savePending: false, generation: 0 });
+  const [openInfo, setOpenInfo] = useReducer(openInfoReducer, {
+    weakKdf: false,
+    savePending: false,
+    locksInSeconds: undefined,
+    generation: 0,
+  });
   /** RF-17: the weak-protection notice closed "for this session" (until the app closes), per vault file. */
   const [weakDismissed, setWeakDismissed] = useState<ReadonlySet<string>>(() => new Set());
 
@@ -283,6 +290,7 @@ export function VaultRoot({ client }: { readonly client: VaultClient }) {
             readOnly={current.readOnly}
             weakKdf={openInfo.weakKdf}
             savePending={openInfo.savePending}
+            locksInSeconds={openInfo.locksInSeconds}
             recovery={current.recovery}
             generation={openInfo.generation}
             weakDismissed={weakDismissed.has(path)}

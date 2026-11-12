@@ -7,6 +7,7 @@ import type { Recovery, SaveState, VaultStatus } from "../ipc/schemas";
 import { InfoIcon, LockIcon, WarningIcon } from "../ui/icons";
 import { Dialog } from "./Dialog";
 import { RecoveryNotice } from "./RecoveryNotice";
+import { formatCountdown } from "./format";
 import { fileNameOf, type VaultRef } from "./state";
 import { VaultScreen } from "./VaultScreen";
 
@@ -73,6 +74,8 @@ interface OpenVaultProps {
   readonly weakKdf: boolean;
   /** `save_pending` of the last status: the same notice as a failed save (RF-23). */
   readonly savePending: boolean;
+  /** Seconds until the vault locks by itself, when the status brings them: shown as reported, never guessed. */
+  readonly locksInSeconds?: number | undefined;
   readonly recovery: Recovery | null;
   /** Bumped after a reload so the vault screens drop what they had and ask the core again. */
   readonly generation: number;
@@ -333,6 +336,12 @@ export function OpenVault(props: OpenVaultProps) {
         readOnly={readOnly}
         barEnd={
           <>
+            {props.locksInSeconds !== undefined && (
+              <p className="lock-countdown">
+                <span className="label">Se bloquea en</span>{" "}
+                <span className="mono num">{formatCountdown(props.locksInSeconds)}</span>
+              </p>
+            )}
             <button type="button" className="btn-primary" onClick={props.onLock}>
               <LockIcon />
               Bloquear

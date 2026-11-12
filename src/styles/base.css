@@ -498,3 +498,66 @@ dialog::backdrop {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ---- Settings and About (P8): three short sections under the title of their dialog. ---- */
+dialog:has(.settings) {
+  width: min(var(--content-width), calc(100vw - var(--space-8)));
+}
+
+.settings > section {
+  padding-block: var(--space-5);
+  border-top: 1px solid var(--rule);
+}
+
+.settings > section:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.settings > section:last-child {
+  padding-bottom: 0;
+}
+
+.settings :is(h2, h3) {
+  margin-bottom: var(--space-3);
+  font-size: var(--text-md);
+}
+
+.settings p {
+  font-size: var(--text-sm);
+}
+
+.settings form {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.settings .field {
+  justify-items: start;
+}
+
+.settings select {
+  min-width: 12rem;
+}
+
+.settings input[type="number"] {
+  width: 7rem;
+}
+
+.settings .error:empty,
+.settings [role="status"]:empty {
+  display: none;
+}
+
+.settings .actions {
+  margin-top: 0;
+}
+
+.settings .notice {
+  max-width: 34rem;
+}
+
+.settings .progress-track {
+  max-width: 20rem;
+  margin-bottom: var(--space-3);
+}
