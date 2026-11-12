@@ -890,3 +890,21 @@ describe("P4 Bóveda — buscar y copiar con teclado", () => {
     expect(document.activeElement).not.toBe(within(detailZone()).getByRole("button", { name: "Copiar contraseña" }));
   });
 });
+
+describe("P5 Entrada — ventana mínima", () => {
+  it("RF-42: «Volver a la lista» deselecciona la entrada y devuelve el foco a su fila; editando no se ofrece", async () => {
+    await setup();
+    await openEntry("Trabajo", "GitHub");
+
+    fireEvent.click(within(detailZone()).getByRole("button", { name: "Editar" }));
+    await screen.findByRole("form", { name: "Editar GitHub" });
+    expect(screen.queryByRole("button", { name: "Volver a la lista" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Cancelar" }));
+
+    fireEvent.click(await screen.findByRole("button", { name: "Volver a la lista" }));
+    expect(await screen.findByText("Elige una entrada para ver su detalle.")).toBeDefined();
+    const row = within(screen.getByRole("table")).getByRole("button", { name: "GitHub" });
+    expect(row.getAttribute("aria-current")).toBeNull();
+    expect(document.activeElement).toBe(row);
+  });
+});

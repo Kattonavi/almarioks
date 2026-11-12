@@ -116,6 +116,8 @@ export function VaultScreen({
   /** After a group action removed what had focus, focus goes back to the tree once it is painted. */
   const focusTree = useRef(false);
   const focusDetail = useRef(false);
+  /** After "Volver a la lista": the row of the entry that was open takes the focus once the list is shown again. */
+  const focusRow = useRef<string | null>(null);
   const searchSeq = useRef(0);
   const searchTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const mounted = useRef(false);
@@ -146,6 +148,18 @@ export function VaultScreen({
     if (!focusDetail.current) return;
     focusDetail.current = false;
     detailTitleRef.current?.focus();
+  }, [detail]);
+
+  useEffect(() => {
+    const entryId = focusRow.current;
+    if (entryId === null) return;
+    focusRow.current = null;
+    const index = shownItems().findIndex((item) => item.id === entryId);
+    const row = rowButtons()[index];
+    if (row === undefined) listPaneRef.current?.querySelector<HTMLElement>("#entries-title")?.focus();
+    else row.focus();
+    // shownItems and rowButtons read the state of this same render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [detail]);
 
   useEffect(() => {
@@ -435,6 +449,11 @@ export function VaultScreen({
             readOnly={readOnly}
             saveSignal={saveSignal}
             focusRequest={keyboardOpen?.entryId === detail.entry.id ? keyboardOpen.seq : 0}
+            onBack={() => {
+              focusRow.current = detail.entry.id;
+              setKeyboardOpen(null);
+              setDetail({ kind: "none" });
+            }}
             onChanged={refresh}
             onCopied={(deadline) => {
               setNow(Date.now());

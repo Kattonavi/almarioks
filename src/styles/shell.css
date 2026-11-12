@@ -373,6 +373,11 @@
   margin: 0;
 }
 
+/* Only the smallest window needs a way back from the detail: there the detail replaces the list. */
+.back-to-list {
+  display: none;
+}
+
 /* ---- Work area: notices, then list | detail. ---- */
 .work {
   display: grid;
@@ -622,6 +627,11 @@
 
   .work:not([data-detail="none"]) .list-pane {
     display: none;
+  }
+
+  .back-to-list {
+    display: inline-flex;
+    margin-bottom: var(--space-3);
   }
 
   .work:not([data-detail="none"]) .vault-zones {

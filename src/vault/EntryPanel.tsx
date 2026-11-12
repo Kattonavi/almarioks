@@ -54,6 +54,11 @@ interface EntryPanelProps {
    * contraseña" (or to the title when it has none), so copying is one key away. 0: leave the focus where it is.
    */
   readonly focusRequest?: number;
+  /**
+   * The smallest window shows one zone at a time: this goes back to the list. Offered only while viewing, so an edit
+   * in progress is never dropped by it; the stylesheet shows it only where the list is hidden.
+   */
+  readonly onBack?: () => void;
   /** The entry changed (edited, moved): the lists must be asked again. */
   readonly onChanged: () => void;
   /** The entry left this view (to the recycle bin or for good). */
@@ -107,6 +112,7 @@ export function EntryPanel({
   readOnly = false,
   saveSignal = NO_SAVE_SIGNAL,
   focusRequest = 0,
+  onBack,
   onChanged,
   onDeleted,
   onCopied,
@@ -317,6 +323,11 @@ export function EntryPanel({
 
   return (
     <>
+      {onBack !== undefined && (
+        <button type="button" className="back-to-list" onClick={onBack}>
+          Volver a la lista
+        </button>
+      )}
       <dl className="entry-route" data-line={assignLines(root).get(entry.groupId) ?? "neutral"}>
         <dt className="sr-only">Grupo</dt>
         <dd>
