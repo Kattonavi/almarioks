@@ -422,12 +422,14 @@
  */
 @media (max-height: 760px) {
   .create {
-    padding-block: var(--space-5);
+    padding-block: var(--space-4);
   }
 
+  /* Two steps: with the key-file help or the weak-password notice on two lines, one step still left the last
+     notice under the buttons at 1120 x 720. */
   .create-column,
   .create-form > fieldset {
-    gap: var(--space-4);
+    gap: var(--space-3);
   }
 }
 
