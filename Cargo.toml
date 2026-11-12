@@ -28,6 +28,11 @@ sha2 = "=0.11.1"
 getrandom = "=0.4.3"
 hex = "=0.4.3"
 quick-xml = "=0.42.0"
+# Domain types of the core (T5). uuid and chrono are already in the tree of `keepass` 0.17.0 at these versions;
+# unicode-normalization is new (NFKD to fold text, spec "Definiciones"): (MIT OR Apache-2.0) AND Unicode-3.0.
+uuid = { version = "=1.29.2", default-features = false, features = ["std"] }
+chrono = { version = "=0.4.45", default-features = false, features = ["std"] }
+unicode-normalization = { version = "=0.1.26", default-features = false, features = ["std"] }
 
 [workspace.lints.rust]
 unsafe_code = "forbid"         # only an `ffi` module may lower it, block by block

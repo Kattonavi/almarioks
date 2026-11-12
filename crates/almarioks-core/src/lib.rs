@@ -12,6 +12,7 @@ pub mod search;
 pub mod settings;
 pub mod storage;
 pub mod strength;
+pub mod text;
 pub mod vault;
 
 pub use error::{CoreError, CoreResult};

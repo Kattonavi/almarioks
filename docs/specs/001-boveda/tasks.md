@@ -16,7 +16,7 @@ real) → commit → marcar. Las pruebas citan el RF (`rf_NN_…`, `it("RF-NN: �
       Hecho cuando: `rf_01_*` a `rf_06_*` en verde; la cabecera de la bóveda creada dice Argon2id, ≥ 64 MiB, 2 a 50 iteraciones.
 - [ ] T4. KDBX 3.x en solo lectura y conversión; aviso de KDF débil. (RF-14, RF-15, RF-17)
       Hecho cuando: `rf_14_*`, `rf_15_*`, `rf_17_*` en verde; el original 3.x queda con el mismo SHA-256 tras convertir.
-- [ ] T5. Modelo de lectura: árbol de grupos, lista y detalle con la regla de campo protegido, mostrar un campo. (RF-42 a RF-44, RF-50, RF-93)
+- [x] T5. Modelo de lectura: árbol de grupos, lista y detalle con la regla de campo protegido, mostrar un campo. (RF-42 a RF-44, RF-50, RF-93)
       Hecho cuando: `rf_42_*`, `rf_43_*`, `rf_44_*`, `rf_50_*`, `rf_93_*` en verde, con una fixture de notas protegidas.
 - [ ] T6. Entradas: crear y editar como parche, validaciones, historial. (RF-26, RF-38 a RF-41, RF-45, RF-91)
       Hecho cuando: esas `rf_*` en verde, incluidos los ejemplos 8 y 9.

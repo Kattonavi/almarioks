@@ -18,6 +18,10 @@ sha2.workspace = true
 getrandom.workspace = true
 hex.workspace = true
 quick-xml.workspace = true
+# Own domain types (ids, timestamps) and text folding.
+uuid.workspace = true
+chrono.workspace = true
+unicode-normalization.workspace = true
 
 [lints]
 workspace = true
