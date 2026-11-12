@@ -5,7 +5,7 @@
 
 use almarioks_core::{
     CoreError,
-    generator::{self, PasswordRules},
+    generator::{self, OsRandom, PasswordRules, RandomSource},
     strength,
 };
 use secrecy::{ExposeSecret, SecretString};
@@ -93,15 +93,25 @@ pub async fn password_strength(request: Request<'_>) -> Result<StrengthView, App
 ///
 /// # Errors
 /// `ArgumentoInvalido` if the arguments are malformed; `ReglasImposibles` if no type is chosen or the length is
-/// outside 8 to 128 (RF-68).
+/// outside 8 to 500 (RF-68); `GeneradorNoDisponible` if the system gives no randomness (RF-109).
 #[tauri::command]
 pub async fn generate_password(request: Request<'_>) -> Result<GeneratedView, AppError> {
     let args: GeneratePasswordArgs = parse_args(request.body())?;
     let rules = args.rules()?;
-    blocking(move || {
-        let password = generator::generate_password(&rules)?;
-        let score = strength::password_strength(password.expose_secret());
-        Ok(GeneratedView { password, score })
-    })
-    .await
+    blocking(move || generate_from(&rules, &mut OsRandom)).await
+}
+
+/// What `generate_password` answers, with the random bytes taken from `source`. The command passes only
+/// [`OsRandom`]; the parameter is here so a test can hand in a source that is down (RF-109) or a fixed one.
+///
+/// # Errors
+/// `ReglasImposibles` (RF-68); whatever `source` answers when it fails, and then there is no password in the
+/// answer and no other source is tried (RF-109).
+pub fn generate_from(
+    rules: &PasswordRules,
+    source: &mut impl RandomSource,
+) -> Result<GeneratedView, AppError> {
+    let password = generator::generate_with(rules, source)?;
+    let score = strength::password_strength(password.expose_secret());
+    Ok(GeneratedView { password, score })
 }

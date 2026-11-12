@@ -1,4 +1,4 @@
-//! Password generator (T11, RF-65 to RF-69).
+//! Password generator (T11, RF-65 to RF-69, RF-109).
 //!
 //! Every character comes from a [`RandomSource`] (the operating system's generator in the product, see
 //! [`OsRandom`]) and is drawn with the same probability among the allowed characters: one index over the union of
@@ -8,6 +8,9 @@
 //!
 //! The password is returned as a [`SecretString`], wiped when dropped. Discarded candidates and byte buffers are
 //! wiped too.
+//!
+//! If the source fails, nothing is generated and no other source is tried (RF-109): the error of the source is the
+//! answer, and [`OsRandom`] answers [`CoreError::GeneradorNoDisponible`].
 
 use secrecy::SecretString;
 use zeroize::{Zeroize, Zeroizing};
@@ -17,7 +20,7 @@ use crate::error::{CoreError, CoreResult};
 /// Shortest password the generator makes (RF-65).
 pub const MIN_LENGTH: usize = 8;
 /// Longest password the generator makes (RF-65).
-pub const MAX_LENGTH: usize = 128;
+pub const MAX_LENGTH: usize = 500;
 /// Length when the person does not choose one (RF-65).
 pub const DEFAULT_LENGTH: usize = 20;
 
@@ -41,25 +44,25 @@ pub trait RandomSource {
     /// Fills `buf` with random bytes.
     ///
     /// # Errors
-    /// The source could not provide the bytes.
+    /// The source could not provide the bytes. The generator stops there and answers this same error (RF-109).
     fn fill(&mut self, buf: &mut [u8]) -> CoreResult<()>;
 }
 
-/// The operating system's random generator (`getrandom`).
+/// The operating system's random generator (`getrandom`). If it fails it answers
+/// [`CoreError::GeneradorNoDisponible`] (RF-109); there is no second source behind it.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct OsRandom;
 
 impl RandomSource for OsRandom {
     fn fill(&mut self, buf: &mut [u8]) -> CoreResult<()> {
-        // Same mapping as the key file generator in `kdbx`; the spec has no code for "no randomness available".
-        getrandom::fill(buf).map_err(|_| CoreError::GuardadoFallido)
+        getrandom::fill(buf).map_err(|_| CoreError::GeneradorNoDisponible)
     }
 }
 
 /// What the person asked for (RF-65, RF-67).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PasswordRules {
-    /// Length in characters, 8 to 128.
+    /// Length in characters, 8 to 500.
     pub length: usize,
     /// Include `a-z`.
     pub lowercase: bool,
@@ -110,8 +113,8 @@ impl PasswordRules {
 /// Generates a password with the operating system's random generator.
 ///
 /// # Errors
-/// `ReglasImposibles` if no type is chosen or the length is outside 8 to 128 (RF-68); `GuardadoFallido` if the
-/// system generator fails (decisión pendiente: the spec has no code for it).
+/// `ReglasImposibles` if no type is chosen or the length is outside 8 to 500 (RF-68); `GeneradorNoDisponible` if
+/// the system generator fails (RF-109): nothing is generated and no other source is used.
 pub fn generate_password(rules: &PasswordRules) -> CoreResult<SecretString> {
     generate_with(rules, &mut OsRandom)
 }
@@ -119,8 +122,9 @@ pub fn generate_password(rules: &PasswordRules) -> CoreResult<SecretString> {
 /// Generates a password from an injected source (RF-69).
 ///
 /// # Errors
-/// Same as [`generate_password`]; also if the source keeps failing the "one of each type" check
-/// ([`MAX_ATTEMPTS`] candidates).
+/// `ReglasImposibles` as in [`generate_password`]; the error of `source` as it comes, at its first failure (RF-109);
+/// `GuardadoFallido` if [`MAX_ATTEMPTS`] candidates in a row lack a chosen type, which only a source that is not
+/// random can cause (decisión pendiente: RF-109 names only a source that fails).
 pub fn generate_with(
     rules: &PasswordRules,
     source: &mut impl RandomSource,

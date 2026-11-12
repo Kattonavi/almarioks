@@ -135,7 +135,7 @@ fn spec_rf_65_rf_66_every_subset_of_types_at_both_length_limits() {
     let mut source = Seeded(65);
     for mask in 1_u8..16 {
         let types = [mask & 1 != 0, mask & 2 != 0, mask & 4 != 0, mask & 8 != 0];
-        for length in [8, 128] {
+        for length in [8, 500] {
             for avoid in [false, true] {
                 let r = rules(length, types, avoid);
                 check(
@@ -157,7 +157,7 @@ fn spec_rf_68_no_type_or_length_outside_8_to_128_is_reglas_imposibles() {
         impossible(rules(20, [false; 4], false), &mut source),
         Err(CoreError::ReglasImposibles)
     );
-    for length in [0, 7, 129, usize::MAX] {
+    for length in [0, 7, 501, usize::MAX] {
         assert_eq!(
             impossible(rules(length, [true; 4], false), &mut source),
             Err(CoreError::ReglasImposibles)
