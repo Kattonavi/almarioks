@@ -4,7 +4,7 @@ import { assertNever } from "../assertNever";
 import type { FieldName, VaultClient } from "../ipc/client";
 import { errorMessage, type AppError } from "../ipc/errors";
 import type { EntryDetail, GroupNode } from "../ipc/schemas";
-import { CopyIcon, EditIcon, HideIcon, OpenLinkIcon, ShowIcon } from "../ui/icons";
+import { CloseIcon, CopyIcon, EditIcon, HideIcon, OpenLinkIcon, ShowIcon } from "../ui/icons";
 import { MenuButton, type MenuItem } from "../ui/MenuButton";
 import { Dialog } from "./Dialog";
 import { EntryDialog } from "./EntryDialog";
@@ -68,11 +68,10 @@ interface EntryPanelProps {
    * contraseña" (or to the title when it has none), so copying is one key away. 0: leave the focus where it is.
    */
   readonly focusRequest?: number;
-  /**
-   * The smallest window shows one zone at a time: this goes back to the list. Offered only while viewing, so an edit
-   * in progress is never dropped by it; the stylesheet shows it only where the list is hidden.
-   */
-  readonly onBack?: () => void;
+  /** The id of the title: the window the entry is shown in takes its name from it. */
+  readonly titleId?: string;
+  /** RF-108: the entry is shown in a window: its head closes with a "Cerrar" button, which goes back to the list. */
+  readonly onClose?: () => void;
   /** The entry changed (edited, moved): the lists must be asked again. */
   readonly onChanged: () => void;
   /** The entry left this view (to the recycle bin or for good). */
@@ -104,6 +103,17 @@ const COPIED: ReadonlyMap<string, string> = new Map([
   ["URL", "Dirección copiada"],
   ["Notes", "Notas copiadas"],
 ]);
+
+/**
+ * RF-74: the notice of a copy the core made. `clearsInSeconds` is what the core answered: the seconds until it clears
+ * the clipboard (a protected field), or `null` when nothing clears it.
+ */
+export function copyNoticeOf(field: FieldName, clearsInSeconds: number | null): CopyNotice {
+  return {
+    what: COPIED.get(field) ?? `«${field}» copiado`,
+    deadline: clearsInSeconds === null ? null : Date.now() + clearsInSeconds * 1000,
+  };
+}
 
 /** The fields with a row of their own in the card: a protected one outside this list gets a row after them. */
 const OWN_ROW: readonly string[] = ["UserName", "Password", "URL", "Notes"];
@@ -265,7 +275,8 @@ export function EntryPanel({
   readOnly = false,
   saveSignal = NO_SAVE_SIGNAL,
   focusRequest = 0,
-  onBack,
+  titleId,
+  onClose,
   onChanged,
   onDeleted,
   onCopied,
@@ -369,11 +380,7 @@ export function EntryPanel({
     }
     // Told here, not from an effect: this panel goes away with its entry, and the notice must stay. The core says
     // whether the clipboard clears by itself (a protected field) and in how long.
-    const seconds = result.value.clearsInSeconds;
-    onCopied?.({
-      what: COPIED.get(field) ?? `«${field}» copiado`,
-      deadline: seconds === null ? null : Date.now() + seconds * 1000,
-    });
+    onCopied?.(copyNoticeOf(field, result.value.clearsInSeconds));
   }
 
   async function openUrl() {
@@ -401,10 +408,24 @@ export function EntryPanel({
     );
   }
 
+  /** RF-108: the way out of the window, in its head whatever the entry is doing (loading, failed or shown). */
+  const closeButton = onClose !== undefined && (
+    <button type="button" className="entry-close" aria-label="Cerrar" title="Cerrar" onClick={onClose}>
+      <CloseIcon />
+    </button>
+  );
+
   if (load.kind !== "ready") {
     return (
       <div className="entry">
-        <h4 className="entry-title">{shown(listTitle, "(sin título)")}</h4>
+        <header className="entry-head">
+          <div className="entry-heading">
+            <h4 id={titleId} className="entry-title">
+              {shown(listTitle, "(sin título)")}
+            </h4>
+          </div>
+          {onClose !== undefined && <div className="entry-head-actions">{closeButton}</div>}
+        </header>
         {load.kind === "loading" ? (
           <p role="status">Cargando la entrada…</p>
         ) : (
@@ -490,11 +511,6 @@ export function EntryPanel({
 
   return (
     <div className="entry">
-      {onBack !== undefined && (
-        <button type="button" className="back-to-list" onClick={onBack}>
-          Volver a la lista
-        </button>
-      )}
       <header className="entry-head">
         {/* The same circle as its row in the list, larger. Drawn by CSS from `data-initial`: it adds no text. */}
         <span
@@ -504,7 +520,7 @@ export function EntryPanel({
           aria-hidden="true"
         />
         <div className="entry-heading">
-          <h4 ref={entryTitleRef} tabIndex={-1} className="entry-title">
+          <h4 id={titleId} ref={entryTitleRef} tabIndex={-1} className="entry-title">
             {shown(entry.title, "(sin título)")}
           </h4>
           <p className="entry-group" title={trail.join(" › ")}>
@@ -512,29 +528,34 @@ export function EntryPanel({
             <span className="group-dot" data-line={line} aria-hidden="true" /> {trail.at(-1) ?? ""}
           </p>
         </div>
-        {!readOnly && (
+        {(!readOnly || onClose !== undefined) && (
           <div className="entry-head-actions">
-            <button
-              ref={editRef}
-              type="button"
-              onClick={() => {
-                hideAll();
-                say("");
-                setActionError(null);
-                setEditing(true);
-              }}
-            >
-              <EditIcon />
-              Editar
-            </button>
-            <MenuButton
-              label="Más acciones de la entrada"
-              menuLabel="Acciones de la entrada"
-              items={orders}
-              onChoose={onOrder}
-              className="entry-menu"
-              buttonClassName="entry-more"
-            />
+            {!readOnly && (
+              <>
+                <button
+                  ref={editRef}
+                  type="button"
+                  onClick={() => {
+                    hideAll();
+                    say("");
+                    setActionError(null);
+                    setEditing(true);
+                  }}
+                >
+                  <EditIcon />
+                  Editar
+                </button>
+                <MenuButton
+                  label="Más acciones de la entrada"
+                  menuLabel="Acciones de la entrada"
+                  items={orders}
+                  onChoose={onOrder}
+                  className="entry-menu"
+                  buttonClassName="entry-more"
+                />
+              </>
+            )}
+            {closeButton}
           </div>
         )}
       </header>

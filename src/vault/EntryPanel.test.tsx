@@ -64,7 +64,12 @@ async function setup(options: FakeOptions = {}) {
   return { backend, container: view.container };
 }
 
-const detailZone = () => screen.getByRole("region", { name: "Detalle" });
+/** RF-43: the window of the entry, the modal dialog its panel is shown in. */
+function detailZone(): HTMLElement {
+  const entryWindow = document.querySelector<HTMLElement>('dialog[data-layout="entry"]');
+  if (entryWindow === null) throw new Error("the window of the entry is not open");
+  return entryWindow;
+}
 const lastArgs = (backend: { calls: readonly { command: string; args: unknown }[] }, command: string) =>
   backend.calls.filter((call) => call.command === command).at(-1)?.args;
 
@@ -76,10 +81,23 @@ async function openGroup(name: string) {
   });
 }
 
+/** RF-106: chooses the row of that entry (a click) and opens its window (a double click on its title). */
+async function openRow(title: string) {
+  const row = within(screen.getByRole("table")).getByRole("button", { name: title });
+  fireEvent.click(row);
+  fireEvent.doubleClick(row);
+  await within(detailZone()).findByRole("heading", { name: title });
+}
+
 async function openEntry(group: string, title: string) {
   await openGroup(group);
-  fireEvent.click(within(screen.getByRole("table")).getByRole("button", { name: title }));
+  await openRow(title);
   await within(detailZone()).findByRole("button", { name: "Editar" });
+}
+
+/** RF-108: "Cerrar" in the head of the window. Behind a modal window the list is out of reach, so it goes first. */
+function closeWindow() {
+  fireEvent.click(within(detailZone()).getByRole("button", { name: "Cerrar" }));
 }
 
 const moreButton = () => within(detailZone()).getByRole("button", { name: "Más acciones de la entrada" });
@@ -97,8 +115,9 @@ function rowOf(label: string): HTMLElement {
   return row;
 }
 
-/** The copy notice at the foot of the detail zone: the one live region that speaks of a copy. */
-const copyNotice = () => detailZone().querySelector('.toast-zone[role="status"]')?.textContent ?? "";
+/** The copy notice: said in the window of the entry while it is open, and at the foot of the list when it is not. */
+const copyNotice = () =>
+  [...document.querySelectorAll('.toast-zone[role="status"]')].map((zone) => zone.textContent).join("");
 
 async function startNewEntry(group = "Personal") {
   await openGroup(group);
@@ -185,7 +204,10 @@ describe("P5 Entrada — ver, mostrar y copiar", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Mostrar contraseña" }));
     expect(await screen.findByText(PASSWORD)).toBeDefined();
-    fireEvent.click(within(screen.getByRole("table")).getByRole("button", { name: "VPN" }));
+    // RF-108: closing the window hides what was shown, and so does opening another entry.
+    closeWindow();
+    expect(bodyContains(PASSWORD)).toBe(false);
+    await openRow("VPN");
     await within(detailZone()).findByRole("button", { name: "Editar" });
     expect(bodyContains(PASSWORD)).toBe(false);
   });
@@ -350,10 +372,12 @@ describe("P5 Entrada — crear y editar", () => {
       notes: "personal",
       tags: ["correo", "hogar"],
     });
-    expect(await within(detailZone()).findByRole("heading", { name: "Correo" })).toBeDefined();
+    // The new entry is the chosen row of the list; its window does not open by itself (RF-106).
     await waitFor(() => {
-      expect(within(screen.getByRole("table")).getByRole("button", { name: "Correo" })).toBeDefined();
+      const row = within(screen.getByRole("table")).getByRole("button", { name: "Correo" });
+      expect(row.getAttribute("aria-current")).toBe("true");
     });
+    expect(screen.queryByRole("dialog")).toBeNull();
     expect(bodyContains("clave larga 123")).toBe(false);
   });
 
@@ -422,7 +446,11 @@ describe("P5 Entrada — crear y editar", () => {
     });
     const created = backend.calls.filter((call) => call.command === "entry_create").at(-1);
     expect(created?.args?.title).toBe("  Banco  ");
-    expect(await within(detailZone()).findByRole("heading", { name: "Banco" })).toBeDefined();
+    // The core trims it: the new entry is the chosen row of the list, with the title as the core left it.
+    await waitFor(() => {
+      const rows = within(screen.getByRole("table")).getAllByRole("button", { name: "Banco" });
+      expect(rows.filter((row) => row.getAttribute("aria-current") === "true")).toHaveLength(1);
+    });
   });
 
   it("RF-91: una etiqueta con ; o , se rechaza junto al campo sin llamar al núcleo", async () => {
@@ -558,7 +586,8 @@ describe("P5 Entrada — mover y borrar", () => {
     expect(options).not.toContain("Cuentas › Trabajo");
     expect(options.some((label) => label.includes("Papelera"))).toBe(false);
     fireEvent.click(within(dialog).getByRole("button", { name: "Cancelar" }));
-    expect(screen.queryByRole("dialog")).toBeNull();
+    // Only the window of the entry is left, and the focus is back inside it.
+    expect(screen.getAllByRole("dialog")).toEqual([detailZone()]);
     expect(document.activeElement).toBe(opener);
 
     chooseOrder("Mover a otro grupo…");
@@ -583,8 +612,9 @@ describe("P5 Entrada — mover y borrar", () => {
     expect(await screen.findByText(/«GitHub» se movió a la papelera/)).toBeDefined();
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(backend.entry("entry-github")?.groupId).toBe("group-bin");
+    // The window went with its entry: the focus goes to the title of the list.
     await waitFor(() => {
-      expect(document.activeElement).toBe(screen.getByRole("heading", { name: "Detalle" }));
+      expect(document.activeElement).toBe(screen.getByRole("heading", { name: "Entradas de Trabajo" }));
     });
     expect(await screen.findByRole("button", { name: "Papelera de reciclaje (papelera) · 2 entradas" })).toBeDefined();
   });
@@ -614,14 +644,16 @@ describe("P5 Entrada — mover y borrar", () => {
 
     chooseOrder("Borrar definitivamente…");
     fireEvent.click(
-      within(await screen.findByRole("dialog")).getByRole("button", { name: "Borrar definitivamente" }),
+      within(
+        await screen.findByRole("dialog", { name: "Borrar «Canción borrada» de forma definitiva" }),
+      ).getByRole("button", { name: "Borrar definitivamente" }),
     );
 
     expect(await screen.findByText("Se borró «Canción borrada» de forma definitiva.")).toBeDefined();
     expect(backend.entry("entry-old")).toBeUndefined();
     expect(screen.queryByRole("dialog")).toBeNull();
     await waitFor(() => {
-      expect(document.activeElement).toBe(screen.getByRole("heading", { name: "Detalle" }));
+      expect(document.activeElement).toBe(screen.getByRole("heading", { name: "Entradas de Papelera de reciclaje" }));
     });
     expect(await screen.findByText("La papelera está vacía.")).toBeDefined();
   });
@@ -790,22 +822,24 @@ describe("P5 Entrada — el aviso de copiado", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Copiar contraseña" }));
     await screen.findByText("Contraseña copiada. Se borra del portapapeles en 20 s");
-    fireEvent.click(within(screen.getByRole("table")).getByRole("button", { name: "VPN" }));
-    await within(detailZone()).findByRole("heading", { name: "VPN" });
+    // With the window closed the notice goes on at the foot of the list.
+    closeWindow();
+    expect(copyNotice()).toBe("Contraseña copiada. Se borra del portapapeles en 20 s");
+    await openRow("VPN");
     await act(() => vi.advanceTimersByTimeAsync(3_000));
     expect(copyNotice()).toBe("Contraseña copiada. Se borra del portapapeles en 17 s");
 
     // Once the time is over it says so, and choosing another entry takes that away.
     await act(() => vi.advanceTimersByTimeAsync(17_000));
     expect(copyNotice()).toMatch(/limpió el portapapeles/);
-    fireEvent.click(within(screen.getByRole("table")).getByRole("button", { name: "GitHub" }));
-    await within(detailZone()).findByRole("heading", { name: "GitHub" });
+    closeWindow();
+    await openRow("GitHub");
     expect(copyNotice()).toBe("");
 
     fireEvent.click(await screen.findByRole("button", { name: "Copiar usuario" }));
     await screen.findByText("Usuario copiado");
-    fireEvent.click(within(screen.getByRole("table")).getByRole("button", { name: "VPN" }));
-    await within(detailZone()).findByRole("heading", { name: "VPN" });
+    closeWindow();
+    await openRow("VPN");
     expect(copyNotice()).toBe("");
   });
 });
@@ -912,7 +946,8 @@ describe("P5 Entrada — cabecera y menú de la entrada", () => {
     expect(more.getAttribute("aria-expanded")).toBe("false");
 
     fireEvent.click(more);
-    expect(screen.getByRole("menu")).toBeDefined();
+    // The menu is inside the modal window, or it would be inert behind it.
+    expect(detailZone().contains(screen.getByRole("menu"))).toBe(true);
     fireEvent.pointerDown(document.body);
     expect(screen.queryByRole("menu")).toBeNull();
 
@@ -922,7 +957,8 @@ describe("P5 Entrada — cabecera y menú de la entrada", () => {
     expect(screen.queryByRole("menu")).toBeNull();
     expect(backend.count("entry_move")).toBe(0);
     expect(backend.count("entry_delete")).toBe(0);
-    expect(screen.queryByRole("dialog")).toBeNull();
+    // No dialog of an order opened: only the window of the entry is there.
+    expect(screen.getAllByRole("dialog")).toEqual([detailZone()]);
   });
 
   it("RF-47: elegir «Enviar a la papelera…» en el menú lo cierra y actúa de una vez, sin diálogo", async () => {
@@ -932,9 +968,13 @@ describe("P5 Entrada — cabecera y menú de la entrada", () => {
     chooseOrder("Enviar a la papelera…");
 
     expect(screen.queryByRole("menu")).toBeNull();
-    expect(screen.queryByRole("dialog")).toBeNull();
+    // No dialog asks first: only the window of the entry is there, and it closes once the entry is in the bin.
+    expect(screen.getAllByRole("dialog")).toEqual([detailZone()]);
     await waitFor(() => {
       expect(backend.entry("entry-github")?.groupId).toBe("group-bin");
+    });
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog")).toBeNull();
     });
   });
 
@@ -1071,8 +1111,8 @@ describe("P4 Bóveda — buscar y copiar con teclado", () => {
   const search = () => screen.getByRole("searchbox", { name: "Buscar en la bóveda" });
   const rows = () => within(screen.getByRole("table")).getAllByRole("button");
 
-  it("RF-59: Enter en la búsqueda abre el primer resultado y deja «Copiar contraseña» con el foco", async () => {
-    await setup();
+  it("RF-59: Ctrl+K, escribir y Enter elige el primer resultado y deja el foco en su «Copiar contraseña»; otro Enter copia", async () => {
+    const { backend } = await setup();
     // The shortcut listener is attached in an effect: press again until it is there (focusing twice is harmless).
     await waitFor(() => {
       fireEvent.keyDown(window, { key: "k", ctrlKey: true });
@@ -1082,11 +1122,21 @@ describe("P4 Bóveda — buscar y copiar con teclado", () => {
     // Enter right after typing, while the search is still on its way: it opens the first result when it lands.
     fireEvent.keyDown(search(), { key: "Enter" });
 
-    const copy = await within(detailZone()).findByRole("button", { name: "Copiar contraseña" });
+    const copy = await screen.findByRole("button", { name: "Copiar contraseña de GitHub" });
     await waitFor(() => {
       expect(document.activeElement).toBe(copy);
     });
-    expect(within(detailZone()).getByRole("heading", { name: "GitHub" })).toBeDefined();
+    // The first result is the chosen row, and its window does not open by itself.
+    const row = within(screen.getByRole("table")).getByRole("button", { name: "GitHub" });
+    expect(row.getAttribute("aria-current")).toBe("true");
+    expect(row.closest("tr")?.contains(copy)).toBe(true);
+    expect(screen.queryByRole("dialog")).toBeNull();
+
+    // Enter on a button is its click: the core copies, and the list says so with the countdown.
+    fireEvent.click(copy);
+    expect(await screen.findByText("Contraseña copiada. Se borra del portapapeles en 20 s")).toBeDefined();
+    expect(lastArgs(backend, "entry_copy")).toEqual({ id: "entry-github", field: "Password" });
+    expect(bodyContains(PASSWORD)).toBe(false);
   });
 
   it("RF-59: flecha abajo va a la lista, las flechas recorren las filas, Enter abre y Escape vuelve", async () => {
@@ -1120,27 +1170,29 @@ describe("P4 Bóveda — buscar y copiar con teclado", () => {
 });
 
 describe("P5 Entrada — ventana mínima", () => {
-  it("RF-42: «Volver a la lista» deselecciona la entrada y devuelve el foco a su fila; editando queda detrás del diálogo", async () => {
+  it("RF-108: «Cerrar» vuelve a la lista con la fila elegida y el foco en ella; al editar, el formulario queda sobre la ventana y cancelar vuelve a ella", async () => {
     await setup();
     await openEntry("Trabajo", "GitHub");
 
     fireEvent.click(within(detailZone()).getByRole("button", { name: "Editar" }));
     const editing = await screen.findByRole<HTMLDialogElement>("dialog", { name: "Editar entrada" });
-    // The edit is a modal dialog: the way back to the list is behind it, never inside it.
+    // The edit is a modal dialog over the window: cancelling it goes back to the window of the entry.
     expect(editing.open).toBe(true);
-    expect(within(editing).queryByRole("button", { name: "Volver a la lista" })).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "Cancelar" }));
+    fireEvent.click(within(editing).getByRole("button", { name: "Cancelar" }));
+    expect(screen.queryByRole("dialog", { name: "Editar entrada" })).toBeNull();
+    expect(within(detailZone()).getByRole("heading", { name: "GitHub" })).toBeDefined();
 
-    fireEvent.click(await screen.findByRole("button", { name: "Volver a la lista" }));
-    expect(await screen.findByText("Elige una entrada para ver su detalle.")).toBeDefined();
+    closeWindow();
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(screen.queryByText("Elige una entrada para ver su detalle.")).toBeNull();
     const row = within(screen.getByRole("table")).getByRole("button", { name: "GitHub" });
-    expect(row.getAttribute("aria-current")).toBeNull();
+    expect(row.getAttribute("aria-current")).toBe("true");
     expect(document.activeElement).toBe(row);
   });
 });
 
 describe("P5 Entrada — el diálogo sobre la bóveda", () => {
-  it("RF-100: «Nueva entrada» y «Editar» abren un diálogo sobre la bóveda: la lista y el detalle quedan detrás y el panel no muestra formularios", async () => {
+  it("RF-100: «Nueva entrada» y «Editar» abren un diálogo sobre la bóveda: la lista y la ventana de la entrada quedan detrás y el panel no muestra formularios", async () => {
     await setup();
     await openEntry("Trabajo", "GitHub");
 
@@ -1148,26 +1200,33 @@ describe("P5 Entrada — el diálogo sobre la bóveda", () => {
       ["Nueva entrada", "Nueva entrada"],
       ["Editar", "Editar entrada"],
     ] as const) {
+      // "Nueva entrada" is in the list, which a modal window leaves out of reach: the window closes first.
+      if (button === "Nueva entrada") closeWindow();
+      else await openRow("GitHub");
       fireEvent.click(screen.getByRole("button", { name: button }));
       const dialog = await screen.findByRole<HTMLDialogElement>("dialog", { name });
       expect(dialog.open).toBe(true);
       expect(within(dialog).getByText("En el grupo Trabajo")).toBeDefined();
       expect(document.activeElement).toBe(within(dialog).getByLabelText("Título"));
-      // Behind it, as they were: the chosen row and its detail.
+      // Behind it, as they were: the chosen row and, when editing, the window of its entry.
       const row = within(screen.getByRole("table")).getByRole("button", { name: "GitHub" });
       expect(row.getAttribute("aria-current")).toBe("true");
-      expect(within(detailZone()).getByRole("heading", { name: "GitHub" })).toBeDefined();
-      expect(within(detailZone()).getByRole("button", { name: "Copiar contraseña" })).toBeDefined();
-      expect([...detailZone().querySelectorAll("form")].every((form) => form.closest("dialog") !== null)).toBe(true);
+      if (button === "Editar") {
+        expect(within(detailZone()).getByRole("heading", { name: "GitHub" })).toBeDefined();
+        expect(within(detailZone()).getByRole("button", { name: "Copiar contraseña" })).toBeDefined();
+        const forms = [...detailZone().querySelectorAll("form")];
+        expect(forms.every((form) => form.closest("dialog") === dialog)).toBe(true);
+      }
 
       fireEvent.click(within(dialog).getByRole("button", { name: "Cancelar" }));
-      expect(screen.queryByRole("dialog")).toBeNull();
+      expect(screen.queryByRole("dialog", { name })).toBeNull();
     }
   });
 
-  it("RF-100: al guardar una entrada nueva el diálogo se cierra y la entrada queda elegida, con su detalle a la vista y el foco en él", async () => {
+  it("RF-100: al guardar una entrada nueva el diálogo se cierra y la entrada queda elegida en la lista, con el foco en su «Copiar contraseña»; la ventana no se abre sola", async () => {
     const { backend } = await setup();
     await openEntry("Trabajo", "GitHub");
+    closeWindow();
     fireEvent.click(screen.getByRole("button", { name: "Nueva entrada" }));
     const dialog = await screen.findByRole("dialog", { name: "Nueva entrada" });
     fireEvent.change(within(dialog).getByLabelText("Título"), { target: { value: "Gitea" } });
@@ -1175,17 +1234,17 @@ describe("P5 Entrada — el diálogo sobre la bóveda", () => {
 
     fireEvent.click(within(dialog).getByRole("button", { name: "Guardar entrada" }));
 
-    expect(await within(detailZone()).findByRole("heading", { name: "Gitea" })).toBeDefined();
-    expect(screen.queryByRole("dialog")).toBeNull();
     await waitFor(() => {
       const row = within(screen.getByRole("table")).getByRole("button", { name: "Gitea" });
       expect(row.getAttribute("aria-current")).toBe("true");
     });
+    // RF-106: the new entry is chosen in the list; its window does not open by itself.
+    expect(screen.queryByRole("dialog")).toBeNull();
     expect(within(screen.getByRole("table")).getByRole("button", { name: "GitHub" }).getAttribute("aria-current")).toBeNull();
     expect(lastArgs(backend, "entry_create")).toMatchObject({ group_id: "group-work", title: "Gitea" });
     expect(screen.getByText("Entrada creada. Guardándola en el archivo…")).toBeDefined();
     await waitFor(() => {
-      expect(document.activeElement).toBe(within(detailZone()).getByRole("button", { name: "Copiar contraseña" }));
+      expect(document.activeElement).toBe(screen.getByRole("button", { name: "Copiar contraseña de Gitea" }));
     });
     expect(bodyContains("clave-de-gitea")).toBe(false);
   });
@@ -1199,8 +1258,9 @@ describe("P5 Entrada — el diálogo sobre la bóveda", () => {
 
     fireEvent.click(within(dialog).getByRole("button", { name: "Guardar entrada" }));
 
+    // RF-108: saving goes back to the window of the entry, with the new data.
     expect(await within(detailZone()).findByRole("heading", { name: "GitHub del equipo" })).toBeDefined();
-    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(screen.getAllByRole("dialog")).toEqual([detailZone()]);
     expect(document.activeElement).toBe(within(detailZone()).getByRole("button", { name: "Editar" }));
     await waitFor(() => {
       const row = within(screen.getByRole("table")).getByRole("button", { name: "GitHub del equipo" });

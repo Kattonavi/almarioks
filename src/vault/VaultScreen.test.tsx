@@ -36,7 +36,8 @@ function entriesTable() {
 
 function rowTitles(): string[] {
   const rows = within(entriesTable()).getAllByRole("row").slice(1);
-  return rows.map((row) => within(row).getByRole("button").textContent);
+  // The title button of each row: the chosen row has two more buttons, at its end.
+  return rows.map((row) => within(within(row).getByRole("rowheader")).getByRole("button").textContent);
 }
 
 async function openGroup(name: string) {
@@ -84,8 +85,10 @@ describe("P4 Bóveda", () => {
     const song = within(entriesTable()).getByRole("button", { name: "Canción favorita" }).closest("tr");
     if (song === null) throw new Error("missing row");
     expect(within(song).getByText("ana")).toBeDefined();
-    // The row shows the site without `https://`; the whole address stays in its `title`.
-    expect(within(song).getByText("musica.example").getAttribute("title")).toBe("https://musica.example");
+    // The row shows the site without `https://`; the `title` of its cell is the help of the double click (RF-106).
+    expect(within(song).getByText("musica.example").closest("td")?.getAttribute("title")).toBe(
+      "Doble clic para abrir el sitio en el navegador",
+    );
     expect(within(song).getByText("música")).toBeDefined();
     expect(song.querySelector("time")?.getAttribute("datetime")).toBe("2026-11-02T09:30:00Z");
     expect(screen.getByText("3 entradas")).toBeDefined();
@@ -105,17 +108,21 @@ describe("P4 Bóveda", () => {
     expect(within(vpn).getByText("(protegido)")).toBeDefined();
   });
 
-  it("RF-42: elegir una entrada la muestra en el panel de detalle", async () => {
+  it("RF-42: RF-43: abrir una entrada la muestra en su ventana y su fila queda elegida", async () => {
     await setup();
     await openGroup("Trabajo");
 
     const github = within(entriesTable()).getByRole("button", { name: "GitHub" });
     fireEvent.click(github);
+    fireEvent.doubleClick(github);
 
-    const detail = screen.getByRole("region", { name: "Detalle" });
+    const detail = await screen.findByRole("dialog", { name: "GitHub" });
     expect(await within(detail).findByRole("heading", { name: "GitHub" })).toBeDefined();
     expect(await within(detail).findByRole("button", { name: "Editar" })).toBeDefined();
     expect(github.getAttribute("aria-current")).toBe("true");
+    // RF-42: two columns. The detail zone and its invitation are gone.
+    expect(screen.queryByRole("region", { name: "Detalle" })).toBeNull();
+    expect(screen.queryByText("Elige una entrada para ver su detalle.")).toBeNull();
   });
 
   it("RF-50: carga — mientras llegan los grupos lo dice", async () => {
@@ -318,6 +325,9 @@ describe("P4 Bóveda", () => {
     fireEvent.click(group);
     await screen.findByRole("button", { name: payloads.title });
     fireEvent.click(screen.getByRole("button", { name: payloads.title }));
+    // The window of the entry too: a double click on the title opens it.
+    fireEvent.doubleClick(screen.getByRole("button", { name: payloads.title }));
+    await screen.findByRole("dialog", { name: payloads.title });
 
     function expectLiteral() {
       for (const text of [payloads.title, payloads.username, payloads.url, payloads.tag]) {
@@ -421,7 +431,7 @@ describe("P4 Bóveda — la fila de una entrada", () => {
     expect(drawn.get("9 de julio")).toBe("9:1");
   });
 
-  it("RF-42: la segunda línea es «usuario · sitio», el sitio sin https://; si falta uno queda solo el otro", async () => {
+  it("RF-42: usuario y sitio van cada uno en su columna, el sitio sin https://; si falta uno, su celda lleva una raya", async () => {
     await setup({
       groups: SAMPLE_GROUPS,
       entries: [
@@ -438,12 +448,15 @@ describe("P4 Bóveda — la fila de una entrada", () => {
     };
     expect(cells("Ambos")).toEqual(["ana", "uno.example/entrar"]);
     // Only `https://` is dropped: a site without encryption keeps its scheme in sight.
-    expect(cells("Solo sitio")).toEqual(["", "http://dos.example"]);
-    // An empty cell draws nothing, so the separator (CSS, between two cells that are not empty) does not show.
-    expect(cells("Solo usuario")).toEqual(["ana.g", ""]);
+    expect(cells("Solo sitio")).toEqual(["—", "http://dos.example"]);
+    // A cell without data draws a dash, and has no help: a double click on it does nothing (RF-106).
+    expect(cells("Solo usuario")).toEqual(["ana.g", "—"]);
+    const row = within(entriesTable()).getByRole("button", { name: "Solo usuario" }).closest("tr");
+    expect(row?.querySelector(".cell-url")?.hasAttribute("data-empty")).toBe(true);
+    expect(row?.querySelector(".cell-url")?.hasAttribute("title")).toBe(false);
   });
 
-  it("RF-42: la fecha de la fila es corta, sin año cuando es el actual, y la completa queda en su `title`", async () => {
+  it("RF-42: la fecha de la fila es corta, sin año cuando es el actual, y su `title` es la ayuda del doble clic", async () => {
     const year = new Date().getFullYear();
     await setup({
       groups: SAMPLE_GROUPS,
@@ -458,7 +471,9 @@ describe("P4 Bóveda — la fila de una entrada", () => {
       within(entriesTable()).getByRole("button", { name: title }).closest("tr")?.querySelector("time");
     expect(day("Este año")?.textContent).toBe("8 jun");
     expect(day("Otro año")?.textContent).toBe(`8 jun ${String(year - 1)}`);
-    expect(day("Este año")?.getAttribute("title")).toContain(String(year));
+    // The whole date, with the hour, is in the window of the entry; here the cell says what a double click does.
+    expect(day("Este año")?.getAttribute("datetime")).toBe(`${String(year)}-06-08T15:00:00Z`);
+    expect(day("Este año")?.closest("td")?.getAttribute("title")).toBe("Doble clic para abrir la entrada");
   });
 
   it("RF-59: al buscar la cabecera dice «Resultados» y sigue ofreciendo «Nueva entrada», que va al grupo que estaba abierto", async () => {
