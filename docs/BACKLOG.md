@@ -24,3 +24,20 @@ Lo que no cabe en la fase va aquí, un renglón por ítem: `- [origen] qué · s
 - [0.1, lab] `zxcvbn` da 4 de 4 a contraseñas de 11 caracteres con sustituciones conocidas: el aviso de contraseña maestra débil (< 3) casi nunca salta. Decide el dueño si se sube el umbral · Medio
 - [0.1] KDBX 4.0 sin fixture propia: todas las de prueba son 4.1 · Bajo
 - [0.1, RF-37] Bloqueo inmediato al bloquear la sesión de Windows: recortable no hecho; el bloqueo por tiempo real sí cubre la suspensión · Medio
+- [revisión 0.1, S-2] Contención tras un XSS: límite por minuto a `entry_reveal`, aceptar rutas solo si las devolvió un diálogo `pick_*` o están en recientes (y rechazar rutas UNC fuera de ese conjunto), confirmación nativa con el host antes de `entry_open_url`. Hoy no hay sumidero de XSS conocido · Medio: primer día de la 0.2, cuando entren datos de páginas web
+- [revisión 0.1, S-4] Las rutas llegan como texto: oráculo de existencia y de formato de archivos, y `P.tmp`/`P.bak` ajenos pueden pisarse al guardar junto a una ruta elegida por un script · Bajo: lo cierra el punto de rutas de S-2
+- [revisión 0.1, S-5] Carrera de microsegundos en el portapapeles: una copia que responde justo al vencer la espera queda sin plazo de limpieza · Bajo
+- [revisión 0.1, S-6] La prueba del canario solo escucha los dos eventos conocidos: contar los `emit(` de `src-tauri/src` o registrar todo lo emitido · Bajo
+- [revisión 0.1, S-7] `password_strength` no acota la longitud antes de `zxcvbn`: puntuar solo los primeros 256 caracteres · Bajo
+- [revisión 0.1, S-8] La construcción de la llave (lector de archivos llave de la librería) corre fuera del cierre protegido: un pánico ahí dejaría la sesión en `Deriving` · Bajo
+- [revisión 0.1, S-9] Nada vigila el hilo del latido del bloqueo por inactividad: `catch_unwind` alrededor de cada evaluación · Bajo
+- [revisión 0.1, I-1 a I-7] La cota de ~1 s por derivación vale solo para bóvedas creadas aquí; medir lo que queda en memoria sin borrar (cuerpos JSON de las peticiones) en la 1.0; excluir la app de WER y gancho de pánico propio; compilar `clipboard::ffi::probe` solo en pruebas; decir en la ayuda que un gestor de portapapeles que reescriba el contenido lo vuelve ajeno · Info
+- [spec 001] Patrón Isolation de Tauri (en Windows su app no carga módulos ES: evaluar de nuevo en la 1.0) y fuzzing de la cabecera KDBX con `cargo fuzz` (E3-4, 1.0) · Medio
+- [revisión 0.1, I-7] Sin verificar: si el menú contextual y las teclas de navegador de WebView2 (recargar, imprimir, guardar página) quedan activos en release · Medio: mirar en la ventana de release
+- [revisión 0.1, M-2] Si un cambio de grupo se guarda lo decide la app comparando el árbol antes y después: un cambio futuro que no se vea en el árbol quedaría sin guardar · Medio: que el núcleo devuelva si cambió
+- [revisión 0.1, M-3] La regla de qué campo es protegido al copiar vive en la capa Tauri y no en el núcleo: moverla antes del anfitrión nativo de la 0.2 · Medio
+- [revisión 0.1, M-4] El núcleo falso de las pruebas de interfaz (`src/ipc/fake.ts`) puede divergir del real: una prueba de contrato que compare formas · Medio
+- [revisión 0.1, M-6] Dos pruebas de interfaz intermitentes bajo carga (RF-29 en `VaultRoot.test.tsx`, RF-23 en `OpenVault.test.tsx`): aserciones síncronas que no esperan al efecto · Medio
+- [QA 0.1] Arranque en frío con perfil nuevo de WebView2: 7 a 8 s la primera vez (130 a 190 ms las siguientes); sin medir en release · Medio
+- [QA 0.1] `ArchivoExiste` no dice si el archivo que ya existe es la bóveda o el archivo llave · Bajo
+- [diseño 0.1] Densidad compacta sin control ni verificación visual; fortaleza no visible en el detalle (el núcleo no la da sin revelar); fechas relativas; verde de confirmación y verde de línea comparten matiz · Bajo
