@@ -4,8 +4,10 @@
  *
  *   ?tema=oscuro|claro      forces a theme (dark is the same file production loads by media query)
  *   ?estado=…               the screen and state to show (default: copiado):
- *       without a vault     bienvenida · bienvenida-vacia · crear · crear-vacia · crear-existe · crear-ubicacion ·
- *                           crear-llave · crear-error · creando · creada · desbloquear · derivando · error-llave ·
+ *       without a vault     bienvenida · bienvenida-vacia · crear · crear-segura · crear-vacia · crear-existe ·
+ *                           crear-ubicacion ·
+ *                           crear-llave · crear-llave-nueva · crear-llave-ubicacion · crear-error · creando ·
+ *                           creada · desbloquear · desbloquear-sin-llave · derivando · error-llave ·
  *                           bloqueada · ajustes
  *       open vault          todas · foco-todas · menu-grupo · menu-papelera · busqueda ·
  *                           copiado · detalle · mostrada · menu-entrada · ninguna · formulario · generador · editar ·
@@ -32,6 +34,7 @@ import {
   type FakeBackend,
   type FakeEntry,
   type FakeGroup,
+  keyFileBeside,
 } from "./ipc/fake";
 import "./styles.css";
 import lightTokens from "./styles/tokens.css?inline";
@@ -55,14 +58,18 @@ const CLOSED = new Set([
   "bienvenida",
   "bienvenida-vacia",
   "crear",
+  "crear-segura",
   "crear-vacia",
   "crear-existe",
   "crear-ubicacion",
   "crear-llave",
+  "crear-llave-nueva",
+  "crear-llave-ubicacion",
   "crear-error",
   "creando",
   "creada",
   "desbloquear",
+  "desbloquear-sin-llave",
   "derivando",
   "error-llave",
   "ajustes",
@@ -150,9 +157,13 @@ async function stageClosed(backend: FakeBackend) {
       await find("label", /^Bloquear la bóveda/);
       return;
     case "desbloquear":
+    case "desbloquear-sin-llave":
     case "derivando":
     case "error-llave":
       await click(".recent-row button", "cuentas.kdbx");
+      if (state === "desbloquear-sin-llave") return;
+      // RF-110: the key file beside the vault comes already chosen (see `files` below).
+      if (state !== "derivando") await find(".unlock-key .mono", /\.keyx$/);
       if (state === "desbloquear") return;
       if (state === "derivando") backend.holdUnlock();
       await fill("unlock-password", "no-es-la-clave");
@@ -160,10 +171,13 @@ async function stageClosed(backend: FakeBackend) {
       await find(state === "derivando" ? "progress" : "#unlock-error", state === "derivando" ? /^/ : /./);
       return;
     case "crear":
+    case "crear-segura":
     case "crear-vacia":
     case "crear-existe":
     case "crear-ubicacion":
     case "crear-llave":
+    case "crear-llave-nueva":
+    case "crear-llave-ubicacion":
     case "crear-error":
     case "creando":
     case "creada":
@@ -178,10 +192,10 @@ async function stageClosed(backend: FakeBackend) {
         await find("#create-name-error", /./);
         return;
       }
-      if (state === "crear-ubicacion") {
+      if (state === "crear-ubicacion" || state === "crear-llave-ubicacion") {
         await click("button", "Cambiar ubicación…");
         await find(".create-file", NEW_PATH);
-        return;
+        if (state === "crear-ubicacion") return;
       }
       if (state === "crear-error") {
         await fill("create-password", "una-clave");
@@ -189,8 +203,9 @@ async function stageClosed(backend: FakeBackend) {
         await find("#create-confirm-error", /./);
         return;
       }
-      if (state === "crear") {
-        await fill("create-password", "abcdefgh1");
+      if (state === "crear" || state === "crear-segura") {
+        // "crear" shows the warning of a weak password; "crear-segura" is the form as it opens, with a good one.
+        await fill("create-password", state === "crear" ? "abcdefgh1" : "Mucho-Mejor-2026");
         await find("meter", /^/);
         return;
       }
@@ -198,11 +213,15 @@ async function stageClosed(backend: FakeBackend) {
         await click("label", "Usar uno mío");
         await click("button", "Elegir archivo llave…");
         await find(".create-file", "familia.keyx");
+      } else {
+        // RF-99: "Sin archivo llave" is the marked one; the rest of these states are about a new key file.
+        await click("label", "Crear uno nuevo");
+        await find("#create-key-help .create-file", /\.keyx$/);
       }
       await fill("create-password", "Mucho-Mejor-2026");
       await fill("create-confirm", "Mucho-Mejor-2026");
       await find("meter", /^/);
-      if (state === "crear-llave") return;
+      if (state !== "creando" && state !== "creada") return;
       if (state === "creando") backend.hold("vault_create");
       await click("button", "Crear bóveda");
       await find(state === "creando" ? "progress" : "h2", state === "creando" ? /^/ : "Bóveda creada");
@@ -498,7 +517,11 @@ async function boot() {
           },
     vaults: [{ path: VAULT_PATH, name: "Cuentas", password: "demo-clave" }],
     // "Crear bóveda" proposes this folder: a file already there is the "ya existe" state (`crear-existe`).
-    files: [`${FAKE_DEFAULT_FOLDER}/Cuentas.kdbx`],
+    files: [
+      `${FAKE_DEFAULT_FOLDER}/Cuentas.kdbx`,
+      // RF-110: in these states there is a key file beside the vault, so unlocking proposes it.
+      ...(state === "desbloquear" || state === "error-llave" ? [keyFileBeside(VAULT_PATH)] : []),
+    ],
     recent:
       state === "bienvenida-vacia"
         ? []

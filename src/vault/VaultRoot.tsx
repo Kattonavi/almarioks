@@ -286,6 +286,7 @@ export function VaultRoot({ client }: { readonly client: VaultClient }) {
             const { vault } = current.view;
             return (
               <UnlockScreen
+                key={vault.path}
                 client={client}
                 vault={vault}
                 busy={false}
@@ -307,6 +308,7 @@ export function VaultRoot({ client }: { readonly client: VaultClient }) {
         const { vault } = current;
         return (
           <UnlockScreen
+            key={vault.path}
             client={client}
             vault={vault}
             busy={current.kind === "deriving"}

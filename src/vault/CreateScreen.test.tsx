@@ -10,6 +10,9 @@ import {
   EXISTS_KEY,
   EXISTS_VAULT,
   KEY_BESIDE_NEEDS_PASSWORD,
+  KEY_HELP_BESIDE,
+  KEY_HELP_EXISTING,
+  KEY_HELP_NONE,
   NO_NAME,
   NO_PATH,
   PATH_HELP,
@@ -61,6 +64,13 @@ async function nameIt(name = "Familia", file = `${name}.kdbx`) {
 function withoutKeyFile() {
   fireEvent.click(keyOption("Sin archivo llave"));
 }
+
+function withNewKeyFile() {
+  fireEvent.click(keyOption("Crear uno nuevo"));
+}
+
+/** The whole line under the key file options, as it is read (its file name is a separate element). */
+const keyHelp = () => document.getElementById("create-key-help")?.textContent;
 
 async function chooseLocation() {
   fireEvent.click(screen.getByRole("button", { name: "Cambiar ubicación…" }));
@@ -233,7 +243,8 @@ describe("P2 Crear bóveda", () => {
   it("RF-99: RF-3: con el archivo llave nuevo junto a la bóveda y sin contraseña maestra no crea y pide una", async () => {
     const backend = await openCreate({});
     await nameIt();
-    // "Crear uno nuevo" is the marked option: the key file alone, beside the vault, would protect nothing.
+    // The key file alone, beside the vault, would protect nothing.
+    withNewKeyFile();
 
     fireEvent.click(createButton());
 
@@ -268,10 +279,11 @@ describe("P2 Crear bóveda", () => {
   it("RF-9: éxito — con archivo llave nuevo avisa antes de crear y otra vez al terminar", async () => {
     const backend = await openCreate({});
     await nameIt();
+    withNewKeyFile();
 
     // Before: the notice names the key file, and the help of the marked option asks for a copy.
     expect(screen.getByText(/Si pierdes la contraseña maestra o el archivo llave, nadie puede abrir la bóveda/)).toBeDefined();
-    expect(screen.getByText(/crea el archivo llave junto a la bóveda\. Guarda una copia en otro lugar\./)).toBeDefined();
+    expect(keyHelp()).toMatch(/^Se guarda junto a la bóveda: .*\. Guarda una copia en otro lugar\.$/);
     typeBoth(SECRET);
     fireEvent.click(createButton());
 
@@ -655,20 +667,107 @@ describe("P2 Crear bóveda", () => {
     expect(screen.getByRole("heading", { name: "Crear bóveda" })).toBeDefined();
   });
 
-  it("RF-99: «Crear uno nuevo» está marcada al abrir y crea el archivo llave junto a la bóveda, sin diálogo", async () => {
+  it("RF-99: al abrir sale marcada «Sin archivo llave», la primera de las tres, y el grupo no dice «recomendado»", async () => {
+    await openCreate({});
+
+    const options = screen.getAllByRole<HTMLInputElement>("radio");
+    expect(options.map((option) => option.closest("label")?.textContent)).toEqual([
+      "Sin archivo llave",
+      "Crear uno nuevo",
+      "Usar uno mío",
+    ]);
+    expect(options.map((option) => option.checked)).toEqual([true, false, false]);
+    expect(screen.getByRole("group", { name: "Archivo llave (opcional)" })).toBeDefined();
+    expect(screen.queryByText(/recomendado/)).toBeNull();
+    expect(keyHelp()).toBe(KEY_HELP_NONE);
+  });
+
+  it("RF-99: sin tocar las opciones del archivo llave no se crea ningún archivo llave", async () => {
+    const backend = await openCreate({});
+    await nameIt();
+    typeBoth(SECRET);
+    fireEvent.click(createButton());
+
+    // No "Bóveda creada" step about a key file: straight to the vault.
+    expect(await screen.findByRole("heading", { name: "Familia" })).toBeDefined();
+    expect(createCalls(backend).map((call) => call.args)).toEqual([
+      { path: FAMILY_PATH, name: "Familia", password: SECRET, key_file: { kind: "none" } },
+    ]);
+    expect(JSON.stringify(backend.calls)).not.toContain('"generate"');
+    expect(backend.count("pick_new_key_file")).toBe(0);
+    expect(backend.count("pick_key_file")).toBe(0);
+  });
+
+  it("RF-113: con «Crear uno nuevo» la ayuda dice dónde queda el archivo llave y sigue al nombre y a la ubicación", async () => {
+    const backend = await openCreate({ picks: { pick_vault_to_create: [NEW_PATH] } });
+    await nameIt();
+    expect(keyHelp()).toBe(KEY_HELP_NONE);
+
+    withNewKeyFile();
+    expect(keyHelp()).toBe(
+      "Se guarda junto a la bóveda: Documentos › AlmarioKS › Familia.keyx. Guarda una copia en otro lugar.",
+    );
+    const beside = screen.getByText("Familia.keyx");
+    expect(beside.title).toBe(FAMILY_KEY);
+    expect(beside.classList.contains("mono")).toBe(true);
+    // The fieldset is described by that line.
+    expect(screen.getByRole("group", { name: "Archivo llave (opcional)" }).getAttribute("aria-describedby")).toBe(
+      "create-key-help",
+    );
+
+    // It follows the name, with the file the core answers (not one worked out in the window).
+    await nameIt("Trabajo");
+    expect(keyHelp()).toBe(
+      "Se guarda junto a la bóveda: Documentos › AlmarioKS › Trabajo.keyx. Guarda una copia en otro lugar.",
+    );
+    backend.respondOnce("vault_create_location", {
+      vault_path: `${FAKE_DEFAULT_FOLDER}/lo-que-diga-el-nucleo.kdbx`,
+      vault_file: "lo-que-diga-el-nucleo.kdbx",
+      key_file_path: `${FAKE_DEFAULT_FOLDER}/la-llave-del-nucleo.keyx`,
+      key_file: "la-llave-del-nucleo.keyx",
+      in_default_folder: true,
+      vault_exists: false,
+      key_file_exists: false,
+    });
+    await nameIt("Casa", "lo-que-diga-el-nucleo.kdbx");
+    expect(screen.getByText("la-llave-del-nucleo.keyx").title).toBe(`${FAKE_DEFAULT_FOLDER}/la-llave-del-nucleo.keyx`);
+    expect(screen.queryByText("Casa.keyx")).toBeNull();
+
+    // And the location chosen with the dialog: the whole path, like the line of the vault.
+    await chooseLocation();
+    expect(keyHelp()).toBe("Se guarda junto a la bóveda: D:/bovedas/nueva.keyx. Guarda una copia en otro lugar.");
+    expect(screen.getByText("D:/bovedas/nueva.keyx").title).toBe("D:/bovedas/nueva.keyx");
+
+    // The other options keep their own line.
+    fireEvent.click(keyOption("Usar uno mío"));
+    expect(keyHelp()).toBe(KEY_HELP_EXISTING);
+  });
+
+  it("RF-113: sin ubicación resuelta la ayuda solo dice que queda junto a la bóveda", async () => {
+    await openCreate({}, (fake) => {
+      fake.rejectOnce("vault_create_location", { code: "ErrorInterno", message: "core text" });
+    });
+    await screen.findByText(/Windows no dio la carpeta Documentos/);
+
+    withNewKeyFile();
+    expect(keyHelp()).toBe(KEY_HELP_BESIDE);
+  });
+
+  it("RF-99: «Crear uno nuevo» crea el archivo llave junto a la bóveda, sin diálogo", async () => {
     const backend = await openCreate({ picks: { pick_vault_to_create: [NEW_PATH] } });
 
-    expect(keyOption("Crear uno nuevo").checked).toBe(true);
-    expect(keyOption("Usar uno mío").checked).toBe(false);
-    expect(keyOption("Sin archivo llave").checked).toBe(false);
     expect(screen.getAllByRole("radio")).toHaveLength(3);
-    expect(screen.getByRole("group", { name: "Archivo llave (opcional, recomendado)" })).toBeDefined();
+    expect(keyOption("Usar uno mío").checked).toBe(false);
 
     // The help line changes with the option.
+    withNewKeyFile();
+    expect(keyOption("Crear uno nuevo").checked).toBe(true);
+    expect(keyOption("Sin archivo llave").checked).toBe(false);
+    expect(keyHelp()).toMatch(/^Se guarda junto a la bóveda/);
     fireEvent.click(keyOption("Sin archivo llave"));
     expect(screen.getByText("La bóveda se abre solo con la contraseña maestra.")).toBeDefined();
-    fireEvent.click(keyOption("Crear uno nuevo"));
-    expect(screen.getByText(/crea el archivo llave junto a la bóveda/)).toBeDefined();
+    withNewKeyFile();
+    expect(keyHelp()).toMatch(/^Se guarda junto a la bóveda/);
 
     // Beside the vault wherever it goes: here, in the location chosen with the dialog.
     await nameIt();
@@ -690,6 +789,9 @@ describe("P2 Crear bóveda", () => {
   it("RF-99: si el archivo llave ya existe lo dice y no crea; con otra opción sí", async () => {
     const backend = await openCreate({ files: [FAMILY_KEY] });
     await nameIt();
+    // Nothing is said about a key file nobody asked to create.
+    expect(screen.queryByText(EXISTS_KEY)).toBeNull();
+    withNewKeyFile();
 
     const warning = await screen.findByText(EXISTS_KEY);
     expect(warning.id).toBe("create-key-error");
