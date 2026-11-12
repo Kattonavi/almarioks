@@ -94,14 +94,17 @@ export function createFakeBackend(options: FakeOptions = {}): FakeBackend {
   const onceResponses = new Map<string, { kind: "resolve" | "reject"; value: unknown }>();
   let gate: Promise<void> | null = null;
 
+  /** Read through a call so the compiler does not narrow `status` across the `await` above. */
+  function stateNow(): WireStatus["state"] {
+    return status.state;
+  }
+
   function emit(event: string, payload?: unknown) {
     for (const handler of [...(listeners.get(event) ?? [])]) handler(payload);
   }
 
   function lockFromCore(recovery: WireRecovery = null) {
-    if (status.state === "open" || status.state === "locked") {
-      status = { state: "locked", path: status.path, recovery };
-    }
+    if (status.state !== "closed") status = { state: "locked", path: status.path, recovery };
     emit("vault-locked");
   }
 
@@ -126,7 +129,7 @@ export function createFakeBackend(options: FakeOptions = {}): FakeBackend {
       status = before;
       failWith("LlaveIncorrecta");
     }
-    status = {
+    const opened: WireStatus = {
       state: "open",
       path,
       name: vault.name,
@@ -135,6 +138,9 @@ export function createFakeBackend(options: FakeOptions = {}): FakeBackend {
       save_pending: false,
       recovery,
     };
+    // Locked while deriving: the core stays locked, but the late answer still reaches the window (a race to survive).
+    if (stateNow() !== "deriving") return opened;
+    status = opened;
     recent = [{ path, exists: true }, ...recent.filter((item) => item.path !== path)].slice(0, 5);
     return status;
   }

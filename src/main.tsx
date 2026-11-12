@@ -2,7 +2,11 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 
 import { App } from "./App";
+import { createTauriClient } from "./ipc/tauri";
 import "./styles.css";
+import { VaultRoot } from "./vault/VaultRoot";
+
+const client = createTauriClient();
 
 const container = document.getElementById("root");
 if (container === null) {
@@ -11,6 +15,8 @@ if (container === null) {
 
 createRoot(container).render(
   <StrictMode>
-    <App />
+    <App>
+      <VaultRoot client={client} />
+    </App>
   </StrictMode>,
 );

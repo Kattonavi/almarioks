@@ -1,5 +1,5 @@
 import { getVersion } from "@tauri-apps/api/app";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 
 import { UpdatePanel } from "./update/UpdatePanel";
 
@@ -25,7 +25,11 @@ function VersionText({ state }: { readonly state: VersionState }) {
   }
 }
 
-export function App() {
+/**
+ * The app shell: name, version and the update panel (P9), always reachable. The vault screens come in as `children`
+ * (composed in main.tsx), so the shell itself never talks to the vault.
+ */
+export function App({ children }: { readonly children?: ReactNode }) {
   const [state, setState] = useState<VersionState>({ kind: "loading" });
 
   useEffect(() => {
@@ -51,6 +55,7 @@ export function App() {
         <VersionText state={state} />
       </p>
       <p>Versión de desarrollo: no la uses con tus contraseñas reales.</p>
+      {children}
       <UpdatePanel />
     </main>
   );
