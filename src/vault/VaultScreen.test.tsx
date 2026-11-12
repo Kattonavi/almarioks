@@ -109,8 +109,8 @@ describe("P4 Bóveda", () => {
     fireEvent.click(github);
 
     const detail = screen.getByRole("region", { name: "Detalle" });
-    expect(within(detail).getByText("GitHub")).toBeDefined();
-    expect(within(detail).getByText(/tarea siguiente/)).toBeDefined();
+    expect(await within(detail).findByRole("heading", { name: "GitHub" })).toBeDefined();
+    expect(await within(detail).findByRole("button", { name: "Editar" })).toBeDefined();
     expect(github.getAttribute("aria-current")).toBe("true");
   });
 
@@ -146,13 +146,13 @@ describe("P4 Bóveda", () => {
     });
   });
 
-  it("RF-42: vacío — una bóveda sin entradas lo explica y ofrece «Nueva entrada» marcada como próximamente", async () => {
+  it("RF-42: vacío — una bóveda sin entradas lo explica y ofrece «Nueva entrada»", async () => {
     await setup({});
 
     expect(await screen.findByText(/Esta bóveda todavía no tiene entradas/)).toBeDefined();
     const create = screen.getByRole("button", { name: "Nueva entrada" });
-    expect(create.getAttribute("aria-disabled")).toBe("true");
-    expect(screen.getByText("Próximamente")).toBeDefined();
+    expect(create.getAttribute("aria-disabled")).not.toBe("true");
+    expect(screen.queryByText("Próximamente")).toBeNull();
     expect(screen.queryByRole("table")).toBeNull();
   });
 
