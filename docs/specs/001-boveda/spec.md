@@ -86,7 +86,10 @@ Las pruebas citan el número: `rf_NN_…` en Rust, `it("RF-NN: …")` en TypeScr
   con el KDF de RF-2 y dejará el archivo original idéntico byte a byte.
 - RF-16: SI la cabecera pide más de 1 GiB de memoria, más de 100 iteraciones de Argon2, más de 16 hilos o más de
   100 000 000 de rondas de AES-KDF, ENTONCES EL SISTEMA rechazará el archivo con `ParametrosKdfExcesivos` antes de
-  derivar la llave. *(No bloquea la fase: AMENAZAS §4.)*
+  derivar la llave y sin reservar esa memoria.
+- RF-94: SI la cabecera trae un campo de tamaño distinto al que su tipo exige, ENTONCES EL SISTEMA responderá
+  `ArchivoDanado` y la app seguirá funcionando. *(El laboratorio mostró que la librería termina el proceso con tres
+  cabeceras mal formadas: RF-16 y RF-94 bloquean la fase.)*
 - RF-17: CUANDO abre una bóveda cuyo KDF no es Argon2id o usa menos de 64 MiB, EL SISTEMA la abrirá y avisará que su
   protección contra fuerza bruta es débil.
 - RF-18: MIENTRAS se deriva la llave, EL SISTEMA mostrará progreso y seguirá atendiendo otros comandos (el estado de
@@ -302,7 +305,8 @@ Las pruebas citan el número: `rf_NN_…` en Rust, `it("RF-NN: …")` en TypeScr
 ## Requisitos no funcionales
 - **Tiempos (PC de referencia, el del dueño; se miden y se anotan):** desbloquear una bóveda creada aquí ≤ 1,5 s ·
   arranque en frío hasta la pantalla de desbloqueo ≤ 2 s · buscar en 5 000 entradas ≤ 100 ms · bloquear ≤ 1 s (RF-30).
-- **Seguridad:** requisitos [B] de la 0.1 en `docs/AMENAZAS.md` §4, que aquí son RF-2 y RF-17 (F1); RF-21, RF-26,
+- **Seguridad:** requisitos [B] de la 0.1 en `docs/AMENAZAS.md` §4, que aquí son RF-2 y RF-17 (F1); RF-16 y RF-94
+  (F2, subidos a [B] por el laboratorio); RF-21, RF-26,
   RF-14 y RF-15 (F3); RF-30 a RF-33 y RF-90 (W3); RF-71 a RF-75 (W4); RF-78 y RF-49 (W1); RF-77 (F5, W2).
 - **Compatibilidad:** una bóveda creada y editada aquí abre en KeePass 2.62 y KeePassXC 2.8 con todo su contenido.
 - **Plataforma e idioma:** Windows 10 y 11 x64 · español.
@@ -333,7 +337,10 @@ Las pruebas citan el número: `rf_NN_…` en Rust, `it("RF-NN: …")` en TypeScr
 | Bóveda sin papelera, o con la papelera dentro de otro grupo | Se crea al primer borrado; ese grupo no se puede borrar | RF-47, RF-57 |
 | Historial lleno según los límites de la bóveda | Sale la versión más vieja, como en KeePass | RF-26 |
 | Ajustes dañados o editados a mano | Valores por defecto | RF-82 |
-| Archivo de 0 bytes, texto plano, KDBX truncado | `ArchivoDanado` | RF-13 |
+| Archivo de 0 bytes, texto plano, KDBX 4 truncado | `ArchivoDanado` | RF-13 |
+| KDBX 3.x truncado | `LlaveIncorrecta`: ese formato no autentica la cabecera y no se distingue de una llave mala | RF-11 |
+| Cabecera cambiada por alguien que recalcula su suma | `LlaveIncorrecta`: es un límite del formato | RF-11 |
+| Archivo hecho para tumbar la app o agotar la memoria | `ArchivoDanado` o `ParametrosKdfExcesivos`; la app sigue | RF-16, RF-94 |
 
 ## Fuera de alcance
 - Todo lo del navegador (spec 002) e importar o exportar (spec 003). **No hay exportación en la 0.1**, por eso el

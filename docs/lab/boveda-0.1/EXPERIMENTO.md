@@ -1,0 +1,231 @@
+# Experimento: preguntas técnicas de la fase 0.1 (bóveda)
+
+> 2026-11-11 · Fase de aprendizaje antes de implementar `docs/specs/001-boveda/spec.md`. Datos falsos.
+> Windows 11 x64, Rust 1.99.1 (MSVC), 16 hilos lógicos. Cada pregunta: respuesta, fuente, ejercicio, salida real y
+> qué cambia en el diseño. Si el ejercicio contradice lo leído, manda el ejercicio.
+
+## Cómo reproducir
+Crate independiente (`[workspace]` vacío, no entra al workspace del proyecto). Desde esta carpeta:
+
+```
+powershell -NoProfile -ExecutionPolicy Bypass -File generar-kdbx3.ps1   # KDBX 3.1 en %TEMP% con KeePassLib 2.62
+cargo run --release --bin p4_keepass
+cargo run --release --bin p1_clipboard    # OJO: pisa el portapapeles de quien lo corra
+cargo run --release --bin p3_atomic
+cargo run --release --bin p5_secrets
+cargo run --release --bin p2_session      # termina solo a los pocos segundos
+cargo run --profile devkdf --bin p4_keepass   # debug con rust-argon2 optimizado (ver P4 b)
+```
+Las fixtures se leen de `crates/almarioks-core/tests/fixtures` (no se modifican) y se copian a memoria o a `%TEMP%`.
+
+---
+
+## P4. Crate `keepass` =0.17.0 (RF-2, RF-11, RF-13, RF-14, RF-16, RF-46 a RF-58)
+
+**Fuente:** código del crate en el registro de cargo (`keepass-0.17.0/src`: `db/open.rs`, `format/mod.rs`,
+`format/kdbx4/parse.rs`, `format/kdbx3.rs`, `format/variant_dictionary.rs`, `config.rs`, `crypt/kdf.rs`,
+`db/types/{mod,group,entry,meta}.rs`) y https://docs.rs/keepass/0.17.0/keepass/.
+
+### Respuestas
+- **(a) Parámetros del KDF antes de derivar: el crate no los expone.** `Database::parse` lee la cabecera y deriva la
+  llave en la misma función; `parse_outer_header` y `VariantDictionary::parse` son privados (`pub(crate)`). Lo único
+  público sin derivar es `Database::get_version`. **Hace falta un pre-lector propio** del TLV de la cabecera y del
+  `VariantDictionary` del KDF (~120 líneas, no es criptografía: no deriva ni descifra). El ejercicio lo hace en
+  9–36 µs y rechaza `M=64 GiB` sin llamar al crate. Detalles que el pre-lector debe cubrir, sacados del código:
+  - Si el campo 11 (KDF) se repite, el crate se queda con el último: se valida **cada** aparición.
+  - `crypt/kdf.rs` hace `(memory / 1024) as u32` y `iterations as u32`: los límites se comparan en `u64`, antes.
+  - **El crate entra en pánico con cabeceras mal formadas** (verificado, 3 casos): lee campos de tamaño fijo con
+    `byteorder::LittleEndian::read_u32/u64`, que hace `panic` si el búfer es corto (compresión de 1 byte, `UInt32` de
+    1 byte en un `VariantDictionary`, rondas AES de 1 byte en KDBX 3.1). El pre-lector valida el tamaño de cada campo
+    fijo y de cada valor tipado del `VariantDictionary` (KDF **y** datos públicos, campo 12). Además, `open` del
+    núcleo envuelve `Database::parse` en `catch_unwind` como segunda barrera.
+- **(b) Argon2id propio al crear.** `DatabaseConfig` es `#[non_exhaustive]`: no se puede escribir con literal; se parte
+  de `DatabaseConfig::default()` y se sobrescriben **todos** sus campos públicos. `KdfConfig::Argon2id` pide un
+  `argon2::Version` (de `rust-argon2`, que `keepass` no reexporta); para no agregar ese crate de criptografía al
+  núcleo, se construye por la vía pública `VariantDictionary` + `TryFrom` (`$UUID`, `M`, `I`, `P`, `V`, `S`), y
+  el ejercicio lo confirma. `save()` genera sal y semillas nuevas. **Calibrar:** `crypt` es privado, así que se mide
+  `Database::parse` de una bóveda vacía guardada en memoria (≈ el tiempo del KDF). En este PC, release: 64 MiB, P=2,
+  I=42 → 966 ms. **En debug es 7–8 veces más lento** (I=2 → 432 ms; 64 MiB I=4 → 855 ms): con
+  `[profile.dev.package.rust-argon2] opt-level = 3` vuelve al tiempo de release (I=43 → 978 ms).
+- **(c) Papelera y objetos borrados: sí, como datos; no hay un "mover a papelera".** `meta.recyclebin_enabled`,
+  `meta.recyclebin_uuid`, `meta.recyclebin_changed` y `Database::recycle_bin()` existen, y `deleted_objects` es un
+  `HashMap<Uuid, Option<NaiveDateTime>>` que se guarda y se relee. Las fixtures de KeePass 2 traen
+  `RecycleBinUUID = 00000000-…` (no hay papelera hasta el primer borrado): `recycle_bin()` da `None` y la creamos
+  nosotros (grupo con icono 43, `enable_searching=false`, `enable_autotype=false`, y los tres campos de `meta`).
+  - Borrado definitivo: `EntryTrack::remove()` y `GroupTrack::remove()` (vía `track_changes()`) **sí** anotan en
+    `deleted_objects` (y el grupo, recursivo, anota cada hijo); `EntryMut::remove()` **no** lo anota. Usar siempre
+    la variante `track_changes()`.
+- **(d) Mover conservando UUID y tiempos: sí.** `EntryMut::move_to(GroupId)` y `GroupMut::move_to(GroupId)`
+  conservan UUID, `creation` y `last_modification`, y fijan `previous_parent_group` (se guarda en el XML). El de grupo
+  rechaza ciclos (`WouldCreateCycle`) y la raíz (`CannotMoveRoot`), que es RF-55 y parte de RF-57.
+  - **Trampa:** `EntryTrack::move_to` (la variante "con seguimiento") **agrega una versión al historial** al soltarse
+    (`impl Drop for EntryTrack` empuja la copia previa), aunque solo se movió. KeePass no hace eso. Para mover:
+    `EntryMut::move_to` y `times.location_changed = Some(Times::now())` a mano. Para grupos `GroupTrack::move_to`
+    sí sirve (no tiene `Drop`; solo actualiza `location_changed`).
+- **(e) KDBX 3.1 al abrir:** `Database::get_version(&mut reader)` lee 12 bytes y da `DatabaseVersion::KDB3(1)` sin
+  derivar; también queda en `db.config.version`. `save()` de un 3.1 devuelve `DatabaseSaveError::UnsupportedVersion`.
+  Convertir (RF-15) = clonar, poner nuestro `config` KDBX 4 y guardar en otra ruta: reabre con la misma raíz y las
+  mismas entradas, y el original queda idéntico byte a byte.
+- **(f) Errores que distingue al abrir** (tabla medida abajo):
+  - **KDBX 4:** llave incorrecta → `Key(IncorrectKey)` (el HMAC de la cabecera no verifica). Contenido dañado →
+    `Format(Kdbx4(BlockStream(…)))`. Cabecera dañada → `HeaderHashMismatch` u `OuterHeader(…)`. Archivo corto →
+    `UnexpectedEof` / `VersionParse(…)`. Versión 5 → `VersionParse(InvalidKDBXVersion)`.
+  - **Límite real:** si alguien cambia la cabecera **y** recalcula su SHA-256, el crate deriva con esos parámetros y
+    responde `IncorrectKey`: una cabecera manipulada no se distingue de una llave mala (es del formato, no del crate).
+  - **KDBX 3.1 no tiene HMAC de cabecera:** la llave incorrecta sale como `Cryptography(InvalidPadding)`, el mismo
+    error que un archivo truncado. Para cumplir RF-11 se mapea por versión: en 3.1, `Cryptography(_)` →
+    `LlaveIncorrecta` (un 3.1 truncado también dirá "llave incorrecta"; se acepta y se documenta).
+  - **KDB (KeePass 1):** el crate **sí lo intenta abrir** (`parse_kdb`); `FormatoNoSoportado` lo decidimos nosotros
+    con `get_version` antes de llamar a `parse`.
+  - Los enums son `#[non_exhaustive]`: el `match` necesita comodín y el comodín cae en `ArchivoDanado`.
+
+### Ejercicio
+`src/bin/p4_keepass.rs`: pre-lector propio, 22 casos de apertura (con `catch_unwind` y un `panic_hook` que solo imprime
+el mensaje), calibración, papelera, movimientos y conversión 3.1 → 4. `generar-kdbx3.ps1` crea el 3.1 con KeePassLib
+2.62. Hallazgo del script: `PwDatabase.Save` de KeePass 2.62 escribe KDBX **4.0** aunque el KDF sea AES-KDF; para un 3.1
+hay que usar `KdbxFile` con `ForceVersion` (setter interno, por reflexión).
+
+### Salida real (`cargo run --release --bin p4_keepass`)
+```
+== P4 (e) version sin derivar la llave: Database::get_version ==
+  keepass2/f-pass.kdbx           -> KDB4(1) (KDBX4.1)
+  keepassxc/xc-both4.kdbx        -> KDB4(1) (KDBX4.1)
+  %TEMP%/v3-aes.kdbx             -> Ok(KDB3(1))
+
+== P4 (a) parametros KDF de la cabecera ANTES de derivar (pre-lector propio) ==
+  keepass2/f-pass.kdbx       v4.1 [Argon2 { id: true, memory: 67108864, iterations: 2, parallelism: 2 }] en 36 us
+  keepass2/f-key.kdbx        v4.1 [Argon2 { id: true, memory: 67108864, iterations: 2, parallelism: 2 }] en 22 us
+  keepass2/f-both.kdbx       v4.1 [Argon2 { id: true, memory: 67108864, iterations: 2, parallelism: 2 }] en 11 us
+  keepass2/f-unicode.kdbx    v4.1 [Argon2 { id: true, memory: 67108864, iterations: 2, parallelism: 2 }] en 9 us
+  keepassxc/xc-both4.kdbx    v4.1 [Argon2 { id: true, memory: 67108864, iterations: 2, parallelism: 2 }] en 11 us
+  %TEMP%/v3-aes.kdbx         v3.1 [Aes { rounds: 60000 }]
+
+  Cabecera manipulada (SHA-256 de cabecera recalculado, como haria un atacante):
+  I=4 (era 2): el crate deriva y luego falla     118 ms | LlaveIncorrecta <- Key(IncorrectKey)
+                                                        | pre-lector OK v4.1
+  M=64 GiB: pre-lector -> Some(Excessive("M=68719476736 I=2 P=2")) en 3 us (el crate NO se llama: intentaria reservar 64 GiB)
+  I=1e6: pre-lector -> Some(Excessive("M=67108864 I=1000000 P=2"))
+
+== P4 (f) que error devuelve el crate en cada caso (y el codigo de la spec que le damos) ==
+  0 bytes                                          0 ms | ArchivoDanado <- VersionParse(UnexpectedEof)
+                                                        | pre-lector Truncated
+  texto plano                                      0 ms | ArchivoDanado <- VersionParse(InvalidKDBXIdentifier)
+                                                        | pre-lector NotKdbx
+  truncado en la cabecera (100 B)                  0 ms | ArchivoDanado <- Format(Kdbx4(OuterHeader(UnexpectedEof)))
+                                                        | pre-lector Truncated
+  truncado entre hash y HMAC                       0 ms | ArchivoDanado <- UnexpectedEof
+                                                        | pre-lector OK v4.1
+  truncado en el flujo de bloques                 93 ms | ArchivoDanado <- Format(Kdbx4(BlockStream(Eof)))
+                                                        | pre-lector OK v4.1
+  1 bit cambiado en el contenido cifrado          61 ms | ArchivoDanado <- Format(Kdbx4(BlockStream(BlockHashMismatch { block_index: 0 })))
+                                                        | pre-lector OK v4.1
+  1 bit cambiado en la cabecera (sin rehash)       0 ms | ArchivoDanado <- Format(Kdbx4(OuterHeader(ParseCustomData(NotTerminated))))
+                                                        | pre-lector Truncated
+  1 bit cambiado en la sal del KDF (sin rehash)     0 ms | ArchivoDanado <- Format(Kdbx4(HeaderHashMismatch))
+                                                        | pre-lector OK v4.1
+  contrasena incorrecta                           57 ms | LlaveIncorrecta <- Key(IncorrectKey)
+                                                        | pre-lector OK v4.1
+  contrasena buena + archivo llave sobrante       59 ms | LlaveIncorrecta <- Key(IncorrectKey)
+                                                        | pre-lector OK v4.1
+  llave sin componentes                            0 ms | LlaveVacia <- Key(EmptyKey)
+                                                        | pre-lector OK v4.1
+  f-both: contrasena buena sin archivo llave      56 ms | LlaveIncorrecta <- Key(IncorrectKey)
+                                                        | pre-lector OK v4.1
+  f-both: archivo llave sin contrasena            56 ms | LlaveIncorrecta <- Key(IncorrectKey)
+                                                        | pre-lector OK v4.1
+  f-both: llave completa                          56 ms | ABRE (KDBX4.1)
+                                                        | pre-lector OK v4.1
+  version mayor 5                                  0 ms | FormatoNoSoportado <- VersionParse(InvalidKDBXVersion { version: 3041655655, file_major_version: 5, file_minor_version: 1 })
+                                                        | pre-lector Unsupported("signature 0xb54bfb67, version 5.1")
+  firma KDB (KeePass 1) con basura                 0 ms | ArchivoDanado <- Format(Kdb(InvalidFixedCipherID(0)))
+                                                        | pre-lector Unsupported("KDB (KeePass 1)")
+      (panic: range end index 4 out of range for slice of length 1)
+  cabecera con campo de compresion de 1 byte       0 ms | PANIC (el proceso caeria sin catch_unwind)
+                                                        | pre-lector Malformed("field 3 len 1 != 4")
+      (panic: range end index 4 out of range for slice of length 1)
+  datos publicos con un UInt32 de 1 byte           0 ms | PANIC (el proceso caeria sin catch_unwind)
+                                                        | pre-lector Malformed("VariantDictionary item of type 0x4 with 1 bytes")
+  KDBX 3.1: llave correcta                         1 ms | ABRE (KDBX3.1)
+                                                        | pre-lector OK v3.1
+  KDBX 3.1: contrasena incorrecta                  0 ms | LlaveIncorrecta <- Cryptography(InvalidPadding(Error))
+                                                        | pre-lector OK v3.1
+  KDBX 3.1: 1 bit cambiado al final                0 ms | ArchivoDanado <- Format(Kdbx3(BlockHashMismatch(0)))
+                                                        | pre-lector OK v3.1
+  KDBX 3.1: truncado                               0 ms | LlaveIncorrecta <- Cryptography(InvalidPadding(Error))
+                                                        | pre-lector OK v3.1
+      (panic: range end index 8 out of range for slice of length 1)
+  KDBX 3.1: campo de rondas de 1 byte              0 ms | PANIC (el proceso caeria sin catch_unwind)
+                                                        | pre-lector Malformed("u64 field is not 8 bytes")
+
+== P4 (b) crear con Argon2id propio y calibrar (perfil release, 16 hilos logicos) ==
+  DatabaseConfig::default().kdf_config = Argon2 { iterations: 50, memory: 1048576, parallelism: 4, version: Version13 }
+  M=64 MiB P=2 I=2   -> desbloqueo 57 ms
+  M=64 MiB P=2 I=4   -> desbloqueo 101 ms
+  M=64 MiB P=2 I=8   -> desbloqueo 193 ms
+  M=64 MiB P=2 I=16  -> desbloqueo 374 ms
+  M=64 MiB P=2 I=32  -> desbloqueo 752 ms
+  calibrado a ~1 s: I=42 -> 966 ms
+  cabecera escrita: v4.1 [Argon2 { id: true, memory: 67108864, iterations: 42, parallelism: 2 }]
+  config al reabrir: Argon2id { iterations: 42, memory: 67108864, parallelism: 2, version: Version13 }
+  otra llave -> Err("LlaveIncorrecta")
+  referencia M=256 MiB P=4 I=2 -> 157 ms
+
+== P4 (c)(d) papelera, objetos borrados y mover ==
+  fixture f-pass: RecycleBinEnabled=Some(true) RecycleBinUUID=Some(00000000-0000-0000-0000-000000000000) recycle_bin()=None DeletedObjects=1
+  papelera creada por nosotros: true
+  EntryTrack::move_to agrega historial: Some(2) -> Some(3)
+  RF-47 mover a papelera -> guardar -> reabrir:
+    misma UUID: true | padre = papelera: true | grupo anterior = Trabajo: true
+    creation igual: true | last_modification igual: true | location_changed Some(2026-11-11T17:27:17) -> Some(2026-11-12T01:39:52)
+    historial: Some(2) -> Some(2) | contrasena intacta: true
+    meta al reabrir: RecycleBinEnabled=Some(true) RecycleBinUUID==papelera: true
+  RF-55 mover Trabajo dentro de su hijo Subgrupo -> Some(WouldCreateCycle)
+  RF-57 mover la raiz -> Some(CannotMoveRoot)
+  RF-54 mover Subgrupo a la raiz: misma UUID true | padre raiz true | creation igual true | location_changed cambio true
+  RF-48 EntryTrack::remove en la papelera: DeletedObjects 1 -> 2 (tras reabrir: 2, contiene UUID: true)
+  EntryMut::remove (sin track_changes): DeletedObjects 2 -> 2 (no lo anota)
+  RF-56 Trabajo (2 entradas, 1 subgrupos) a la papelera: la papelera tiene 2 entradas
+  RF-58 vaciar papelera: DeletedObjects 1 -> 5 | grupos 4 -> 2 | papelera sigue: true | entradas en papelera 0
+
+== P4 (e) KDBX 3.1: abrir, guardar y convertir ==
+  config.version = KDB3(1) kdf = Aes { rounds: 60000 }
+  primera entrada: Some((Some("Cuenta v3"), Some("ana@example.com")))
+  save() del 3.1 tal cual -> Some(UnsupportedVersion)
+  convertido: KDBX4.1 con Argon2id { iterations: 2, memory: 67108864, parallelism: 2, version: Version13 }, misma raiz: true, entradas 1 -> 1
+  original identico byte a byte: true
+```
+
+Calibración en debug (`cargo run --bin p4_keepass`) y en debug con `rust-argon2` optimizado (`--profile devkdf`):
+```
+== P4 (b) crear con Argon2id propio y calibrar (perfil debug, 16 hilos logicos) ==
+  M=64 MiB P=2 I=2   -> desbloqueo 432 ms
+  M=64 MiB P=2 I=4   -> desbloqueo 855 ms
+  calibrado a ~1 s: I=4 -> 863 ms
+  referencia M=256 MiB P=4 I=2 -> 880 ms
+  f-both: llave completa                         399 ms | ABRE (KDBX4.1)
+--- devkdf (inherits dev + [profile.devkdf.package.rust-argon2] opt-level = 3)
+  M=64 MiB P=2 I=32  -> desbloqueo 735 ms
+  calibrado a ~1 s: I=43 -> 978 ms
+  referencia M=256 MiB P=4 I=2 -> 164 ms
+  f-both: llave completa                          63 ms | ABRE (KDBX4.1)
+```
+
+### Qué cambia en el diseño
+1. `almarioks-core::kdbx` lleva un **pre-lector de cabecera** propio que corre antes de `Database::parse`: firma y
+   versión (KDB/KDBX2/≥5 → `FormatoNoSoportado`), tamaño de cada campo fijo, cada valor del `VariantDictionary`
+   (campos 11 y 12), y los límites de RF-16 en `u64` sobre **todas** las apariciones. RF-16 deja de ser opcional en
+   la práctica: sin el pre-lector, un archivo hostil **tumba el proceso** (pánico) o reserva memoria sin límite.
+   Además, `catch_unwind` alrededor de `Database::parse` → `ArchivoDanado`. Pruebas: los 3 pánicos de la tabla.
+2. Mapeo de errores **por versión**: en 3.1, `Cryptography(_)` → `LlaveIncorrecta`. Prueba `rf_11_*` con un 3.1.
+3. Crear: `DatabaseConfig::default()` + sobrescribir todo; KDF por `VariantDictionary` (sin `rust-argon2` directo).
+   Calibrar **solo en release**; en `Cargo.toml` raíz: `[profile.dev.package.rust-argon2] opt-level = 3` para que
+   `pnpm tauri dev` no tarde 8× ni calibre débil. Política de calibración propuesta: M = 64 MiB, P = 2 (como KeePass),
+   subir I hasta ≈ 1 s (mínimo 2). En este PC da I≈42; con 256 MiB y P=4, I=2 son 157 ms, así que si se prefiere
+   más memoria la decisión es de la spec (RF-2 solo pide ≥ 64 MiB y ≥ 2 iteraciones).
+4. Mover entradas con `EntryMut::move_to` + `location_changed` a mano (no `EntryTrack`). Borrar siempre con
+   `track_changes().remove()`. Papelera: crearla al primer borrado si `recycle_bin()` es `None` o está desactivada.
+   Guardas propias: no mover ni renombrar la papelera (RF-57), y `GroupTrack::remove` sobre la papelera no limpia
+   `meta.recyclebin_uuid` (lo hace solo `GroupMut::remove`): nunca borrar la papelera por esa vía.
+5. KDBX 3.1: `get_version` al abrir → modo solo lectura; convertir = clonar + `config` nuevo + guardar en otra ruta.
+
+---
