@@ -40,7 +40,7 @@ campos desconocidos (`deny_unknown_fields`, RF-80). Nombres en `snake_case`.
 | `group_delete_preview{id}` · `group_delete{id}` · `recycle_bin_empty` | | `{ entries, subgroups }` · árbol | 56–58 |
 | `entry_list{group_id}` | | `[EntrySummary]` | 42 |
 | `entry_get{id}` | | `EntryDetail` (sin valores protegidos) | 43 |
-| `entry_create{group_id,…}` · `entry_update{id,…}` | campos; en `update`, `password: null` = no cambiar | `EntryDetail` | 38–41, 45 |
+| `entry_create{group_id,…}` · `entry_update{id,…}` | campos; en `update` es un parche: campo ausente = no cambiar, presente = reemplazar | `EntryDetail` | 38–41, 45, 91 |
 | `entry_move{id,group_id}` · `entry_delete{id}` | | — | 46–48 |
 | `entry_reveal{id,field}` | | `{ value }` | 44 |
 | `entry_copy{id,field}` | | `{ clears_in_seconds }` | 71–74 |
@@ -55,8 +55,18 @@ Eventos del núcleo a la ventana: `vault-locked` (desmontar todo, RF-32) y `vaul
 `external-change`).
 
 `EntrySummary = { id, title, username, url, tags, modified }`.
-`EntryDetail = EntrySummary + { group_id, notes, has_password, custom_fields: [{ name, protected }], attachments:
-[{ name, size }], created }`. Un campo propio no protegido puede traer su valor; uno protegido, nunca.
+`EntryDetail = EntrySummary + { group_id, notes, protected_fields: [nombres con valor], custom_fields:
+[{ name, protected, value? }], attachments: [{ name, size }], created }`. Un campo no protegido trae su valor; uno
+protegido, nunca: en `EntrySummary` y `EntryDetail` un campo estándar protegido viaja como `null` y la ventana
+muestra "(protegido)".
+
+## Concurrencia y bloqueo (RF-30, RF-33, RF-88 a RF-90)
+- Un solo dueño del estado: todas las operaciones de la bóveda, la copia al portapapeles y el bloqueo pasan por el
+  mismo candado, en orden.
+- Guardar se parte en dos: **cifrar a bytes** (con candado, rápido, necesita la llave) y **escribir a disco** (sin
+  candado, puede fallar o colgarse, solo ve bytes cifrados). Por eso bloquear nunca espera al disco.
+- Mientras un guardado no se confirma, el núcleo conserva esos bytes cifrados: son lo que se escribe en el archivo
+  de recuperación después de soltar la bóveda y las llaves (D12).
 
 ## Decisiones con la alternativa descartada
 - **Los diálogos de archivo los abre Rust**, no la ventana: así la ventana no necesita permisos de `dialog` ni `fs`.
