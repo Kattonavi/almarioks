@@ -497,7 +497,8 @@ fn rf_83_a_field_error_tells_the_field_and_the_limit() {
 #[test]
 fn rf_83_the_window_knows_every_code_of_the_core() {
     // `src/ipc/errors.ts` holds the window's own Spanish text per code; a code missing there shows as the
-    // generic "Inesperado". The app-only codes are reported as a pending decision, not hidden.
+    // generic "Inesperado". Decided on 2026-11-11: the window also has a text for the codes only the app
+    // shell sends (`APP_ONLY_CODES`), so they are required here exactly like the core's.
     let source = read("../src/ipc/errors.ts");
     let list = source
         .split_once("export const ERROR_CODES = [")
@@ -511,7 +512,11 @@ fn rf_83_the_window_knows_every_code_of_the_core() {
         .map(|(code, _)| code)
         .collect();
 
-    let core_codes: BTreeSet<&str> = CORE_ERRORS.iter().map(|error| error.code()).collect();
+    let core_codes: BTreeSet<&str> = CORE_ERRORS
+        .iter()
+        .map(|error| error.code())
+        .chain(APP_ONLY_CODES)
+        .collect();
     let missing: Vec<&&str> = core_codes.difference(&window_codes).collect();
     assert!(missing.is_empty(), "the window has no text for {missing:?}");
 
@@ -522,7 +527,7 @@ fn rf_83_the_window_knows_every_code_of_the_core() {
         .collect();
     assert!(
         unknown_to_core.is_empty(),
-        "the window lists codes the core never sends: {unknown_to_core:?}"
+        "the window lists codes neither the core nor the app sends: {unknown_to_core:?}"
     );
 }
 
