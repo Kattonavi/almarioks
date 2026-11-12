@@ -670,3 +670,129 @@ sigue pendiente. Ctrl+S, Ctrl+U y F12 tampoco hacían nada antes del arreglo: su
 Instalada y cerrada la compilación de release nueva (0.1.0, 18 865 152 bytes). Carpeta de trabajo borrada, sin restos
 en `%TEMP%`. Reciente de prueba quitada desde la app. Ajustes en 5 minutos y 20 s. Portapapeles vacío. El perfil
 `EBWebView` es el de antes, sin datos de formularios.
+
+## Verificación de la capa nativa aislada (R-1) y del valor mostrado no seleccionable (R-4)
+
+> 2026-11-12, madrugada · Tres binarios, en este orden: (1) la versión instalada en la corrida anterior (sha256
+> `2658300083BA543D`, dos capas, valor mostrado todavía seleccionable); (2) el ejecutable de prueba
+> `target\qa\almarioks-solo-capa-nativa.exe` (sha256 `E59206EDAA0D485F`), ejecutado directo, sin instalar; (3) el
+> instalador recompilado (sha256 `61678BCB0AB05236`, de la 01:12:42, posterior al último commit de producto `4d554fc`
+> y sin cambios de producto sin commit), que deja instalado `almarioks.exe` con sha256 `13577AB6A5987FDF`.
+> Scripts: `vn-lib.ps1` (variante, `RF_VARIANT=vn-lib`; `VN_EXE=aislada` elige el ejecutable de prueba),
+> `vn1-valor-seleccionable.ps1`, `vn2-capa-nativa-aislada.ps1`, `vn3-valor-no-seleccionable.ps1`, `vn4-limpieza.ps1`.
+> Capturas: `.impeccable/review/qa4/`, fuera de git. Carpeta de trabajo `%TEMP%\almarioks-qa4-20261112`; canarios
+> `CENTELLA-VN-…` y, como contraseña, `CENTELLAVN…` sin separadores (para que el doble clic la tome entera).
+
+### Veredicto
+| Pregunta | Respuesta | En una línea |
+|---|---|---|
+| **R-4** ¿se reproduce en la versión sin el arreglo? | **Sí en el contenido y en la limpieza; no en el historial** | Seleccionar el valor mostrado y Ctrl+C deja la contraseña en el portapapeles, sigue ahí a los 25 s y tras bloquear. No entra al historial de Win+V: la copia lleva 2 de los 3 formatos de exclusión |
+| **R-1** ¿la capa nativa sola surte efecto en frío? | **Sí: R-1 no se confirma** | Con el ejecutable que solo trae la capa nativa, todo gesto está apagado desde el primer gesto del arranque, en dos arranques, con bóveda abierta sin bloqueo previo y tras bloquear |
+| **R-4** en el release nuevo | **corregido** | Los mismos cinco gestos, más Ctrl+X, dejan el portapapeles como estaba; "Copiar" y el resto siguen funcionando |
+
+### Paso 1 — R-4 sobre la versión instalada antes del arreglo (control positivo)
+Cada gesto: centinela en el portapapeles → mostrar la contraseña → gesto de selección → Ctrl+C → leer el portapapeles,
+sus formatos y el historial (WinRT, `Clipboard.GetHistoryItemsAsync`).
+
+| Gesto + Ctrl+C | Portapapeles | Formatos de exclusión | En el historial |
+|---|---|---|---|
+| Doble clic sobre el valor | **exactamente la contraseña** | 2 de 3 | no |
+| Triple clic sobre el valor | la contraseña, dentro de 22 caracteres | 2 de 3 | no |
+| Arrastre de punta a punta del valor | 19 caracteres (el valor ocupaba dos líneas y el arrastre tomó la primera; el script comparaba el valor entero y lo dio por limpio: corregido para lo siguiente). Repetido sobre el ejecutable de prueba: **exactamente la contraseña** | 2 de 3 | no |
+| Arrastre que empieza fuera y cruza el valor | la contraseña, dentro de 298 caracteres | 2 de 3 | no |
+| Ctrl+A en la página | la contraseña, dentro de 1 319 caracteres | 2 de 3 | no |
+| El mismo portapapeles **25 s después** | la contraseña sigue | | |
+| El mismo portapapeles **tras bloquear** la bóveda | la contraseña sigue | | no |
+| Línea base: botón "Copiar" de la app | la contraseña exacta | 3 de 3 | no; vacío a los 20,9 s |
+
+- En la versión instalada solo conté "2 de 3"; los nombres los leí después, con los mismos gestos, en el ejecutable
+  de prueba (que tampoco trae el arreglo) y, para texto no protegido, en el release nuevo: son
+  `CanIncludeInClipboardHistory` y `CanUploadToCloudClipboard`; falta `ExcludeClipboardContentFromMonitorProcessing`.
+  Salen igual al copiar cualquier
+  texto de la página (visto con una palabra de las notas y con el título): los pone WebView2, no la app. Deduzco que
+  es por el modo privado de la ventana; no leí el valor de esos formatos, solo su presencia y su efecto (no hay
+  entrada en el historial).
+- **Control del historial:** un texto copiado sin marcar por otro proceso apareció en el historial a la primera
+  consulta (historial encendido). Así que el "no" es un no medido, no un fallo de lectura.
+- Capturas con el valor resaltado: `VN10-doble-clic.png`, `VN10-triple-clic.png`, `VN10-arrastre.png`,
+  `VN10-arrastre-cruzado.png`, `VN10-ctrl-a.png` (abrí la primera).
+- Lo que queda de R-4 tal como se formuló: la parte "sin exclusión del historial" **no se reproduce** en este PC;
+  la parte "sin limpieza a los 20 s" **sí**, y además sobrevive al bloqueo (la app solo limpia lo que ella copió).
+
+### Paso 2 — R-1: el efecto de la capa nativa sola
+Ejecutable de prueba lanzado sin ningún otro `almarioks*` vivo; en cada arranque se comprobó que la ventana manejada
+era de ese ejecutable. F5 fue siempre el último gesto de cada momento, y hasta él la identidad del documento
+(`RuntimeId`) era la del arranque: ninguna navegación ni recarga antes de medir.
+
+| Gesto | (a) arranque 1, en frío | (a) arranque 2, en frío | (b) bóveda abierta, sin bloqueo previo | (c) tras bloquear y desbloquear |
+|---|---|---|---|---|
+| Clic derecho sobre texto | apagado (título; **primer gesto** del arranque) | apagado (título) | apagado (notas, con la contraseña mostrada) | apagado (ídem) |
+| Clic derecho sobre el fondo | apagado | apagado | apagado | apagado |
+| Clic derecho sobre un campo | apagado (contraseña maestra, en Crear) | apagado (ídem) | apagado (búsqueda) | apagado (búsqueda) |
+| Ctrl+P | apagado; también con el foco en un campo | apagado (**primer gesto** del arranque); también en un campo | apagado, con la contraseña mostrada | apagado, ídem |
+| F3 y Ctrl+G | apagados | apagados | apagados | apagados |
+| Ctrl+J | apagado | apagado | apagado | apagado |
+| F5 (el último) | apagado: sigue en Crear, mismo documento | apagado: ídem | apagado: el texto de la búsqueda sigue, mismo documento | apagado: ídem |
+
+- **Veredicto de R-1: no confirmado.** En este PC la capa nativa rige desde el primer gesto tras un arranque en frío,
+  sin esperar a una navegación. No hubo ningún gesto activo en (a) o (b) que se apagara en (c).
+- Controles en la misma corrida: el detector vio el diálogo nativo de "Abrir una bóveda…" (`#32770`), el menú del
+  sistema de la barra de título por ventanas (`#32768`), Tab movió el foco, y al bloquear el `RuntimeId` del
+  documento cambió (recarga real). Control histórico de lo que se busca: sobre el release sin arreglo el mismo
+  detector leyó el menú de WebView2 y guardó la página (`qa2/RF31-menu-contextual.png`, `qa2/RF32`, `RF33`, y la
+  vista de impresión en `qa2/RF26-ctrl-p.png`).
+- Capturas abiertas: `VN20-a1-clic-derecho-titulo.png` (arranque 1; es de la repetición inmediata del clic derecho:
+  el veredicto del primerísimo clic salió de UIA, sin elementos de menú ni ventana nueva), `VN20-a2-ctrl-p.png`
+  (Ctrl+P como primer gesto del arranque 2), `VN30-clic-derecho-notas.png` y `VN30-ctrl-p.png` (bóveda abierta,
+  contraseña a la vista): sin menú ni vista de impresión.
+- Foco de partida de las 18 teclas de este paso: dentro de la página en todas (el documento en la bienvenida, el
+  campo de la maestra en Crear, un botón en la bóveda), nunca el marco de la ventana. En el arranque 2 Ctrl+P se
+  envió sin ningún clic previo, con el foco en el documento; que una tecla llega a la página en ese estado se vio en
+  la corrida anterior (Tab movió el foco desde el documento recién arrancado).
+- En todo lo medido este ejecutable se comportó igual que la versión de dos capas: el veredicto vale si el binario es
+  lo que se dijo que es (ver el límite de abajo).
+- **Límite:** desde fuera no puedo comprobar que a ese ejecutable le falta la capa de la página. Lo que sí vi: su
+  sha256 es distinto de los dos instalados y en él el valor mostrado todavía se copia por selección (no trae el
+  arreglo de R-4). Vale para el WebView2 de este PC; otra versión del motor podría aplicar los ajustes en otro momento.
+
+### Paso 3 — release nuevo: el valor mostrado ya no sale por el navegador
+| Gesto, con la contraseña mostrada | Resultado |
+|---|---|
+| Doble clic + Ctrl+C · triple clic + Ctrl+C · arrastre de punta a punta + Ctrl+C | sigue el centinela: no se copió nada (ni un trozo) |
+| Arrastre que empieza fuera y cruza el valor + Ctrl+C · Ctrl+A en la página + Ctrl+C | sigue el centinela: no se copió nada. **Consecuencia:** con un valor mostrado en pantalla, esa copia tampoco se lleva el resto del texto |
+| Doble clic + Ctrl+X | sigue el centinela; el valor sigue en pantalla y en la bóveda |
+| ¿Se puede seleccionar? | No: tras el doble clic `VN50-doble-clic.png` muestra el valor sin resaltar, donde `VN10-doble-clic.png` (versión anterior, mismo gesto) lo muestra resaltado. El valor sigue en el árbol UIA mientras está mostrado (lo lee un lector de pantalla) y sale al ocultar |
+| Arrastrar el valor hacia fuera | **no se pudo probar:** mi arrastre hacia una ventana propia no entregó ni el texto de control (una palabra de las notas, en la versión sin arreglo) |
+| Candidata del generador (otro sitio donde un secreto es texto) | **no se pudo probar:** no aparece como texto en el árbol UIA, así que el script no la localiza |
+
+Lo que debe seguir funcionando: botón "Copiar" de la contraseña (valor exacto, 3 de 3 formatos, fuera del historial,
+vacío a los 21,2 s) · "Copiar usuario" · doble clic + Ctrl+C sobre una palabra de las notas ("CENTELLA") y triple
+clic + Ctrl+C sobre el título · Ctrl+A + Ctrl+C dentro de los campos de notas y de título del formulario de edición ·
+mostrar y ocultar · humo: desbloquear (1 216 y 1 196 ms), Ctrl+K → buscar → Enter (foco en "Copiar contraseña") →
+Enter copia, bloquear (650 y 668 ms) deja el portapapeles vacío. La ventana abre centrada. **Nada dejó de funcionar.**
+
+Observación para seguridad (no es regresión): un texto **no protegido** copiado con Ctrl+C por el navegador (título,
+notas, usuario) no lo limpia la app ni a los 20 s ni al bloquear. Comprobado con el título: tras bloquear, el
+portapapeles tenía exactamente el título; no entra al historial (lleva los mismos dos formatos). Las notas suelen
+guardar códigos de recuperación: conviene decidir si es lo que se quiere.
+
+Rastro en disco (pasada final, canarios de esta corrida y prefijo de la anterior): **0 apariciones** en el perfil de
+WebView2 (251 archivos, 13 bases SQLite, 0 filas `autofill*`), ajustes, carpeta de trabajo y `%TEMP%`, con sus
+controles positivos. KeePassLib 2.62 abre la bóveda.
+
+### Tropiezos y límites del método
+- Tres fallos del script, no de la app: la comparación exacta que dio por limpio el arrastre de 19 caracteres
+  (ahora también cuenta un trozo de 8 caracteres seguidos); el paso del generador de `vn1`, que reventó esperando un
+  botón; y la comprobación "bloquear deja el portapapeles sin canarios" de `vn3`, que miraba un prefijo común al título
+  y a la contraseña y marcó `FALLA` (repetida en `vn4`, paso VN29, distinguiendo: era el título, no la contraseña).
+- El historial se consulta desde un proceso de consola; solo se cuentan y se borran los elementos con textos de esta
+  prueba, y no se registra el texto de ningún otro.
+- No probado: arrastrar hacia fuera, la candidata del generador, campos propios protegidos, un valor mostrado dentro
+  del formulario de edición, la copia con el valor oculto y Ctrl+A, Ctrl+Insert, el menú "Copiar" (ya no hay menú),
+  otros motores WebView2, Win+V a mano.
+
+### Estado en que quedó el PC
+Instalado y cerrado el release nuevo (0.1.0, sha256 `13577AB6A5987FDF`). El ejecutable de prueba no quedó corriendo
+ni instalado. Carpeta de trabajo borrada, sin restos en `%TEMP%`. Reciente de prueba quitada desde la app. Ajustes
+en 5 minutos y 20 s. Portapapeles vacío; historial sin canarios ni centinelas de esta prueba (borrados uno a uno,
+nunca el historial entero).

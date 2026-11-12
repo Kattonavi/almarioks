@@ -48,3 +48,11 @@ Lo que no cabe en la fase va aquí, un renglón por ítem: `- [origen] qué · s
 - [QA 0.1] Primer arranque con perfil nuevo de WebView2 en release: 3,7 a 4,9 s (meta 2 s; los siguientes 0,6 s) · Medio
 - [diseño 0.1] Tres puntos abiertos de la revisión final: lista en modo estrecho en la ventana por defecto, valores partidos a mitad de palabra a 800 × 600, riel a 480 × 360 (`docs/revisiones/0.1-diseno.md`) · Medio / Bajo / Bajo
 - [herramientas] El detector de Impeccable marca los bocetos de decisión (`.impeccable/mocks/decision/`, `docs/diseno/mocks/`) como fuera de `DESIGN.md`: excluir esas carpetas o borrar los no escogidos, a decisión del dueño · Bajo
+- [seguridad 0.1, R-2] La capa de la página decide por `event.key`: en una distribución de teclado no latina las letras no coincidirían; comparar también `event.code`, y cubrir Ctrl+Shift+G · Bajo
+- [seguridad 0.1, R-5] Si la renovación de los ajustes de WebView2 antes de la recarga del bloqueo falla, falla en silencio (no abre nada, pero no queda registro) · Info
+- [seguridad 0.1, R-6] La ventana no usa `contentProtected` (excluirla de capturas de pantalla): decidir con el dueño · Info
+- [seguridad 0.1, R-7] `isBrowserKey` lanza si un evento de teclado llega sin `key` (autocompletado de algunos IME) · Info
+- [0.1, R-4] El valor mostrado ya no se puede seleccionar: quien quiera copiar solo una parte de una contraseña no puede; evaluar si hace falta · Bajo
+- [QA 0.1] Un texto no protegido (título, usuario, notas) copiado con Ctrl+C desde la página sobrevive al bloqueo y no se limpia por tiempo (no entra al historial de Win+V): decidir si las notas merecen el trato de un valor protegido · Medio, para seguridad
+- [QA 0.1] Con un valor protegido mostrado, Ctrl+A + Ctrl+C no copia nada (tampoco el resto del texto): efecto del arreglo de R-4 · Bajo
+- [QA 0.1] Sin probar en la ventana real: arrastrar un valor mostrado hacia otra ventana y la contraseña candidata del generador · Bajo
