@@ -12,7 +12,6 @@ import type { FieldName, VaultClient } from "../ipc/client";
 import { errorMessage, type AppError, type Result } from "../ipc/errors";
 import type { EntrySummary, GroupNode, SearchResult } from "../ipc/schemas";
 import { CheckIcon, CopyIcon, MouseIcon, PlusIcon, SearchIcon, WindowIcon } from "../ui/icons";
-import { Dialog } from "./Dialog";
 import { EntryDialog } from "./EntryDialog";
 import { copyNoticeOf, EntryPanel, type CopyNotice } from "./EntryPanel";
 import { findGroup, formatShortDay, plural, shortSite, shown, trailTo } from "./format";
@@ -173,8 +172,6 @@ export function VaultScreen({
   const listPaneRef = useRef<HTMLElement>(null);
   /** RF-59: Enter pressed while the search was still on its way: open the first result when it lands. */
   const openFirst = useRef(false);
-  /** The entry opened from the keyboard: its window takes the focus once loaded (`seq` asks again for the same one). */
-  const [keyboardOpen, setKeyboardOpen] = useState<{ readonly entryId: string; readonly seq: number } | null>(null);
   const groupsTitleRef = useRef<HTMLHeadingElement>(null);
   /** After a group action removed what had focus, focus goes back to the tree once it is painted. */
   const focusTree = useRef(false);
@@ -237,7 +234,10 @@ export function VaultScreen({
     if (entryId === null || detail.kind !== "entry" || detail.entry.id !== entryId) return;
     // While a modal dialog is open everything behind it is inert: the focus waits for it to close.
     if (document.querySelector("dialog[open]") !== null) return;
-    const button = listPaneRef.current?.querySelector<HTMLElement>("table.entries tbody tr[data-selected] .row-copy");
+    // RF-105: "Copiar contraseña", or "Abrir la entrada" when the entry has no password: the first button of the row.
+    const button = listPaneRef.current?.querySelector<HTMLElement>(
+      "table.entries tbody tr[data-selected] .cell-actions button",
+    );
     if (button === null || button === undefined) return;
     focusCopy.current = null;
     // The focus brings the row into view when it is out of sight.
@@ -391,7 +391,6 @@ export function VaultScreen({
     settleCopyNotice();
     setNotice(NO_NOTICE);
     setListError(null);
-    setKeyboardOpen(null);
     setDetail({ kind: "entry", entry, open: false });
   }
 
@@ -400,14 +399,12 @@ export function VaultScreen({
     focusCopy.current = null;
     setNotice(NO_NOTICE);
     setListError(null);
-    setKeyboardOpen(null);
     setDetail({ kind: "entry", entry, open: true });
   }
 
   /** RF-108: back to the list. The entry stays chosen and its row takes the focus. */
   function closeWindow(entry: SelectedEntry) {
     focusRow.current = entry.id;
-    setKeyboardOpen(null);
     setDetail({ kind: "entry", entry, open: false });
   }
 
@@ -434,18 +431,16 @@ export function VaultScreen({
     settleCopyNotice();
     setNotice(NO_NOTICE);
     setListError(null);
-    setKeyboardOpen(null);
     focusCopy.current = entry.id;
     setDetail({ kind: "entry", entry, open: false });
   }
 
-  /** RF-43, RF-59: Enter on the title of a row opens its window and hands it the focus ("Copiar contraseña"). */
+  /** RF-43, RF-59: Enter on the title of a row opens its window, which takes the focus ("Copiar contraseña"). */
   function openFromKeyboard(entry: SelectedEntry) {
     focusCopy.current = null;
     settleCopyNotice();
     setNotice(NO_NOTICE);
     setListError(null);
-    setKeyboardOpen((current) => ({ entryId: entry.id, seq: (current?.seq ?? 0) + 1 }));
     setDetail({ kind: "entry", entry, open: true });
   }
 
@@ -642,7 +637,6 @@ export function VaultScreen({
           settleCopyNotice();
           setNotice({ kind: "created", since: saveSignal.saved });
           setListError(null);
-          setKeyboardOpen(null);
           focusCopy.current = entry.id;
           setDetail({ kind: "entry", entry: { id: entry.id, title: entry.title }, open: false });
           refresh();
@@ -652,8 +646,9 @@ export function VaultScreen({
   }
 
   /**
-   * RF-43, RF-108: the entry in a modal window over the list. The panel is mounted only while the window is open, so
-   * closing it (or a lock, which unmounts the whole screen) drops every value it was showing.
+   * RF-43, RF-108: the entry in a modal window over the list. The panel brings its own window (and changes it for
+   * the form while editing); it is mounted only while that window is open, so closing it (or a lock, which unmounts
+   * the whole screen) drops every value it was showing.
    */
   function renderWindow() {
     switch (detail.kind) {
@@ -663,45 +658,38 @@ export function VaultScreen({
         if (!detail.open || tree.kind !== "ready") return null;
         const { entry } = detail;
         return (
-          <Dialog
-            layout="entry"
-            labelledBy={windowTitleId}
+          <EntryPanel
+            key={entry.id}
+            client={client}
+            entryId={entry.id}
+            listTitle={entry.title}
+            root={tree.root}
+            readOnly={readOnly}
+            saveSignal={saveSignal}
+            titleId={windowTitleId}
             onClose={() => {
               closeWindow(entry);
             }}
-          >
-            <EntryPanel
-              key={entry.id}
-              client={client}
-              entryId={entry.id}
-              listTitle={entry.title}
-              root={tree.root}
-              readOnly={readOnly}
-              saveSignal={saveSignal}
-              focusRequest={keyboardOpen?.entryId === entry.id ? keyboardOpen.seq : 0}
-              titleId={windowTitleId}
-              onClose={() => {
-                closeWindow(entry);
-              }}
-              onChanged={refresh}
-              onCopied={(copy) => {
-                setNow(Date.now());
-                setCopyNotice(copy);
-              }}
-              onDeleted={(message) => {
-                settleCopyNotice();
-                setDetail({ kind: "none" });
-                setNotice({ kind: "text", text: message });
-                refresh();
-                // After the commit: while a modal dialog is open, everything outside it is inert.
-                focusList.current = true;
-              }}
-            />
-            {/* RF-74: while the window is open the copy notice is said inside it. */}
-            <div role="status" className="toast-zone">
-              {toast}
-            </div>
-          </Dialog>
+            onChanged={refresh}
+            onCopied={(copy) => {
+              setNow(Date.now());
+              setCopyNotice(copy);
+            }}
+            onDeleted={(message) => {
+              settleCopyNotice();
+              setDetail({ kind: "none" });
+              setNotice({ kind: "text", text: message });
+              refresh();
+              // After the commit: while a modal dialog is open, everything outside it is inert.
+              focusList.current = true;
+            }}
+            // RF-74: while the window is open the copy notice is said inside it, at its foot.
+            foot={
+              <div role="status" className="toast-zone">
+                {toast}
+              </div>
+            }
+          />
         );
       }
       default:
@@ -949,10 +937,12 @@ interface EntryTableProps {
 /** RF-105: what the password cell draws. Always the same marks: it says nothing of the value, not even its length. */
 const PASSWORD_MASK = "••••••••";
 
-/** RF-105: the password cell of a row. The list never gets the value; this is the one place that decides what it draws. */
-// eslint-disable-next-line @typescript-eslint/no-unused-vars -- the entry is what RF-105 will read (`hasPassword`)
-function passwordCell(_entry: EntrySummary): ReactNode {
-  // RF-105: hasPassword arrives with the core change; until then the mask is always shown
+/**
+ * RF-105: the password cell of a row. The list never gets the value, only whether there is one: with a password, the
+ * mask; without one, nothing. This is the one place that decides what the cell draws.
+ */
+function passwordCell(entry: EntrySummary): ReactNode {
+  if (!entry.hasPassword) return null;
   return (
     <>
       <span className="mask" aria-hidden="true">
@@ -1069,10 +1059,10 @@ function EntryTable({
                 </td>
                 <td
                   className="cell-password"
-                  title="Doble clic para copiar la contraseña"
+                  title={entry.hasPassword ? "Doble clic para copiar la contraseña" : undefined}
                   onClick={select}
                   onDoubleClick={() => {
-                    onCopy(picked, "Password");
+                    if (entry.hasPassword) onCopy(picked, "Password");
                   }}
                 >
                   {passwordCell(entry)}
@@ -1106,17 +1096,20 @@ function EntryTable({
                 <td className="cell-actions">
                   {chosen && (
                     <>
-                      <button
-                        type="button"
-                        className="row-copy"
-                        aria-label={`Copiar contraseña de ${title}`}
-                        title="Copiar contraseña"
-                        onClick={() => {
-                          onCopy(picked, "Password");
-                        }}
-                      >
-                        <CopyIcon />
-                      </button>
+                      {/* RF-105: nothing to copy, nothing offered: "Abrir la entrada" keeps its place at the end. */}
+                      {entry.hasPassword && (
+                        <button
+                          type="button"
+                          className="row-copy"
+                          aria-label={`Copiar contraseña de ${title}`}
+                          title="Copiar contraseña"
+                          onClick={() => {
+                            onCopy(picked, "Password");
+                          }}
+                        >
+                          <CopyIcon />
+                        </button>
+                      )}
                       <button
                         type="button"
                         className="row-open"

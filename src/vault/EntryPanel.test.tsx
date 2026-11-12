@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { createClient } from "../ipc/client";
 import { ERROR_MESSAGES } from "../ipc/errors";
 import { createFakeBackend, SAMPLE_ENTRIES, SAMPLE_GROUPS, type FakeEntry, type FakeOptions } from "../ipc/fake";
+import { formatDate } from "./format";
 import { VaultRoot } from "./VaultRoot";
 
 afterEach(() => {
@@ -762,13 +763,33 @@ describe("P5 Entrada — la tarjeta de campos", () => {
     expect(within(detailZone()).queryByText("Adjuntos")).toBeNull();
   });
 
-  it("RF-43: bajo la tarjeta dice cuándo se creó y cuándo se modificó, en una línea, con la hora en el `title`", async () => {
+  it("RF-107: bajo la tarjeta dice cuándo se creó y cuándo se modificó, con el día y la hora del equipo; editar cambia la de «Modificada»", async () => {
     await setup();
     await openEntry("Trabajo", "GitHub");
+    const CREATED = "2026-10-01T08:00:00Z";
+    const MODIFIED = "2026-11-01T08:00:00Z";
+    const dates = () => detailZone().querySelector(".entry-dates")?.textContent;
+    const times = () => [...detailZone().querySelectorAll<HTMLTimeElement>(".entry-dates time")];
 
-    const dates = detailZone().querySelector(".entry-dates");
-    expect(dates?.textContent).toBe("Creada el 1 oct 2026 · Modificada el 1 nov 2026");
-    expect(dates?.querySelector('time[datetime="2026-11-01T08:00:00Z"]')?.getAttribute("title")).toMatch(/2026/);
+    // The same words `formatDate` gives: they depend on the time zone of the computer the tests run on.
+    expect(dates()).toBe(`Creada el ${formatDate(CREATED)} · Modificada el ${formatDate(MODIFIED)}`);
+    expect(times().map((time) => time.getAttribute("datetime"))).toEqual([CREATED, MODIFIED]);
+    // Day and hour, to the minute: "1 oct 2026, 3:00 a. m.".
+    for (const time of times()) expect(time.textContent).toMatch(/2026\D+\d{1,2}:\d{2}/);
+
+    fireEvent.click(within(detailZone()).getByRole("button", { name: "Editar" }));
+    const dialog = await screen.findByRole("dialog", { name: "Editar entrada" });
+    fireEvent.change(within(dialog).getByLabelText("Título"), { target: { value: "GitHub del equipo" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Guardar entrada" }));
+    // The form is in the place of the window until the core answers: the window comes back with the new data.
+    await waitFor(() => {
+      expect(within(detailZone()).getByRole("heading", { name: "GitHub del equipo" })).toBeDefined();
+    });
+
+    const [created, modified] = times().map((time) => time.getAttribute("datetime") ?? "");
+    expect(created).toBe(CREATED);
+    expect(modified).not.toBe(MODIFIED);
+    expect(dates()).toBe(`Creada el ${formatDate(CREATED)} · Modificada el ${formatDate(modified ?? "")}`);
   });
 });
 
@@ -1165,25 +1186,30 @@ describe("P4 Bóveda — buscar y copiar con teclado", () => {
     });
   });
 
-  it("RF-59: abrir con el ratón no mueve el foco al detalle", async () => {
+  it("RF-108: abrir con el ratón deja el foco en «Copiar contraseña», igual que con Enter", async () => {
     await setup();
     await openEntry("Trabajo", "GitHub");
-    expect(document.activeElement).not.toBe(within(detailZone()).getByRole("button", { name: "Copiar contraseña" }));
+    await waitFor(() => {
+      expect(document.activeElement).toBe(within(detailZone()).getByRole("button", { name: "Copiar contraseña" }));
+    });
   });
 });
 
 describe("P5 Entrada — ventana mínima", () => {
-  it("RF-108: «Cerrar» vuelve a la lista con la fila elegida y el foco en ella; al editar, el formulario queda sobre la ventana y cancelar vuelve a ella", async () => {
+  it("RF-108: «Cerrar» vuelve a la lista con la fila elegida y el foco en ella; al editar, el formulario reemplaza la ventana y cancelar vuelve a ella", async () => {
     await setup();
     await openEntry("Trabajo", "GitHub");
 
     fireEvent.click(within(detailZone()).getByRole("button", { name: "Editar" }));
     const editing = await screen.findByRole<HTMLDialogElement>("dialog", { name: "Editar entrada" });
-    // The edit is a modal dialog over the window: cancelling it goes back to the window of the entry.
+    // The form takes the place of the window, it is not stacked on it: cancelling goes back to the window.
     expect(editing.open).toBe(true);
+    expect(screen.getAllByRole("dialog")).toEqual([editing]);
+    expect(document.querySelector('dialog[data-layout="entry"]')).toBeNull();
     fireEvent.click(within(editing).getByRole("button", { name: "Cancelar" }));
     expect(screen.queryByRole("dialog", { name: "Editar entrada" })).toBeNull();
     expect(within(detailZone()).getByRole("heading", { name: "GitHub" })).toBeDefined();
+    expect(document.activeElement).toBe(within(detailZone()).getByRole("button", { name: "Editar" }));
 
     closeWindow();
     expect(screen.queryByRole("dialog")).toBeNull();
@@ -1195,7 +1221,7 @@ describe("P5 Entrada — ventana mínima", () => {
 });
 
 describe("P5 Entrada — diálogos sobre la ventana de la entrada", () => {
-  it("RF-108: Esc en el diálogo de mover o en el formulario de editar cierra solo ese diálogo: la ventana de la entrada sigue abierta", async () => {
+  it("RF-108: Esc en el diálogo de mover cierra solo ese diálogo; Esc en el formulario de editar vuelve a la ventana de la entrada", async () => {
     await setup();
     await openEntry("Trabajo", "GitHub");
 
@@ -1213,7 +1239,7 @@ describe("P5 Entrada — diálogos sobre la ventana de la entrada", () => {
     expect(within(detailZone()).getByRole("heading", { name: "GitHub" })).toBeDefined();
   });
 
-  it("RF-108: la ventana se abre con el foco en «Cerrar», y ese botón sigue siendo el mismo cuando llega la entrada", async () => {
+  it("RF-108: «Cerrar» sigue siendo el mismo botón cuando llega la entrada, y entonces el foco pasa a «Copiar contraseña»", async () => {
     const { backend } = await setup();
     await openGroup("Trabajo");
     const release = backend.hold("entry_get");
@@ -1228,11 +1254,12 @@ describe("P5 Entrada — diálogos sobre la ventana de la entrada", () => {
 
     // Replaced by another element, the focus the browser gave it would be left on nothing behind a modal window.
     expect(within(detailZone()).getByRole("button", { name: "Cerrar" })).toBe(close);
+    expect(document.activeElement).toBe(within(detailZone()).getByRole("button", { name: "Copiar contraseña" }));
   });
 });
 
 describe("P5 Entrada — el diálogo sobre la bóveda", () => {
-  it("RF-100: «Nueva entrada» y «Editar» abren un diálogo sobre la bóveda: la lista y la ventana de la entrada quedan detrás y el panel no muestra formularios", async () => {
+  it("RF-100: «Nueva entrada» y «Editar» abren un diálogo sobre la bóveda: la lista queda detrás y, al editar, el formulario ocupa el lugar de la ventana de la entrada", async () => {
     await setup();
     await openEntry("Trabajo", "GitHub");
 
@@ -1248,14 +1275,13 @@ describe("P5 Entrada — el diálogo sobre la bóveda", () => {
       expect(dialog.open).toBe(true);
       expect(within(dialog).getByText("En el grupo Trabajo")).toBeDefined();
       expect(document.activeElement).toBe(within(dialog).getByLabelText("Título"));
-      // Behind it, as they were: the chosen row and, when editing, the window of its entry.
+      // Behind it, as it was: the chosen row.
       const row = within(screen.getByRole("table")).getByRole("button", { name: "GitHub" });
       expect(row.getAttribute("aria-current")).toBe("true");
       if (button === "Editar") {
-        expect(within(detailZone()).getByRole("heading", { name: "GitHub" })).toBeDefined();
-        expect(within(detailZone()).getByRole("button", { name: "Copiar contraseña" })).toBeDefined();
-        const forms = [...detailZone().querySelectorAll("form")];
-        expect(forms.every((form) => form.closest("dialog") === dialog)).toBe(true);
+        // RF-108: the form takes the place of the window of the entry; nothing of it stays under the form.
+        expect(document.querySelector('dialog[data-layout="entry"]')).toBeNull();
+        expect(screen.getAllByRole("dialog")).toEqual([dialog]);
       }
 
       fireEvent.click(within(dialog).getByRole("button", { name: "Cancelar" }));
@@ -1299,7 +1325,9 @@ describe("P5 Entrada — el diálogo sobre la bóveda", () => {
     fireEvent.click(within(dialog).getByRole("button", { name: "Guardar entrada" }));
 
     // RF-108: saving goes back to the window of the entry, with the new data.
-    expect(await within(detailZone()).findByRole("heading", { name: "GitHub del equipo" })).toBeDefined();
+    await waitFor(() => {
+      expect(within(detailZone()).getByRole("heading", { name: "GitHub del equipo" })).toBeDefined();
+    });
     expect(screen.getAllByRole("dialog")).toEqual([detailZone()]);
     expect(document.activeElement).toBe(within(detailZone()).getByRole("button", { name: "Editar" }));
     await waitFor(() => {
@@ -1340,5 +1368,167 @@ describe("P5 Entrada — el diálogo sobre la bóveda", () => {
     expect(await screen.findByRole("heading", { name: "Desbloquear cuentas.kdbx" })).toBeDefined();
     expect(screen.queryByRole("dialog")).toBeNull();
     for (const value of ["borrador-a-medias", "escrita-sin-guardar", PASSWORD]) expect(bodyContains(value)).toBe(false);
+  });
+});
+
+describe("P5 Entrada — la ventana, segunda ronda", () => {
+  /** 500 characters, the longest password the generator makes (RF-65). */
+  const LONG = "abcdefghjkmnpqrstuvwxyz23456789#%".repeat(16).slice(0, 500);
+  const BARE: FakeEntry = { id: "entry-bare", groupId: "group-work", title: "Sin clave", username: "ana", url: "", notes: "" };
+
+  /** The cell of the value of that row: where its double click and its help live. */
+  function valueOf(label: string): HTMLElement {
+    const cell = rowOf(label).querySelector<HTMLElement>(".card-main");
+    if (cell === null) throw new Error(`missing value of ${label}`);
+    return cell;
+  }
+
+  function listRow(title: string): HTMLElement {
+    const row = within(screen.getByRole("table")).getByRole("button", { name: title }).closest("tr");
+    if (row === null) throw new Error(`missing row ${title}`);
+    return row;
+  }
+
+  function passwordCellOf(title: string): HTMLElement {
+    const cell = listRow(title).querySelector<HTMLElement>("td.cell-password");
+    if (cell === null) throw new Error(`missing password cell of ${title}`);
+    return cell;
+  }
+
+  it("RF-106: en la ventana, doble clic en el usuario lo copia, en la contraseña la copia sin mostrarla y en el sitio lo abre; la ayuda nunca lleva un valor", async () => {
+    const { backend } = await setup();
+    await openEntry("Trabajo", "GitHub");
+
+    expect(valueOf("Usuario").title).toBe("Doble clic para copiar");
+    expect(valueOf("Contraseña").title).toBe("Doble clic para copiar");
+    expect(valueOf("Sitio").title).toBe("Doble clic para abrir el sitio en el navegador");
+
+    fireEvent.doubleClick(valueOf("Usuario"));
+    await waitFor(() => {
+      expect(lastArgs(backend, "entry_copy")).toEqual({ id: "entry-github", field: "UserName" });
+    });
+    fireEvent.doubleClick(valueOf("Contraseña"));
+    await waitFor(() => {
+      expect(lastArgs(backend, "entry_copy")).toEqual({ id: "entry-github", field: "Password" });
+    });
+    expect(await screen.findByText("Contraseña copiada. Se borra del portapapeles en 20 s")).toBeDefined();
+    // The core copied it: nothing asked to show it and the value never came to the window.
+    expect(backend.count("entry_reveal")).toBe(0);
+    expect(bodyContains(PASSWORD)).toBe(false);
+    expect(rowOf("Contraseña").querySelector(".secret")?.hasAttribute("data-masked")).toBe(true);
+
+    fireEvent.doubleClick(valueOf("Sitio"));
+    await waitFor(() => {
+      expect(backend.count("entry_open_url")).toBe(1);
+    });
+    // Every gesture has its button.
+    for (const name of ["Copiar usuario", "Copiar contraseña", "Abrir el sitio en el navegador"]) {
+      expect(within(detailZone()).getByRole("button", { name })).toBeDefined();
+    }
+  });
+
+  it("RF-108: «Editar» cambia la ventana por el formulario; guardar vuelve a la ventana con los datos al día y el foco en «Editar», y Esc vuelve a la fila", async () => {
+    await setup();
+    await openEntry("Trabajo", "GitHub");
+    fireEvent.click(screen.getByRole("button", { name: "Mostrar contraseña" }));
+    await screen.findByText(PASSWORD);
+
+    fireEvent.click(within(detailZone()).getByRole("button", { name: "Editar" }));
+    const form = await screen.findByRole("dialog", { name: "Editar entrada" });
+    // One dialog, not two: the window is gone, and what it was showing went with it.
+    expect(screen.getAllByRole("dialog")).toEqual([form]);
+    expect(bodyContains(PASSWORD)).toBe(false);
+
+    fireEvent.change(within(form).getByLabelText(/^Usuario/), { target: { value: "equipo@example.com" } });
+    fireEvent.click(within(form).getByRole("button", { name: "Guardar entrada" }));
+
+    await waitFor(() => {
+      expect(rowOf("Usuario").textContent).toBe("Usuarioequipo@example.com");
+    });
+    expect(screen.getAllByRole("dialog")).toEqual([detailZone()]);
+    expect(document.activeElement).toBe(within(detailZone()).getByRole("button", { name: "Editar" }));
+    // What was shown before editing is hidden again.
+    expect(rowOf("Contraseña").querySelector(".secret")?.hasAttribute("data-masked")).toBe(true);
+    expect(bodyContains(PASSWORD)).toBe(false);
+
+    await waitFor(() => {
+      expect(screen.queryByText("Cargando las entradas…")).toBeNull();
+    });
+    // Escape reaches the window as its `cancel` event.
+    fireEvent(detailZone(), new Event("cancel", { cancelable: true }));
+    expect(screen.queryByRole("dialog")).toBeNull();
+    const row = within(screen.getByRole("table")).getByRole("button", { name: "GitHub" });
+    expect(row.getAttribute("aria-current")).toBe("true");
+    expect(document.activeElement).toBe(row);
+  });
+
+  it("RF-105: una entrada sin contraseña deja su celda vacía en la lista, sin ayuda ni doble clic, y su fila elegida solo ofrece «Abrir la entrada»", async () => {
+    const { backend } = await setup({ entries: [GITHUB, BARE] });
+    await openGroup("Trabajo");
+
+    expect(passwordCellOf("GitHub").textContent).toBe("••••••••Oculta");
+    expect(passwordCellOf("GitHub").title).toBe("Doble clic para copiar la contraseña");
+    expect(passwordCellOf("Sin clave").textContent).toBe("");
+    expect(passwordCellOf("Sin clave").hasAttribute("title")).toBe(false);
+
+    fireEvent.click(passwordCellOf("Sin clave"));
+    fireEvent.doubleClick(passwordCellOf("Sin clave"));
+    const offered = [...listRow("Sin clave").querySelectorAll(".cell-actions button")];
+    expect(offered.map((button) => button.getAttribute("aria-label"))).toEqual(["Abrir Sin clave"]);
+    expect(backend.count("entry_copy")).toBe(0);
+    expect(screen.queryByRole("dialog")).toBeNull();
+
+    // The row of an entry with a password keeps its two buttons.
+    fireEvent.click(passwordCellOf("GitHub"));
+    const both = [...listRow("GitHub").querySelectorAll(".cell-actions button")];
+    expect(both.map((button) => button.getAttribute("aria-label"))).toEqual(["Copiar contraseña de GitHub", "Abrir GitHub"]);
+  });
+
+  it("RF-105: el camino rápido del teclado deja el foco en «Abrir la entrada» cuando la entrada no tiene contraseña", async () => {
+    await setup({ entries: [GITHUB, BARE] });
+    const search = screen.getByRole("searchbox", { name: "Buscar en la bóveda" });
+    fireEvent.change(search, { target: { value: "Sin clave" } });
+    fireEvent.keyDown(search, { key: "Enter" });
+
+    const open = await screen.findByRole("button", { name: "Abrir Sin clave" });
+    await waitFor(() => {
+      expect(document.activeElement).toBe(open);
+    });
+    expect(screen.queryByRole("button", { name: "Copiar contraseña de Sin clave" })).toBeNull();
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("RF-105: RF-108: la ventana de una entrada sin contraseña dice «Sin contraseña», sin botones ni gesto en esa fila, y el foco queda en «Cerrar»", async () => {
+    const { backend } = await setup({ entries: [GITHUB, BARE] });
+    await openEntry("Trabajo", "Sin clave");
+
+    expect(rowOf("Contraseña").textContent).toBe("ContraseñaSin contraseña");
+    expect(rowOf("Contraseña").querySelectorAll("button")).toHaveLength(0);
+    expect(valueOf("Contraseña").hasAttribute("title")).toBe(false);
+    await waitFor(() => {
+      expect(document.activeElement).toBe(within(detailZone()).getByRole("button", { name: "Cerrar" }));
+    });
+    fireEvent.doubleClick(valueOf("Contraseña"));
+    expect(backend.count("entry_copy")).toBe(0);
+  });
+
+  it("RF-43: una contraseña de 500 caracteres mostrada va completa, dentro de `.secret` y en ningún atributo", async () => {
+    await setup({ entries: [{ ...GITHUB, password: LONG }] });
+    await openEntry("Trabajo", "GitHub");
+
+    fireEvent.click(screen.getByRole("button", { name: "Mostrar contraseña" }));
+    const shownValue = await waitFor(() => {
+      const found = rowOf("Contraseña").querySelector<HTMLElement>(".secret:not([data-masked])");
+      if (found === null) throw new Error("not shown yet");
+      return found;
+    });
+    // Whole, as one text: no ellipsis character and nothing cut in the markup. That it breaks into lines is CSS.
+    expect(shownValue.textContent).toBe(LONG);
+    expect(shownValue.textContent).toHaveLength(500);
+    expect(shownValue.className).toBe("secret");
+    expect(shownValue.closest(".card-main")?.getAttribute("title")).toBe("Doble clic para copiar");
+    for (const element of document.querySelectorAll("*")) {
+      for (const attribute of element.attributes) expect(attribute.value).not.toContain(LONG.slice(0, 40));
+    }
   });
 });

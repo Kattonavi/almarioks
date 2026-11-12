@@ -673,9 +673,11 @@ describe("P4 Bóveda — la tabla y sus gestos", () => {
     expect(cell("Con todo", ".cell-user").textContent).toBe("ana");
     expect(cell("Con todo", ".cell-url").textContent).toBe("uno.example/entrar");
     expect(cell("Con todo", ".cell-date").textContent).toBe(`8 jun${new Date().getFullYear() === 2026 ? "" : " 2026"}`);
-    // The mask is the same for every entry, whatever its password: it does not give away the length.
-    const masks = ["Con todo", "Sin nada", "Usuario protegido"].map((title) => cell(title, ".cell-password").textContent);
+    // The mask is the same for every entry with a password, whatever it is: it does not give away the length.
+    const masks = ["Con todo", "Sin nada"].map((title) => cell(title, ".cell-password").textContent);
     expect(new Set(masks).size).toBe(1);
+    // RF-105: an entry without a password leaves the cell empty.
+    expect(cell("Usuario protegido", ".cell-password").textContent).toBe("");
     expect(cell("Con todo", ".cell-password .mask").textContent).toBe("••••••••");
     // Without user or site: a dash. Protected in the file: "(protegido)", as before.
     expect(cell("Sin nada", ".cell-user").textContent).toBe("—");
