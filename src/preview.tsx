@@ -6,7 +6,7 @@
  *   ?estado=…               the screen and state to show (default: copiado):
  *       without a vault     bienvenida · bienvenida-vacia · crear · crear-vacia · crear-existe · crear-ubicacion ·
  *                           crear-llave · crear-llave-nueva · crear-llave-ubicacion · crear-error · creando ·
- *                           creada · desbloquear · derivando · error-llave ·
+ *                           creada · desbloquear · desbloquear-sin-llave · derivando · error-llave ·
  *                           bloqueada · ajustes
  *       open vault          todas · foco-todas · menu-grupo · menu-papelera · busqueda ·
  *                           copiado · detalle · mostrada · menu-entrada · ninguna · formulario · generador · editar ·
@@ -33,6 +33,7 @@ import {
   type FakeBackend,
   type FakeEntry,
   type FakeGroup,
+  keyFileBeside,
 } from "./ipc/fake";
 import "./styles.css";
 import lightTokens from "./styles/tokens.css?inline";
@@ -66,6 +67,7 @@ const CLOSED = new Set([
   "creando",
   "creada",
   "desbloquear",
+  "desbloquear-sin-llave",
   "derivando",
   "error-llave",
   "ajustes",
@@ -153,9 +155,13 @@ async function stageClosed(backend: FakeBackend) {
       await find("label", /^Bloquear la bóveda/);
       return;
     case "desbloquear":
+    case "desbloquear-sin-llave":
     case "derivando":
     case "error-llave":
       await click(".recent-row button", "cuentas.kdbx");
+      if (state === "desbloquear-sin-llave") return;
+      // RF-110: the key file beside the vault comes already chosen (see `files` below).
+      if (state !== "derivando") await find(".unlock-key .mono", /\.keyx$/);
       if (state === "desbloquear") return;
       if (state === "derivando") backend.holdUnlock();
       await fill("unlock-password", "no-es-la-clave");
@@ -505,7 +511,11 @@ async function boot() {
           },
     vaults: [{ path: VAULT_PATH, name: "Cuentas", password: "demo-clave" }],
     // "Crear bóveda" proposes this folder: a file already there is the "ya existe" state (`crear-existe`).
-    files: [`${FAKE_DEFAULT_FOLDER}/Cuentas.kdbx`],
+    files: [
+      `${FAKE_DEFAULT_FOLDER}/Cuentas.kdbx`,
+      // RF-110: in these states there is a key file beside the vault, so unlocking proposes it.
+      ...(state === "desbloquear" || state === "error-llave" ? [keyFileBeside(VAULT_PATH)] : []),
+    ],
     recent:
       state === "bienvenida-vacia"
         ? []

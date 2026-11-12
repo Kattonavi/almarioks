@@ -3,8 +3,9 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { createClient, type Transport } from "../ipc/client";
 import { ERROR_MESSAGES } from "../ipc/errors";
-import { createFakeBackend, type FakeOptions } from "../ipc/fake";
+import { createFakeBackend, keyFileBeside, type FakeOptions } from "../ipc/fake";
 
+import { KEY_SUGGESTED } from "./UnlockScreen";
 import { STATUS_POLL_MS, VaultRoot } from "./VaultRoot";
 
 afterEach(() => {
@@ -16,6 +17,8 @@ const PATH = "D:/bovedas/cuentas.kdbx";
 const KEY = "D:/llaves/cuentas.keyx";
 const WITH_PASSWORD = { path: PATH, name: "Cuentas", password: "correcta" };
 const WITH_BOTH = { ...WITH_PASSWORD, keyFilePath: KEY };
+/** RF-110: the key file beside the vault, the one the core proposes. */
+const BESIDE = keyFileBeside(PATH);
 
 function setup(options: FakeOptions) {
   const backend = createFakeBackend(options);
@@ -25,6 +28,7 @@ function setup(options: FakeOptions) {
 
 const passwordField = () => screen.getByLabelText<HTMLInputElement>("Contraseña maestra");
 const unlockButton = () => screen.getByRole<HTMLButtonElement>("button", { name: "Desbloquear" });
+const keyFileGroup = () => screen.getByRole("group", { name: "Archivo llave" });
 
 function typePassword(value: string) {
   fireEvent.change(passwordField(), { target: { value } });
@@ -186,6 +190,200 @@ describe("P3 Desbloquear", () => {
     expect(passwordField().getAttribute("aria-invalid")).toBe("true");
     expect(screen.getByRole("heading", { name: "Desbloquear cuentas.kdbx" })).toBeDefined();
     expect(screen.queryByRole("heading", { name: "Cuentas" })).toBeNull();
+  });
+
+  it("RF-110: la llave que está junto a la bóveda viene ya elegida y un clic en Desbloquear la manda", async () => {
+    const backend = setup({
+      vaults: [{ ...WITH_PASSWORD, keyFilePath: BESIDE }],
+      recent: [{ path: PATH, exists: true }],
+      files: [BESIDE],
+    });
+    fireEvent.click(await screen.findByRole("button", { name: "Abrir cuentas.kdbx" }));
+    await findUnlockScreen();
+
+    // Its name, with the whole path in `title`, and the line that says the app chose it.
+    const proposed = await screen.findByText("cuentas.keyx");
+    expect(proposed.title).toBe(BESIDE);
+    expect(screen.getByText(KEY_SUGGESTED).textContent).toBe(
+      "Se eligió sola la llave que está junto a la bóveda. Si esta bóveda no la usa, quítala.",
+    );
+    expect(screen.queryByText("Ninguno")).toBeNull();
+    expect(keyFileGroup().getAttribute("aria-describedby")).toBe("unlock-key-hint");
+    expect(passwordField().getAttribute("aria-describedby")).toBe("unlock-help unlock-key-hint");
+    // The path asked is the one the core gave, and the password still has the focus: type it and Enter.
+    expect(backend.calls.filter((call) => call.command === "unlock_key_suggestion")).toEqual([
+      { command: "unlock_key_suggestion", args: { path: PATH } },
+    ]);
+    expect(document.activeElement).toBe(passwordField());
+
+    typePassword("correcta");
+    fireEvent.click(unlockButton());
+
+    expect(await screen.findByRole("heading", { name: "Cuentas" })).toBeDefined();
+    expect(backend.calls.filter((call) => call.command === "vault_open")).toEqual([
+      { command: "vault_open", args: { path: PATH, password: "correcta", key_file_path: BESIDE } },
+    ]);
+  });
+
+  it("RF-110: la llave propuesta se puede cambiar por otra con «Elegir archivo llave…»", async () => {
+    const backend = setup({
+      vaults: [WITH_BOTH],
+      status: { state: "locked", path: PATH, recovery: null },
+      files: [BESIDE],
+      picks: { pick_key_file: [KEY] },
+    });
+    await findUnlockScreen();
+    await screen.findByText("cuentas.keyx");
+
+    fireEvent.click(screen.getByRole("button", { name: "Elegir archivo llave…" }));
+    expect(await screen.findByText(KEY)).toBeDefined();
+    expect(screen.queryByText("cuentas.keyx")).toBeNull();
+    expect(screen.queryByText(KEY_SUGGESTED)).toBeNull();
+    expect(keyFileGroup().getAttribute("aria-describedby")).toBeNull();
+
+    typePassword("correcta");
+    fireEvent.click(unlockButton());
+    expect(await screen.findByRole("heading", { name: "Cuentas" })).toBeDefined();
+    expect(backend.calls.find((call) => call.command === "vault_open")?.args).toEqual({
+      path: PATH,
+      password: "correcta",
+      key_file_path: KEY,
+    });
+  });
+
+  it("RF-110: la llave propuesta se puede quitar, y un desbloqueo fallido no la vuelve a poner", async () => {
+    const backend = setup({
+      vaults: [WITH_PASSWORD],
+      recent: [{ path: PATH, exists: true }],
+      files: [BESIDE],
+    });
+    fireEvent.click(await screen.findByRole("button", { name: "Abrir cuentas.kdbx" }));
+    await findUnlockScreen();
+    await screen.findByText("cuentas.keyx");
+
+    fireEvent.click(screen.getByRole("button", { name: "Quitar archivo llave" }));
+    expect(screen.getByText("Ninguno")).toBeDefined();
+    expect(screen.queryByText(KEY_SUGGESTED)).toBeNull();
+    expect(screen.queryByRole("button", { name: "Quitar archivo llave" })).toBeNull();
+
+    typePassword("mala");
+    fireEvent.click(unlockButton());
+    expect(await screen.findByText(ERROR_MESSAGES.LlaveIncorrecta)).toBeDefined();
+    await waitForTicks();
+    expect(screen.getByText("Ninguno")).toBeDefined();
+    expect(screen.queryByText("cuentas.keyx")).toBeNull();
+    expect(backend.count("unlock_key_suggestion")).toBe(1);
+
+    typePassword("correcta");
+    fireEvent.click(unlockButton());
+    expect(await screen.findByRole("heading", { name: "Cuentas" })).toBeDefined();
+    expect(backend.calls.filter((call) => call.command === "vault_open").at(-1)?.args).toEqual({
+      path: PATH,
+      password: "correcta",
+    });
+  });
+
+  it("RF-110: una respuesta tardía no pisa el archivo llave que la persona ya eligió", async () => {
+    const backend = createFakeBackend({
+      vaults: [WITH_BOTH],
+      status: { state: "locked", path: PATH, recovery: null },
+      files: [BESIDE],
+      picks: { pick_key_file: [KEY] },
+    });
+    const answer = backend.hold("unlock_key_suggestion");
+    render(<VaultRoot client={createClient(backend.transport)} />);
+    await findUnlockScreen();
+    expect(screen.getByText("Ninguno")).toBeDefined();
+
+    fireEvent.click(screen.getByRole("button", { name: "Elegir archivo llave…" }));
+    await screen.findByText(KEY);
+    answer();
+    await waitForTicks();
+
+    expect(backend.count("unlock_key_suggestion")).toBe(1);
+    expect(screen.getByText(KEY)).toBeDefined();
+    expect(screen.queryByText("cuentas.keyx")).toBeNull();
+    expect(screen.queryByText(KEY_SUGGESTED)).toBeNull();
+  });
+
+  it("RF-110: sin llave junto a la bóveda, o si la consulta falla, queda «Ninguno» y no hay error", async () => {
+    // `null`: nothing beside the vault (which does not mean the vault has no key file).
+    const none = setup({ vaults: [WITH_PASSWORD], status: { state: "locked", path: PATH, recovery: null } });
+    await findUnlockScreen();
+    await waitForTicks();
+    expect(none.count("unlock_key_suggestion")).toBe(1);
+    expect(screen.getByText("Ninguno")).toBeDefined();
+    expect(screen.queryByText(KEY_SUGGESTED)).toBeNull();
+    expect(screen.getByRole("alert").textContent).toBe("");
+    expect(passwordField().getAttribute("aria-describedby")).toBe("unlock-help");
+    cleanup();
+
+    // The question fails: the screen is the one of always.
+    const failing = createFakeBackend({
+      vaults: [WITH_PASSWORD],
+      status: { state: "locked", path: PATH, recovery: null },
+      files: [BESIDE],
+    });
+    failing.rejectOnce("unlock_key_suggestion", { code: "ErrorInterno", message: "core text" });
+    render(<VaultRoot client={createClient(failing.transport)} />);
+    await findUnlockScreen();
+    await waitForTicks();
+    expect(failing.count("unlock_key_suggestion")).toBe(1);
+    expect(screen.getByText("Ninguno")).toBeDefined();
+    expect(screen.queryByText("cuentas.keyx")).toBeNull();
+    expect(screen.getByRole("alert").textContent).toBe("");
+
+    typePassword("correcta");
+    fireEvent.click(unlockButton());
+    expect(await screen.findByRole("heading", { name: "Cuentas" })).toBeDefined();
+  });
+
+  it("RF-112: el fallo no afirma que la bóveda use archivo llave, y la pista de la llave propuesta se queda", async () => {
+    // An old key file beside a vault that does not use one: the proposal is what makes the unlock fail.
+    const backend = setup({
+      vaults: [WITH_PASSWORD],
+      recent: [{ path: PATH, exists: true }],
+      files: [BESIDE],
+    });
+    fireEvent.click(await screen.findByRole("button", { name: "Abrir cuentas.kdbx" }));
+    await findUnlockScreen();
+    await screen.findByText("cuentas.keyx");
+
+    typePassword("correcta");
+    fireEvent.click(unlockButton());
+
+    const alert = await screen.findByRole("alert");
+    await waitFor(() => {
+      expect(alert.textContent).toBe(
+        "La contraseña o el archivo llave no coinciden. Si esta bóveda usa archivo llave, elígelo.",
+      );
+    });
+    expect(ERROR_MESSAGES.LlaveIncorrecta).toBe(alert.textContent);
+    // Next to the key file the app chose, the way out is still in sight; and it is read with the password.
+    expect(screen.getByText("cuentas.keyx").title).toBe(BESIDE);
+    expect(screen.getByText(KEY_SUGGESTED)).toBeDefined();
+    expect(passwordField().getAttribute("aria-describedby")).toBe("unlock-help unlock-key-hint unlock-error");
+    expect(document.activeElement).toBe(passwordField());
+    expect(backend.count("unlock_key_suggestion")).toBe(1);
+
+    fireEvent.click(screen.getByRole("button", { name: "Quitar archivo llave" }));
+    typePassword("correcta");
+    fireEvent.click(unlockButton());
+    expect(await screen.findByRole("heading", { name: "Cuentas" })).toBeDefined();
+  });
+
+  it("RF-112: el fallo sin archivo llave elegido dice que lo elija si la bóveda lo usa", async () => {
+    setup({ vaults: [WITH_BOTH], status: { state: "locked", path: PATH, recovery: null } });
+    await findUnlockScreen();
+
+    typePassword("correcta");
+    fireEvent.click(unlockButton());
+
+    expect(
+      await screen.findByText("La contraseña o el archivo llave no coinciden. Si esta bóveda usa archivo llave, elígelo."),
+    ).toBeDefined();
+    expect(screen.getByText("Ninguno")).toBeDefined();
+    expect(screen.queryByText(KEY_SUGGESTED)).toBeNull();
   });
 
   it("RF-18: carga — mientras deriva muestra progreso, no se congela y no lanza un segundo desbloqueo", async () => {
