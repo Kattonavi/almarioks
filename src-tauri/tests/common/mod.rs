@@ -10,11 +10,17 @@
 // Tests may panic on purpose: a failed unwrap is a failed test (R-2 exception, scoped to the tests).
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
+pub mod vault;
+
 use std::{
     path::{Path, PathBuf},
-    sync::{Arc, Mutex},
+    sync::{
+        Arc, Mutex,
+        atomic::{AtomicUsize, Ordering},
+    },
 };
 
+use almarioks_core::{CoreResult, kdbx::NewVaultKdf};
 use almarioks_lib::{
     app_builder,
     clipboard::ClipboardError,
@@ -22,6 +28,7 @@ use almarioks_lib::{
         dialogs::{DialogUnavailable, FileDialogs, FilePick},
         url::{UrlOpenFailed, UrlOpener, UrlToOpen},
     },
+    lock::{SystemIdleClock, WebviewReloader},
     plugins,
     state::{AppParts, SETTINGS_FILE_NAME},
 };
@@ -169,6 +176,31 @@ pub fn parts_with(dir: &TempDir, dialogs: &FakeDialogs) -> AppParts {
         clipboard: Err(ClipboardError::Unavailable),
         dialogs: Arc::new(dialogs.clone()),
         url_opener: Arc::new(FakeOpener::default()),
+        idle_clock: Arc::new(SystemIdleClock),
+        reloader: Arc::new(CountingReloader::default()),
+        new_vault_kdf: Arc::new(fast_kdf),
+    }
+}
+
+/// The weakest KDF a new vault may have (RF-2: 64 MiB, 2 iterations): the tests create vaults without waiting
+/// for a calibration.
+pub fn fast_kdf() -> CoreResult<NewVaultKdf> {
+    NewVaultKdf::with_iterations(2)
+}
+
+/// Counts the reloads of the webview: the mock runtime has no page to reload (RF-32).
+#[derive(Clone, Default)]
+pub struct CountingReloader(Arc<AtomicUsize>);
+
+impl CountingReloader {
+    pub fn count(&self) -> usize {
+        self.0.load(Ordering::SeqCst)
+    }
+}
+
+impl WebviewReloader for CountingReloader {
+    fn reload(&self) {
+        self.0.fetch_add(1, Ordering::SeqCst);
     }
 }
 

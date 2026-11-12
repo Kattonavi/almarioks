@@ -59,7 +59,9 @@ pub enum TickOutcome {
 #[derive(Clone, Copy)]
 struct Pending {
     sequence: SequenceNumber,
-    clear_at: Instant,
+    /// When the clipboard must be cleared; `None` for a value that is not protected, which only a lock or an
+    /// exit clears (plan, "Precisiones" 16).
+    clear_at: Option<Instant>,
 }
 
 /// Copies secrets to the clipboard and clears them when their time passes, on lock and on exit.
@@ -111,12 +113,37 @@ impl ClipboardService {
         secret: SecretString,
         clear_after_seconds: u32,
     ) -> Result<CopyReceipt, ClipboardError> {
+        self.put(secret, Some(clear_after_seconds))?;
+        Ok(CopyReceipt {
+            clears_in_seconds: clear_after_seconds,
+        })
+    }
+
+    /// Puts in the clipboard a value that is NOT protected (a user name, a URL), with no count: nothing clears
+    /// it when time passes (plan, "Precisiones" 16). It is still ours: a lock or an exit clears it if nobody
+    /// wrote to the clipboard after us (RF-31, RF-75), and it takes its turn with them like any copy (RF-90).
+    /// It is kept out of the history and the cloud all the same, which costs nothing and errs on the safe side.
+    ///
+    /// # Errors
+    /// `Bloqueada` and [`ClipboardError::Unavailable`], as [`Self::copy`].
+    pub fn copy_without_timer(&self, value: SecretString) -> Result<(), ClipboardError> {
+        self.put(value, None)
+    }
+
+    /// The one way a value reaches the clipboard: checks the lock requests before, during and after (RF-90).
+    fn put(
+        &self,
+        secret: SecretString,
+        clear_after_seconds: Option<u32>,
+    ) -> Result<(), ClipboardError> {
         let lock_requests_seen = self.lock_requests.load(Ordering::SeqCst);
         let mut pending = self.pending();
         if self.lock_requested_since(lock_requests_seen) {
             return Err(CoreError::Bloqueada.into());
         }
-        if !(MIN_CLEAR_SECONDS..=MAX_CLEAR_SECONDS).contains(&clear_after_seconds) {
+        if clear_after_seconds
+            .is_some_and(|seconds| !(MIN_CLEAR_SECONDS..=MAX_CLEAR_SECONDS).contains(&seconds))
+        {
             return Err(CoreError::ArgumentoInvalido.into());
         }
         let sequence = match self.clipboard.set_secret(&secret) {
@@ -128,7 +155,8 @@ impl ClipboardService {
             Err(_) => return Err(ClipboardError::Unavailable),
         };
         drop(secret);
-        let clear_at = self.clock.now() + Duration::from_secs(u64::from(clear_after_seconds));
+        let clear_at = clear_after_seconds
+            .map(|seconds| self.clock.now() + Duration::from_secs(u64::from(seconds)));
         *pending = Some(Pending { sequence, clear_at });
         if self.lock_requested_since(lock_requests_seen) {
             // RF-90: the lock was requested while the value was on its way. Take it back now; if the system
@@ -138,9 +166,7 @@ impl ClipboardService {
             }
             return Err(CoreError::Bloqueada.into());
         }
-        Ok(CopyReceipt {
-            clears_in_seconds: clear_after_seconds,
-        })
+        Ok(())
     }
 
     /// Clears the clipboard if the time of the last copy has passed and nobody wrote to it since (RF-73).
@@ -150,7 +176,12 @@ impl ClipboardService {
     /// next call tries again.
     pub fn tick(&self) -> Result<TickOutcome, ClipboardError> {
         let mut pending = self.pending();
-        let Some(Pending { sequence, clear_at }) = *pending else {
+        // A value copied without a count has no time to pass: for the tick it is as if nothing were pending.
+        let Some(Pending {
+            sequence,
+            clear_at: Some(clear_at),
+        }) = *pending
+        else {
             return Ok(TickOutcome::Idle);
         };
         let remaining = clear_at.saturating_duration_since(self.clock.now());
@@ -185,12 +216,13 @@ impl ClipboardService {
         self.clear_now()
     }
 
-    /// Time left until the clipboard is cleared, or `None` if we have nothing in it or somebody wrote to it
-    /// after us. For scheduling [`Self::tick`] and for the countdown of the window; it never reads the content.
+    /// Time left until the clipboard is cleared, or `None` if we have nothing in it, what we have has no count
+    /// ([`Self::copy_without_timer`]) or somebody wrote to it after us. For scheduling [`Self::tick`] and for the countdown of the window; it never reads the content.
     #[must_use]
     pub fn clears_in(&self) -> Option<Duration> {
         let pending = self.pending();
         let Pending { sequence, clear_at } = (*pending)?;
+        let clear_at = clear_at?;
         (self.clipboard.sequence_number() == sequence)
             .then(|| clear_at.saturating_duration_since(self.clock.now()))
     }
