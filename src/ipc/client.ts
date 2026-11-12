@@ -8,6 +8,7 @@ import {
   entryListSchema,
   generatedSchema,
   groupTreeSchema,
+  keySuggestionSchema,
   pickedPathSchema,
   recentListSchema,
   revealSchema,
@@ -25,6 +26,7 @@ import {
   type EntryVersion,
   type Generated,
   type GroupNode,
+  type KeySuggestion,
   type RecentVault,
   type SaveState,
   type SearchResult,
@@ -108,6 +110,13 @@ export interface VaultClient {
    */
   vaultCreateLocation(name: string, chosenPath: string | null): Promise<Result<CreateLocation>>;
   vaultCreate(input: CreateVaultInput): Promise<Result<VaultStatus>>;
+  /**
+   * RF-110: the key file to bring already chosen when the person is about to unlock the vault at `path`: the
+   * `X.keyx` beside `X.kdbx`, or `null`. Read only. The core answers only for the locked vault, a recent one or the
+   * one `pickVaultToOpen` just answered; for any other path it answers `null`, the same as "nothing to propose".
+   * Send the path exactly as the core gave it (`vaultStatus`, `recentList`, `pickVaultToOpen`).
+   */
+  unlockKeySuggestion(path: string): Promise<Result<KeySuggestion | null>>;
   vaultOpen(input: OpenVaultInput): Promise<Result<VaultStatus>>;
   vaultLock(): Promise<Result<undefined>>;
   vaultClose(): Promise<Result<undefined>>;
@@ -207,6 +216,7 @@ export function createClient(transport: Transport): VaultClient {
         ...(password === undefined ? {} : { password }),
         key_file: keyFile,
       }),
+    unlockKeySuggestion: (path) => call("unlock_key_suggestion", keySuggestionSchema, { path }),
     vaultOpen: ({ path, password, keyFilePath }) =>
       call("vault_open", vaultStatusSchema, {
         path,

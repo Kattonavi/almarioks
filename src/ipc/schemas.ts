@@ -115,6 +115,17 @@ export const createLocationSchema = z
   }));
 export type CreateLocation = z.output<typeof createLocationSchema>;
 
+/**
+ * `unlock_key_suggestion` (RF-110): the key file beside the vault that is about to be unlocked, or `null` when there
+ * is nothing to propose. `keyFilePath` is what `vaultOpen` takes; `keyFile` is the file name, to show it. `null` does
+ * not mean "this vault has no key file": the core also answers it for a vault it does not know.
+ */
+export const keySuggestionSchema = z
+  .object({ key_file_path: nonEmpty, key_file: nonEmpty })
+  .nullable()
+  .transform((wire) => (wire === null ? null : { keyFilePath: wire.key_file_path, keyFile: wire.key_file }));
+export type KeySuggestion = NonNullable<z.output<typeof keySuggestionSchema>>;
+
 export const recentListSchema = z.array(z.object({ path: nonEmpty, exists: z.boolean() }));
 export type RecentVault = z.output<typeof recentListSchema>[number];
 

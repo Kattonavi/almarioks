@@ -54,6 +54,7 @@ pub fn handler<R: tauri::Runtime>() -> impl Fn(tauri::ipc::Invoke<R>) -> bool + 
         vault::vault_reload,
         vault::activity,
         location::vault_create_location,
+        location::unlock_key_suggestion,
         groups::group_tree,
         groups::group_create,
         groups::group_rename,

@@ -63,6 +63,32 @@ pub struct AppState {
     lock: Arc<LockCenter>,
     new_vault_kdf: Arc<KdfChooser>,
     documents_dir: Arc<DocumentsFolder>,
+    picked_vault: Arc<PickedVault>,
+}
+
+/// The last vault the person chose in the "open a vault" dialog during this run (RF-110): one of the three
+/// sources `unlock_key_suggestion` answers about. Memory only: it starts empty with the app and is never written
+/// anywhere. A dialog closed without choosing answers no path and leaves it as it was.
+#[derive(Debug, Default)]
+pub struct PickedVault(Mutex<Option<PathBuf>>);
+
+impl PickedVault {
+    /// The dialog `pick_vault_to_open` answered `path`.
+    pub fn set(&self, path: &Path) {
+        *self.lock() = Some(path.to_path_buf());
+    }
+
+    /// Whether `path` is the last one that dialog answered. Compared as the recent vaults are: as written, with
+    /// no case folding and nothing resolved.
+    #[must_use]
+    pub fn is(&self, path: &Path) -> bool {
+        self.lock().as_deref() == Some(path)
+    }
+
+    fn lock(&self) -> MutexGuard<'_, Option<PathBuf>> {
+        // The value is replaced whole: a panic while holding the lock cannot leave half a path.
+        self.0.lock().unwrap_or_else(PoisonError::into_inner)
+    }
 }
 
 impl AppState {
@@ -86,7 +112,14 @@ impl AppState {
             lock,
             new_vault_kdf: parts.new_vault_kdf,
             documents_dir: parts.documents_dir,
+            picked_vault: Arc::new(PickedVault::default()),
         }
+    }
+
+    /// The last vault chosen in the "open a vault" dialog during this run (RF-110).
+    #[must_use]
+    pub fn picked_vault(&self) -> Arc<PickedVault> {
+        Arc::clone(&self.picked_vault)
     }
 
     /// The session of the core: the vault, open or not.

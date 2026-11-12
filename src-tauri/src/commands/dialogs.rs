@@ -3,7 +3,10 @@
 //!
 //! The commands talk to [`FileDialogs`], so the tests answer for the person without opening a system window.
 
-use std::{path::PathBuf, sync::mpsc::sync_channel};
+use std::{
+    path::{Path, PathBuf},
+    sync::mpsc::sync_channel,
+};
 
 use tauri::{AppHandle, Manager, Runtime, State, ipc::Request};
 use tauri_plugin_dialog::{Dialog, FileDialogBuilder, FilePath};
@@ -178,16 +181,21 @@ async fn pick(
     pick: FilePick,
 ) -> Result<Option<String>, AppError> {
     expect_no_args(request.body())?;
-    let dialogs = state.dialogs();
+    let (dialogs, picked_vault) = (state.dialogs(), state.picked_vault());
     blocking(move || {
         let Some(path) = dialogs.pick(pick).map_err(|_| AppError::internal())? else {
             return Ok(None);
         };
         // A path that is not valid text cannot travel to the window nor be stored in the recent list.
-        path.into_os_string()
+        let path = path
+            .into_os_string()
             .into_string()
-            .map(Some)
-            .map_err(|_| AppError::internal())
+            .map_err(|_| AppError::internal())?;
+        if pick == FilePick::VaultToOpen {
+            // RF-110: the vault the person is about to unlock. Only this dialog counts, and only its last answer.
+            picked_vault.set(Path::new(&path));
+        }
+        Ok(Some(path))
     })
     .await
 }

@@ -75,7 +75,12 @@ export interface FakeEntry {
 
 export interface FakeOptions {
   readonly vaults?: readonly FakeVaultFile[];
-  /** Other files that already exist on disk (e.g. a key file), for `ArchivoExiste`. */
+  /**
+   * Other files that already exist on disk (e.g. a key file), for `ArchivoExiste`. It is also where
+   * `unlock_key_suggestion` looks (RF-110): to seed "there is a key file beside this vault", put
+   * `keyFileBeside(vaultPath)` here and make the vault one the core answers about (`recent`, a `locked` status or
+   * an answer of `pick_vault_to_open` in `picks`).
+   */
   readonly files?: readonly string[];
   readonly recent?: readonly { readonly path: string; readonly exists: boolean }[];
   readonly status?: WireStatus;
@@ -259,6 +264,21 @@ export function keyFileName(vaultFile: string): string {
   return `${stem}.keyx`;
 }
 
+/** A path cut after its last separator: the folder, with that separator, and the file name. */
+function splitPath(path: string): { readonly folder: string; readonly file: string } {
+  const cut = Math.max(path.lastIndexOf("/"), path.lastIndexOf("\\")) + 1;
+  return { folder: path.slice(0, cut), file: path.slice(cut) };
+}
+
+/**
+ * RF-110: the path of the key file beside a vault file (same folder, `keyFileName`). For the `files` option of the
+ * fake: `createFakeBackend({ recent: [{ path, exists: true }], files: [keyFileBeside(path)] })`.
+ */
+export function keyFileBeside(vaultPath: string): string {
+  const { folder, file } = splitPath(vaultPath);
+  return `${folder}${keyFileName(file)}`;
+}
+
 function byTitle(a: { title: string | null; id: string }, b: { title: string | null; id: string }): number {
   const ta = fold(a.title ?? "");
   const tb = fold(b.title ?? "");
@@ -425,6 +445,8 @@ export function createFakeBackend(options: FakeOptions = {}): FakeBackend {
   const holds = new Map<string, Promise<void>>();
   const openedUrls: string[] = [];
   let clipboard: string | null = null;
+  /** RF-110: the last path `pick_vault_to_open` answered. */
+  let pickedVault: string | null = null;
   let sequence = 0;
 
   function nextId(prefix: string): string {
@@ -558,6 +580,25 @@ export function createFakeBackend(options: FakeOptions = {}): FakeBackend {
       vault_exists: somethingAt(vaultPath),
       key_file_exists: somethingAt(keyFilePath),
     };
+  }
+
+  /**
+   * RF-110: the key file beside a vault the core knows the person is about to unlock (locked, just picked or
+   * recent), if that file is on the fake disk. Any other path is `null`, like "nothing to propose". Reads only.
+   */
+  function unlockKeySuggestion(args: Record<string, unknown>) {
+    onlyKeys(args, ["path"]);
+    const path = requiredString(args.path);
+    if (path === "") failWith("ArgumentoInvalido");
+    const known =
+      (status.state === "locked" && status.path === path) ||
+      pickedVault === path ||
+      recent.some((item) => item.path === path);
+    if (!known) return null;
+    const { file } = splitPath(path);
+    if (file === "" || file === "." || file === "..") return null;
+    const keyFilePath = keyFileBeside(path);
+    return files.has(keyFilePath) ? { key_file_path: keyFilePath, key_file: keyFileName(file) } : null;
   }
 
   async function vaultCreate(args: Record<string, unknown>): Promise<WireStatus> {
@@ -894,6 +935,8 @@ export function createFakeBackend(options: FakeOptions = {}): FakeBackend {
         return vaultCreate(args);
       case "vault_create_location":
         return vaultCreateLocation(args);
+      case "unlock_key_suggestion":
+        return unlockKeySuggestion(args);
       case "vault_lock":
         if (status.state === "open") status = { state: "locked", path: status.path, recovery: null };
         clipboard = null;
@@ -933,8 +976,12 @@ export function createFakeBackend(options: FakeOptions = {}): FakeBackend {
       case "pick_vault_to_open":
       case "pick_vault_to_create":
       case "pick_key_file":
-      case "pick_new_key_file":
-        return picks.get(command)?.shift() ?? null;
+      case "pick_new_key_file": {
+        const answer = picks.get(command)?.shift() ?? null;
+        // RF-110: only "the vault to open" counts, and a cancelled dialog leaves the last one.
+        if (command === "pick_vault_to_open" && answer !== null) pickedVault = answer;
+        return answer;
+      }
       case "password_strength":
         return { score: strength(optionalString(args.password) ?? "") };
       case "group_tree":

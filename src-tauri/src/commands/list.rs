@@ -46,4 +46,6 @@ pub const COMMANDS: &[&str] = &[
     "app_prepare_update",
     // Not a row of that table yet either: where a new vault is proposed to go, and its key file (RF-97, RF-99).
     "vault_create_location",
+    // Nor this one: the key file beside the vault that is about to be unlocked (RF-110). Read only.
+    "unlock_key_suggestion",
 ];

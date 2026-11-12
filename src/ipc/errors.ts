@@ -108,8 +108,9 @@ export const ERROR_MESSAGES: Readonly<Record<ErrorCode, string>> = {
   LlaveVacia: "Falta la llave. Escribe una contraseña maestra, elige un archivo llave o usa los dos.",
   ArchivoExiste:
     "Ya hay un archivo con ese nombre en esa carpeta y no se tocó. Elige otro nombre u otra carpeta.",
+  // RF-112: a KDBX file does not say whether it uses a key file, so the text does not say it either.
   LlaveIncorrecta:
-    "La contraseña o el archivo llave no abren esta bóveda. Revisa los dos y vuelve a intentarlo.",
+    "La contraseña o el archivo llave no coinciden. Si esta bóveda usa archivo llave, elígelo.",
   ArchivoLlaveDanado:
     "El archivo llave está dañado y no se usó. Elige una copia sana de tu archivo llave.",
   ArchivoDanado:

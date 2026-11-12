@@ -59,6 +59,7 @@ fn needs_open_vault(command: &str) -> bool {
         "vault_status"
         | "vault_create"
         | "vault_create_location"
+        | "unlock_key_suggestion"
         | "vault_open"
         | "vault_lock"
         | "vault_close"
@@ -242,6 +243,15 @@ fn rf_76_no_command_and_no_event_hands_a_protected_value_to_the_window() {
         ]
     );
 
+    // RF-110: a vault that is neither recent, nor chosen in the dialog, nor locked gets no answer about its key.
+    assert_eq!(
+        sweep.ok(
+            "unlock_key_suggestion",
+            Some(json!({ "path": rig.path("nueva.kdbx") }))
+        ),
+        Value::Null
+    );
+
     // Creating a vault with the canary as master password, and closing it.
     let created = sweep.ok(
         "vault_create",
@@ -255,6 +265,17 @@ fn rf_76_no_command_and_no_event_hands_a_protected_value_to_the_window() {
     assert_eq!(created["read_only"], false);
     sweep.ok("vault_close", None);
     assert_eq!(rig.state(), "closed");
+
+    // RF-110: now it is a recent vault. A key file beside it is proposed by its path and its name; what the file
+    // holds (the canary) is never read, so it cannot travel.
+    std::fs::write(rig.path("nueva.keyx"), format!("{CANARY}-llave")).unwrap();
+    assert_eq!(
+        sweep.ok(
+            "unlock_key_suggestion",
+            Some(json!({ "path": rig.path("nueva.kdbx") }))
+        ),
+        json!({ "key_file_path": rig.path("nueva.keyx"), "key_file": "nueva.keyx" })
+    );
 
     // The canary vault: a wrong key first, then the right one.
     let path = rig.write_canary_vault();

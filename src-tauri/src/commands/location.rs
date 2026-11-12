@@ -6,6 +6,9 @@
 //! module asks the system for Documents and looks at the disk. `vault_create_location` writes nothing: the folder
 //! `AlmarioKS` is created by `vault_create`, through [`ensure_default_folder`], and it is the only folder the app
 //! ever creates.
+//!
+//! Also here, because it is the same rule read the other way: `unlock_key_suggestion` (RF-110) proposes the key
+//! file beside a vault that is about to be unlocked.
 
 use std::{
     io::ErrorKind,
@@ -15,6 +18,7 @@ use std::{
 use almarioks_core::{
     CoreError,
     location::{VaultLocation, default_folder, is_in_default_folder},
+    session::{Session, Status},
 };
 use serde::{Deserialize, Serialize};
 use tauri::{State, ipc::Request};
@@ -25,7 +29,7 @@ use super::{
     error::AppError,
     vault::{path_arg, something_at},
 };
-use crate::state::AppState;
+use crate::state::{AppState, PickedVault, SettingsStore};
 
 /// `vault_create_location{name, chosen_path}`. `chosen_path` is always sent: `null` while the person has not
 /// chosen another location, or the path the dialog (`pick_vault_to_create`) answered.
@@ -96,6 +100,93 @@ pub async fn vault_create_location(
             key_file: location.key_file,
             in_default_folder: location.in_default_folder,
         })
+    })
+    .await
+}
+
+/// `unlock_key_suggestion{path}`: the vault that is about to be unlocked.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct UnlockKeySuggestionArgs {
+    path: String,
+}
+
+/// The key file proposed for an unlock (RF-110): where it is, never what it holds.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct KeySuggestionView {
+    /// The key file: what `vault_open` takes as `key_file_path`.
+    key_file_path: String,
+    /// Its file name with extension, to show it.
+    key_file: String,
+}
+
+/// Whether `path` is a vault the person is about to unlock, as far as the app itself knows (RF-110): the locked
+/// vault of the session, the last vault chosen in the "open a vault" dialog during this run, or a recent vault
+/// of the settings. Those are paths the window already has from the app; any other path is not answered about,
+/// so the command is no way to ask the disk what exists (review 0.1, P-3).
+///
+/// Paths are compared as the recent list compares them: as written. Reads the settings file the first time:
+/// blocking.
+fn is_unlock_candidate(
+    path: &Path,
+    session: &Session,
+    picked: &PickedVault,
+    settings: &SettingsStore,
+) -> bool {
+    let locked = matches!(session.status(), Status::Locked { path: locked } if locked == path);
+    locked
+        || picked.is(path)
+        || settings
+            .read()
+            .recent_vaults()
+            .iter()
+            .any(|recent| recent == path)
+}
+
+/// The key file beside `vault_path`, if a file is there: same folder, same name, `.keyx` (the rule of
+/// `almarioks_core::location::key_file_name`). Asks the disk one question, "is a file at that path?", without
+/// opening it and without following a link: a folder or a link with that name is not proposed.
+fn key_file_beside(vault_path: &Path) -> Option<KeySuggestionView> {
+    let location = VaultLocation::chosen(None, vault_path)?;
+    let is_file = location
+        .key_file_path
+        .symlink_metadata()
+        .is_ok_and(|found| found.is_file());
+    if !is_file {
+        return None;
+    }
+    Some(KeySuggestionView {
+        key_file_path: location.key_file_path.to_str()?.to_owned(),
+        key_file: location.key_file,
+    })
+}
+
+/// The key file to propose when the person is about to unlock the vault at `path` (RF-110): the `X.keyx` beside
+/// `X.kdbx`, or `null` if there is none. Reads nothing of the key file and writes nothing; the person can still
+/// remove it or choose another one, and `vault_open` is what reads it.
+///
+/// It only answers for a vault the app knows the person is about to unlock ([`is_unlock_candidate`]). For any
+/// other path the answer is `null` without looking at the disk: the same answer as "there is no key file", never
+/// an error that would tell the two apart.
+///
+/// RF-111 (not built; waits for the security review) goes here: a key file remembered for a recent vault would
+/// be looked up after the check and before [`key_file_beside`], and would win over it.
+///
+/// # Errors
+/// `ArgumentoInvalido` if the arguments are malformed or the path is empty.
+#[tauri::command]
+pub async fn unlock_key_suggestion(
+    state: State<'_, AppState>,
+    request: Request<'_>,
+) -> Result<Option<KeySuggestionView>, AppError> {
+    let args: UnlockKeySuggestionArgs = parse_args(request.body())?;
+    let path = path_arg(&args.path)?;
+    let (session, picked, settings) = (state.session(), state.picked_vault(), state.settings());
+    blocking(move || {
+        if !is_unlock_candidate(&path, &session, &picked, &settings) {
+            return Ok(None);
+        }
+        Ok(key_file_beside(&path))
     })
     .await
 }
