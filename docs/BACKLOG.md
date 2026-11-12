@@ -9,7 +9,9 @@ Lo que no cabe en la fase va aquí, un renglón por ítem: `- [origen] qué · s
 - [H0] Aviso del Firewall de Windows para Node.js al correr `pnpm tauri dev` · Info
 - [H0] El desinstalador silencioso deja la carpeta de datos de WebView2 (17 MB): decidir si se ofrece borrarla (amenaza W2) · Medio, seguridad: spec 001
 - [H0] Prueba automática de que un `invoke` a un comando no listado falla (hoy solo está por configuración) · Medio: inicio de la 0.1, cuando exista el primer comando
-- [H0] Repetir la instalación con un usuario estándar de Windows (el ensayo corrió con consola elevada) · Medio
+- [H0] Repetir la instalación con un usuario estándar de Windows (el ensayo, el runner y la instalación desde GitHub corrieron con cuenta administradora); crear la cuenta es del dueño · Medio
+- [H0] PR #2 de Dependabot (grupo `rust`, 2 actualizaciones): revisar y fusionar al empezar la 0.1 · Bajo
+- [H0] PR #3 de Dependabot (TypeScript 6 → 7, versión mayor): probar `pnpm typecheck`, `lint`, `test` y `build` antes de aceptar; si rompe, agregar la regla de `ignore` para mayores · Medio
 - [revisión H0, S3] El consentimiento de actualizar vive solo en la interfaz: al pintar contenido ajeno en la 0.1, revisar W1 (un script en la ventana podría instalar una actualización firmada sin clic) · Bajo hoy, revisar en la spec 001
 - [visión] Significado público de "KS" · Bajo
 - [base] Agregar al `.gitignore` los ajustes locales de Claude Code cuando el proyecto tenga carpeta `.claude/` · Bajo

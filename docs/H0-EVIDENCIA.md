@@ -1,26 +1,27 @@
 # H0 — evidencia (2026-11-11)
 
-Estado: **H0 a medias.** Todo lo que se puede probar sin publicar está probado. Falta el primer release público, que
-depende de tres pasos del dueño del repo (ver `docs/RELEASE.md`).
+Estado: **H0 cumplido en lo técnico.** `v0.0.1` y `v0.0.2` están publicadas por CI y la actualización de una a otra
+se probó contra GitHub Releases. Quedan abiertos: la prueba con un usuario estándar de Windows y las dos puertas de
+la 1.0 que son del dueño (`docs/RELEASE.md`).
 
 ## Criterios del H0 (`docs/PROYECTO.md`)
 | # | Criterio | Estado | Evidencia |
 |---|---|---|---|
 | 1 | Ida y vuelta de KDBX con KeePass 2 y KeePassXC | ✅ | CI en `main`: `cargo nextest run --workspace --locked`, 6 pruebas (`roundtrip_keepass2_*` ×4, `roundtrip_keepassxc_both`, `wrong_key_is_rejected`) |
-| 2 | `release.yml` publica por etiqueta sin pasos manuales | ⏳ | Escrito; **nunca se ha ejecutado** (faltan los secretos de firma), así que la primera etiqueta puede pedir un ajuste. Falla antes de publicar, no después |
+| 2 | `release.yml` publica por etiqueta sin pasos manuales | ✅ | Dos corridas completas: `v0.0.1` y `v0.0.2` (abajo). El único paso humano es la aprobación del entorno `release`, que es a propósito |
 | 3 | Instala por usuario, sin administrador, en máquina limpia | ✅ | Job `installer` de CI en un runner limpio de GitHub: instala en `%LOCALAPPDATA%\AlmarioKS`, clave solo en `HKCU`, ninguna en `HKLM`, la app arranca y sigue viva 10 s. También el ensayo local. Falta solo repetirlo con un usuario estándar sin privilegios (el runner y la consola del ensayo son administradores) |
-| 4 | Actualiza N → N+1 con permiso; un paquete alterado se rechaza | 🟡 | Ensayo local completo (abajo) + 5 pruebas automáticas `rf_h0_*` contra el plugin real. Falta repetirlo contra GitHub Releases |
+| 4 | Actualiza N → N+1 con permiso; un paquete alterado se rechaza | ✅ | Actualización real 0.0.1 → 0.0.2 desde GitHub Releases (abajo). El rechazo del paquete alterado está probado en el ensayo local y en las pruebas `rf_h0_*` contra el plugin real, no contra GitHub (no se publica un release malo a propósito) |
 | 5 | Desinstalar no deja programa y no toca las bóvedas | ✅ | Job `installer` de CI (sin carpeta ni clave tras desinstalar) + ensayo local (bóveda del usuario con el mismo SHA-256). Queda la carpeta de datos de WebView2: ver hallazgos |
-| 6 | Requisitos [B] de `AMENAZAS.md` §4 | 🟡 | Ver tabla siguiente |
+| 6 | Requisitos [B] de `AMENAZAS.md` §4 | 🟡 | Ver tabla siguiente: todo cumplido salvo el respaldo de la llave, que es puerta de la 1.0 |
 
 | Requisito [B] del H0 | Estado | Evidencia |
 |---|---|---|
-| Llave del actualizador con contraseña, solo en el entorno `release`, respaldo en 2 lugares | ⏳ | Llave generada con contraseña, fuera del repo. Simulacro hecho: la `pubkey` de `tauri.conf.json` es idéntica a la pública de la llave, y un archivo firmado con la llave real y su contraseña **verifica** contra esa `pubkey` (y alterado, se rechaza). Subirla a GitHub y respaldarla es del dueño |
+| Llave del actualizador con contraseña, solo en el entorno `release`, respaldo en 2 lugares | 🟡 | Llave con contraseña, fuera del repo y subida solo al entorno `release` (2026-11-11); los dos releases se firmaron con ella en CI y la app instalada aceptó la firma. **Respaldo en 2 lugares: puerta de la 1.0** (`docs/RELEASE.md`) |
 | `.sig` alterado, otra llave y `http://` rechazados; sin clic no hay descarga | ✅ | `rf_h0_tampered_artifact_is_rejected`, `rf_h0_signature_from_another_key_is_rejected`, la de `http://` (solo falla en modo release: corrió así en local y está como paso de `release.yml`; el CI de PR la corre en depuración) y Vitest "sin clic no hay descarga"; además el ensayo local |
 | CSP sin `unsafe-*`, sin devtools en release, capacidades explícitas | ✅ | `src-tauri/tauri.conf.json`, `src-tauri/capabilities/main-window.json`, `AppManifest::commands(&[])` en `build.rs` |
 | `release.yml` solo por etiqueta protegida con aprobación; Actions por SHA | ✅ | Ruleset `release-tags` (`v*`), entorno `release` con revisor y solo etiquetas `v*` |
 | Lockfiles con `--locked`; `cargo deny check` y `pnpm audit --prod` en verde | ✅ | Job `verify` de CI |
-| `SHA256SUMS` y atestación en el release | ⏳ | En `release.yml`; se comprueba con el primer release |
+| `SHA256SUMS` y atestación en el release | ✅ | En los dos releases: la suma del instalador coincide y `gh attestation verify` sale con 0 |
 
 ## Ensayo local: instalar → rechazar → actualizar → desinstalar
 Instaladores de depuración 0.0.1 y 0.0.2 firmados con una **llave de prueba** desechable y servidos desde
@@ -63,6 +64,55 @@ node scripts/release-manifest.mjs ...                   -> latest.json (windows-
 Lo que sigue sin ejecutarse nunca: el workflow en GitHub (subida y bajada de artefactos entre trabajos, atestación y
 `gh release create`).
 
+## Primer release público: `v0.0.1` (2026-11-11)
+Etiqueta sobre el commit de fusión del PR #1 con el CI de `main` en verde. Corrida de `release.yml`:
+`https://github.com/Kattonavi/almarioks/actions/runs/43093696078`.
+
+- **Intento 1:** `build` pasó pruebas en modo release, instalador y verificador, y falló al subir el artefacto
+  (`Failed to CreateArtifact … is not valid JSON`) durante una caída de GitHub Actions. No se firmó ni se publicó nada.
+- **Intento 2** (`gh run rerun --failed`): `build` completo; `publish` esperó la aprobación del dueño en el entorno
+  `release` y luego firmó, verificó la firma contra la `pubkey` de la app, atestó y publicó.
+
+Comprobado después, desde otro PC que el runner:
+```
+gh release view v0.0.1          -> draft=false prerelease=false · setup.exe, setup.exe.sig, latest.json, SHA256SUMS
+releases/latest/download/latest.json -> version 0.0.1 · windows-x86_64 · url .../download/v0.0.1/AlmarioKS_0.0.1_x64-setup.exe
+sha256sum del instalador        -> e129abb9…5f11, igual que SHA256SUMS
+gh attestation verify <instalador> -R Kattonavi/almarioks -> exit 0
+almarioks-release-verify tauri.conf.json <instalador> <sig> 0.0.1 -> OK ... signed for version 0.0.1 (exit 0)
+
+instalador (/S): codigo de salida = 0
+HKCU: AlmarioKS | 0.0.1 | Kattonavi      HKLM claves: 0
+-- ventana al abrir --            Versión 0.0.1 · [Buscar actualizaciones]
+-- clic "Buscar actualizaciones" -- "Tienes la versión más reciente."   (consulta real a GitHub por HTTPS)
+```
+
+## Segundo release y actualización real: `v0.0.2` (2026-11-11)
+PR #4 (solo sube la versión) fusionado con CI en verde; etiqueta sobre su commit de fusión. Corrida:
+`https://github.com/Kattonavi/almarioks/actions/runs/43106208709` (un solo intento, `build` y `publish` completos).
+
+```
+gh release list                 -> v0.0.2 Latest · v0.0.1
+releases/latest/download/latest.json -> version 0.0.2 · url .../download/v0.0.2/AlmarioKS_0.0.2_x64-setup.exe
+sha256sum del instalador        -> dd031c26…63c1, igual que SHA256SUMS
+gh attestation verify <instalador> -R Kattonavi/almarioks -> exit 0
+```
+Con la 0.0.1 de GitHub instalada y abierta (ventana manejada con UI Automation):
+```
+antes: registro = 0.0.1
+-- clic "Buscar actualizaciones" --
+"Hay una versión nueva: 0.0.2." · "Novedades de la versión 0.0.2" · [Actualizar] [Ahora no]
+-- clic "Actualizar" --
+registro tras actualizar = 0.0.2 · reabierta sola: True (proceso nuevo) · ventana: "Versión 0.0.2"
+HKLM claves: 0
+```
+
+## Lo que sigue sin probar
+- **Usuario estándar de Windows.** Todas las instalaciones (runner de GitHub, consola del ensayo, este PC) corrieron
+  con una cuenta administradora. El instalador es por usuario y no escribe en `HKLM`, pero falta verlo con una cuenta
+  sin privilegios. Crear esa cuenta en el PC es del dueño.
+- **Paquete alterado servido desde GitHub.** Solo en local y en pruebas automáticas.
+
 ## Revisiones del lote
 `docs/revisiones/h0.md`: una ronda de `code-reviewer` y una de `security-engineer`, sin Críticos ni Altos; los Medios
 se corrigieron en el mismo PR.
@@ -76,4 +126,4 @@ se corrigieron en el mismo PR.
 - `keepassxc-cli` no crea KDBX 4 (`db-create` e `import` dan 3.1): ver `docs/lab/kdbx-roundtrip/EXPERIMENTO.md`.
 
 ## Tiempo
-H0: ~1 h de reloj de las 8 h (más la planeación previa, ~0,5 h). No se disparó el corte de las 4 h.
+H0: ~3,6 h de reloj de las 8 h (~1,4 h hasta dejar el PR #1 listo y ~2,2 h del primer release a la actualización real, con las esperas de aprobación y la caída de GitHub Actions adentro), más ~0,5 h de planeación previa. No se disparó el corte de las 4 h: a esa hora ya había un instalador que instalaba y abría.
