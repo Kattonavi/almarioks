@@ -52,3 +52,6 @@ mod tests_search;
 
 #[cfg(test)]
 mod tests_convert;
+
+#[cfg(test)]
+mod tests_roundtrip_edit;
