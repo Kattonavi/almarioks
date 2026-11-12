@@ -101,6 +101,8 @@ Las pruebas citan el número: `rf_NN_…` en Rust, `it("RF-NN: …")` en TypeScr
   32 bytes crudos, 64 caracteres hexadecimales y cualquier otro archivo (por su SHA-256).
 - RF-88: SI se pide desbloquear mientras otro desbloqueo está en curso, ENTONCES EL SISTEMA rechazará el segundo
   (`Ocupada`).
+- RF-95: SI el archivo de la bóveda o el archivo llave no está en la ruta dada, ENTONCES EL SISTEMA responderá
+  `ArchivoNoEncontrado` o `ArchivoLlaveNoEncontrado`, según cuál falte.
 
 ### C. Guardar (H3)
 - RF-21: CUANDO el dueño confirma una operación que cambia la bóveda, EL SISTEMA la guardará de inmediato escribiendo

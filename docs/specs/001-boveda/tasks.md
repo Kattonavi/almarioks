@@ -49,7 +49,7 @@ real) → commit → marcar. Las pruebas citan el RF (`rf_NN_…`, `it("RF-NN: �
       Hecho cuando: `rf_49_*` en verde; el complemento de instancia única está registrado primero (`rf_81_*`).
 
 ## Interfaz (`src/`), funcional y sin dirección visual (D11)
-- [ ] T17. Estructura: capa tipada de comandos con validación en el borde, máquina de estados cerrada / bloqueada /
+- [x] T17. Estructura: capa tipada de comandos con validación en el borde, máquina de estados cerrada / bloqueada /
       abierta, bienvenida (P1) y desbloqueo (P3). (RF-10, RF-11, RF-18, RF-19, RF-20, RF-28, RF-32, RF-34, RF-83)
       Hecho cuando: `pnpm typecheck`, `pnpm lint` y `pnpm test` en verde con `it("RF-…")` por estado de P1 y P3.
 - [ ] T18. Crear bóveda (P2). (RF-1, RF-3, RF-7, RF-8, RF-9)

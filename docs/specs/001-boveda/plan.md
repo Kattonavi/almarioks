@@ -60,6 +60,23 @@ Eventos del núcleo a la ventana: `vault-locked` (desmontar todo, RF-32) y `vaul
 protegido, nunca: en `EntrySummary` y `EntryDetail` un campo estándar protegido viaja como `null` y la ventana
 muestra "(protegido)".
 
+## Precisiones del contrato (salieron al construir la interfaz, T17; la capa `src/ipc/` ya las usa)
+1. Todo comando con datos recibe **un solo parámetro `args`**: un struct en `snake_case` con `deny_unknown_fields`.
+   La ventana llama `invoke(cmd, { args })`. Con parámetros sueltos Tauri espera `camelCase` y descarta en silencio
+   los campos que sobran, que es justo lo que RF-80 prohíbe.
+2. `state` vale `closed` | `locked` | `deriving` | `open`. `locked` y `deriving` llevan `path`; `open` lleva `name`,
+   `read_only`, `weak_kdf`, `save_pending` y `recovery`.
+3. `recovery` = `null` | `{ kind: "saved", path }` | `{ kind: "lost" }` (RF-34).
+4. `key_file` = `{ kind: "none" }` | `{ kind: "existing", path }` | `{ kind: "generate", path }`.
+5. Códigos nuevos: `ArchivoNoEncontrado` y `ArchivoLlaveNoEncontrado` (RF-95).
+6. El `field` de `entry_reveal` y `entry_copy` es el nombre que el núcleo lista en `protected_fields` o `custom_fields`.
+7. `search` devuelve además `group_path: string[]`.
+8. Cada versión de `entry_history`: `{ index, modified, title, username, url, tags, notes }`.
+9. La capacidad de la ventana necesita `core:event:allow-listen` (para `vault-locked`) y el permiso de cada comando
+   nuevo; los comandos que derivan la llave son `async` (T13, T14).
+10. Las respuestas que no cuadran con el esquema dan `RespuestaInvalida` en la ventana; un código que la ventana no
+    conoce da `Inesperado`. El texto del núcleo nunca se muestra: el mensaje sale del mapa de la ventana (RF-83).
+
 ## Concurrencia y bloqueo (RF-30, RF-33, RF-88 a RF-90)
 - Un solo dueño del estado: todas las operaciones de la bóveda, la copia al portapapeles y el bloqueo pasan por el
   mismo candado, en orden.
