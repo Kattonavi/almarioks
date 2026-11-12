@@ -90,6 +90,8 @@ dialog,
   --danger: #d7263d;
   --on-danger: #ffffff;
   --ok: #157a52;
+  /* The confirmation mark over the panel plate (the copy notice): the green that reads on that plate. */
+  --on-panel-ok: #4cc38a;
 
   /* ---- Line colours: an ordered family that only names groups. Text on a line is always --on-line. ---- */
   --line-1: #6aa5ff;

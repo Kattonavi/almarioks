@@ -4,9 +4,9 @@ import { assertNever } from "../assertNever";
 import type { VaultClient } from "../ipc/client";
 import { errorMessage, type AppError, type Result } from "../ipc/errors";
 import type { EntrySummary, GroupNode, SearchResult } from "../ipc/schemas";
-import { PlusIcon, SearchIcon } from "../ui/icons";
+import { CheckIcon, PlusIcon, SearchIcon } from "../ui/icons";
 import { EntryForm } from "./EntryForm";
-import { EntryPanel } from "./EntryPanel";
+import { EntryPanel, type CopyNotice } from "./EntryPanel";
 import { findGroup, formatDate, formatShortDay, plural, shortSite, shown, trailTo } from "./format";
 import { useGroupActions, type GroupChange } from "./GroupActions";
 import { GroupMenuButton, GroupRail } from "./GroupRail";
@@ -52,10 +52,18 @@ type Notice = { readonly kind: "text"; readonly text: string } | { readonly kind
 
 const NO_NOTICE: Notice = { kind: "text", text: "" };
 
-/** The row whose value is on the clipboard, and the seconds left until the core clears it. */
-interface Stamped {
-  readonly entryId: string;
-  readonly seconds: number;
+/** RF-73: what the copy notice says once the time the core gave is over. */
+const CLEARED = "Se cumplió el tiempo: AlmarioKS limpió el portapapeles si nadie copió otra cosa.";
+
+/**
+ * RF-74: the words of the copy notice. A protected value counts down the seconds the core gave until it clears the
+ * clipboard; a value that is not protected is only named, because nothing clears it.
+ */
+function copyNoticeText(copy: CopyNotice | null, now: number): string {
+  if (copy === null) return "";
+  if (copy.deadline === null) return copy.what;
+  const seconds = Math.ceil((copy.deadline - now) / 1000);
+  return seconds > 0 ? `${copy.what}. Se borra del portapapeles en ${String(seconds)} s` : CLEARED;
 }
 
 const NO_LINES: ReadonlyMap<string, GroupLine> = new Map();
@@ -145,8 +153,8 @@ export function VaultScreen({
   const [notice, setNotice] = useState<Notice>(NO_NOTICE);
   const [query, setQuery] = useState("");
   const [search, setSearch] = useState<SearchState>({ kind: "idle" });
-  /** RF-74 on the list: which row holds the clipboard and until when. It outlives the detail of that entry. */
-  const [stamp, setStamp] = useState<{ readonly entryId: string; readonly deadline: number } | null>(null);
+  /** RF-74: the last copy, for the notice at the foot of the detail zone. It outlives the detail of that entry. */
+  const [copyNotice, setCopyNotice] = useState<CopyNotice | null>(null);
   const [now, setNow] = useState(() => Date.now());
   const searchRef = useRef<HTMLInputElement>(null);
   const listPaneRef = useRef<HTMLElement>(null);
@@ -235,18 +243,19 @@ export function VaultScreen({
     };
   }, [client, listKey, listAttempt, listRefresh]);
 
-  // The stamp on the copied row counts down with the clipboard and goes away when the core clears it.
+  // RF-74: the copy notice counts down with the clipboard and stops at zero.
   useEffect(() => {
-    if (stamp === null) return;
+    const deadline = copyNotice?.deadline ?? null;
+    if (deadline === null) return;
     const timer = setInterval(() => {
       const at = Date.now();
-      if (at >= stamp.deadline) setStamp(null);
-      else setNow(at);
+      setNow(at);
+      if (at >= deadline) clearInterval(timer);
     }, 1000);
     return () => {
       clearInterval(timer);
     };
-  }, [stamp]);
+  }, [copyNotice]);
 
   // Ctrl+F or Ctrl+K go to the search field from anywhere in the vault.
   useEffect(() => {
@@ -328,7 +337,17 @@ export function VaultScreen({
     }
   }
 
+  /**
+   * Another entry is chosen: the copy notice goes with the one it spoke of, unless the clipboard still holds a
+   * protected value that is counting down. That one stays until the core clears it.
+   */
+  function settleCopyNotice() {
+    const at = Date.now();
+    setCopyNotice((current) => (current !== null && current.deadline !== null && current.deadline > at ? current : null));
+  }
+
   function selectEntry(entry: SelectedEntry) {
+    settleCopyNotice();
     setNotice(NO_NOTICE);
     setKeyboardOpen(null);
     setDetail({ kind: "entry", entry });
@@ -336,6 +355,7 @@ export function VaultScreen({
 
   /** RF-59, UX "buscar y copiar en 3 pasos": open from the keyboard and hand the focus to the detail. */
   function openFromKeyboard(entry: SelectedEntry) {
+    settleCopyNotice();
     setNotice(NO_NOTICE);
     setKeyboardOpen((current) => ({ entryId: entry.id, seq: (current?.seq ?? 0) + 1 }));
     setDetail({ kind: "entry", entry });
@@ -412,8 +432,7 @@ export function VaultScreen({
     notice.kind === "text"
       ? notice.text
       : savingText(saveSignal, notice.since, "Entrada creada. Guardándola en el archivo…", "Entrada guardada.");
-  const stamped: Stamped | null =
-    stamp === null ? null : { entryId: stamp.entryId, seconds: Math.max(1, Math.ceil((stamp.deadline - now) / 1000)) };
+  const copyText = copyNoticeText(copyNotice, now);
   /** The line colour of every group: by position, so it only changes when the tree does. */
   const lines = tree.kind === "ready" ? assignLines(tree.root) : NO_LINES;
 
@@ -475,6 +494,15 @@ export function VaultScreen({
             </h3>
             <div aria-live="polite">{noticeText !== "" && <p className="notice">{noticeText}</p>}</div>
             {renderDetail()}
+            {/* RF-74: the one place that says a copy happened, at the foot of the zone; `role="status"` announces it. */}
+            <div role="status" className="toast-zone">
+              {copyText !== "" && (
+                <p className="toast">
+                  <CheckIcon />
+                  {copyText}
+                </p>
+              )}
+            </div>
           </section>
         </div>
       </div>
@@ -522,9 +550,9 @@ export function VaultScreen({
               setDetail({ kind: "none" });
             }}
             onChanged={refresh}
-            onCopied={(deadline) => {
+            onCopied={(copy) => {
               setNow(Date.now());
-              setStamp(deadline === null ? null : { entryId: detail.entry.id, deadline });
+              setCopyNotice(copy);
             }}
             onDeleted={(message) => {
               setDetail({ kind: "none" });
@@ -684,7 +712,6 @@ export function VaultScreen({
               // In "Todas las entradas" each row keeps the colour of the group it was asked from.
               entryLine(lines.get(current?.groupOf.get(loaded.value[index]?.id ?? "") ?? group?.id ?? root.id))
             }
-            stamped={stamped}
             selectedId={selectedId}
             onSelect={selectEntry}
             onRowKeyDown={onRowKeyDown}
@@ -743,7 +770,6 @@ export function VaultScreen({
               // A result brings the names of its groups, not an id: the path is walked down the tree.
               root === null ? "neutral" : entryLine(lineOfPath(root, lines, search.items[index]?.groupPath ?? []))
             }
-            stamped={stamped}
             selectedId={selectedId}
             onSelect={selectEntry}
             onRowKeyDown={onRowKeyDown}
@@ -760,7 +786,6 @@ interface EntryTableProps {
   readonly groupPaths: readonly (readonly string[])[] | null;
   /** The line colour of the group each row sits in. */
   readonly lineOf: (index: number) => GroupLine;
-  readonly stamped: Stamped | null;
   readonly selectedId: string | null;
   readonly onSelect: (entry: SelectedEntry) => void;
   /** RF-59: arrows move between rows, Enter opens one, Escape goes back to the search. */
@@ -773,7 +798,7 @@ interface EntryTableProps {
  * Each row opens with a circle: the initial of the entry's own title on the colour of its group. It is decoration
  * drawn by CSS from `data-initial`, so it adds no text to the row; a protected title never reaches it.
  */
-function EntryTable({ items, groupPaths, lineOf, stamped, selectedId, onSelect, onRowKeyDown }: EntryTableProps) {
+function EntryTable({ items, groupPaths, lineOf, selectedId, onSelect, onRowKeyDown }: EntryTableProps) {
   const today = new Date();
   return (
     <div className="table-scroll">
@@ -819,14 +844,9 @@ function EntryTable({ items, groupPaths, lineOf, stamped, selectedId, onSelect, 
               <td className="cell-tags">{entry.tags.join(", ")}</td>
               {groupPaths !== null && <td className="cell-group">{(groupPaths[index] ?? []).join(" › ")}</td>}
               <td className="cell-date">
-                <time
-                  dateTime={entry.modified}
-                  title={formatDate(entry.modified)}
-                  className={stamped?.entryId === entry.id ? "sr-only" : undefined}
-                >
+                <time dateTime={entry.modified} title={formatDate(entry.modified)}>
                   {formatShortDay(entry.modified, today)}
                 </time>
-                {stamped?.entryId === entry.id && <span className="stamp"><span className="stamp-word">Copiado</span> · {stamped.seconds} s</span>}
               </td>
             </tr>
           ))}

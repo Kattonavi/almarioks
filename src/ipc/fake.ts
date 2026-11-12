@@ -812,8 +812,12 @@ export function createFakeBackend(options: FakeOptions = {}): FakeBackend {
     return null;
   }
 
+  /** The core gives the value of any field the entry has (`reveal_field`): standard or custom, protected or not. */
   function protectedOrStandard(entry: StoredEntry, field: string): string {
-    const known = protectedFieldsOf(entry).includes(field) || (STANDARD_FIELDS as readonly string[]).includes(field);
+    const known =
+      protectedFieldsOf(entry).includes(field) ||
+      (STANDARD_FIELDS as readonly string[]).includes(field) ||
+      entry.customFields.some((custom) => custom.name === field);
     const value = fieldValue(entry, field);
     if (!known || value === undefined) failWith("NoEncontrado");
     return value;

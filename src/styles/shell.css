@@ -407,11 +407,18 @@
   border-inline-end: 1px solid var(--rule);
 }
 
+/* A column: what it shows on top and, pushed to its foot, the copy notice. */
 .detail-pane {
+  display: flex;
+  flex-direction: column;
   min-width: 0;
-  padding: var(--space-6) var(--space-10);
+  padding: var(--space-6) var(--space-8);
   overflow-y: auto;
   container: detail / inline-size;
+}
+
+.detail-pane > .pane-state {
+  margin: 3rem 0 0;
 }
 
 .pane-state {
