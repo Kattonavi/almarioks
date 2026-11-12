@@ -886,3 +886,601 @@ fn rf_112_a_missing_key_file_and_a_wrong_password_fail_with_the_same_answer() {
     }
     assert_eq!(state(&app), "closed");
 }
+
+// ---------- RF-111: the key file a recent vault was last opened with ----------
+// C-1 to C-10 are the conditions of the security review of 0.1 (second round of the owner). Each test names the
+// one it proves.
+
+/// A vault that opens with [`PASSWORD`] and a key file that is NOT beside it, left closed. The key file holds
+/// [`KEY_CONTENT`] (any file is a key file, RF-87), so it doubles as a canary: it must never show up in the
+/// settings file nor in an answer.
+struct Keyed {
+    app: TestApp,
+    dialogs: FakeDialogs,
+    vault: PathBuf,
+    key: PathBuf,
+    dir: TempDir,
+}
+
+fn keyed(tag: &str) -> Keyed {
+    let dir = TempDir::new(tag);
+    let dialogs = FakeDialogs::default();
+    let app = app_with(parts_with(&dir, &dialogs));
+    let vault = dir.path().join("Familia.kdbx");
+    std::fs::create_dir(dir.path().join("llaves")).unwrap();
+    let key = dir.path().join("llaves").join("mi-llave.key");
+    write_key(&key);
+    let existing = json!({ "kind": "existing", "path": text(&key) });
+    create(&app, text(&vault), Some(PASSWORD), existing).unwrap();
+    close(&app);
+    // C-1: creating a vault with a key file remembers the vault and no key file.
+    assert_eq!(remembered_in(&dir), None);
+    Keyed {
+        app,
+        dialogs,
+        vault,
+        key,
+        dir,
+    }
+}
+
+impl Keyed {
+    /// The person chooses `key` in the "choose the key file" dialog.
+    fn pick_key(&self, key: &Path) {
+        self.dialogs.will_choose(key);
+        let answer = invoke_plain(&self.app, "pick_key_file").unwrap();
+        assert_eq!(answer, json!(text(key)));
+    }
+
+    fn open(&self, password: Option<&str>, key: Option<&Path>) -> common::Answer {
+        open(&self.app, &self.vault, password, key)
+    }
+
+    /// Chooses the key file in the dialog, opens the vault with it and the password, and closes it: from here
+    /// on the key file is the one remembered for the vault.
+    fn open_once_with_the_key_chosen(&self) {
+        self.pick_key(&self.key);
+        let opened = self.open(Some(PASSWORD), Some(&self.key)).unwrap();
+        assert_eq!(opened["state"], "open");
+        close(&self.app);
+        assert_eq!(
+            remembered_in(&self.dir),
+            Some(json!({ text(&self.vault): text(&self.key) }))
+        );
+    }
+}
+
+fn open(app: &TestApp, vault: &Path, password: Option<&str>, key: Option<&Path>) -> common::Answer {
+    let mut args = json!({ "path": text(vault) });
+    if let Some(password) = password {
+        args["password"] = json!(password);
+    }
+    if let Some(key) = key {
+        args["key_file_path"] = json!(text(key));
+    }
+    invoke_args(app, "vault_open", args)
+}
+
+fn close(app: &TestApp) {
+    invoke_plain(app, "vault_close").unwrap();
+    assert_eq!(state(app), "closed");
+}
+
+/// The settings file as it is on disk, and never with the content of a key file in it (C-3).
+fn settings_file(dir: &TempDir) -> Vec<u8> {
+    let bytes = std::fs::read(dir.settings_file()).unwrap();
+    assert!(
+        !String::from_utf8_lossy(&bytes).contains(KEY_CONTENT),
+        "the content of a key file reached the settings file"
+    );
+    bytes
+}
+
+/// `key_files` of the settings file on disk, or `None` if the file does not have that key.
+fn remembered_in(dir: &TempDir) -> Option<Value> {
+    let file: Value = serde_json::from_slice(&settings_file(dir)).unwrap();
+    file.get("key_files").cloned()
+}
+
+/// The answer that proposes the remembered key file.
+fn remembered(key: &Path) -> Value {
+    json!({
+        "key_file_path": text(key),
+        "key_file": key.file_name().unwrap().to_str().unwrap(),
+        "source": "remembered",
+    })
+}
+
+#[test]
+fn rf_111_the_key_file_chosen_once_comes_already_chosen_the_next_time() {
+    let rig = keyed("rf111-remembered");
+    let beside = rig.dir.path().join("Familia.keyx");
+
+    // A recent vault with nothing beside it and nothing remembered yet.
+    assert_eq!(suggestion(&rig.app, &rig.vault), Value::Null);
+
+    // The "hecho cuando" of the owner: choose it once, close, and the next time it comes already chosen.
+    rig.open_once_with_the_key_chosen();
+    let found = suggestion(&rig.app, &rig.vault);
+    assert_eq!(found, remembered(&rig.key));
+    let opened = invoke_args(
+        &rig.app,
+        "vault_open",
+        json!({
+            "path": text(&rig.vault), "password": PASSWORD, "key_file_path": found["key_file_path"],
+        }),
+    )
+    .unwrap();
+    assert_eq!(opened["state"], "open");
+
+    // Locked instead of closed: the same answer.
+    invoke_plain(&rig.app, "vault_lock").unwrap();
+    assert_eq!(suggestion(&rig.app, &rig.vault), remembered(&rig.key));
+    close(&rig.app);
+
+    // The remembered one wins over the one beside the vault.
+    write_key(&beside);
+    assert_eq!(suggestion(&rig.app, &rig.vault), remembered(&rig.key));
+
+    // It is in the settings file, so the app started again still knows it; and only the vault it belongs to.
+    let again = app_with(test_parts(&rig.dir));
+    assert_eq!(suggestion(&again, &rig.vault), remembered(&rig.key));
+    assert_eq!(suggestion(&again, &rig.key), Value::Null);
+}
+
+#[test]
+fn rf_111_c1_a_failed_unlock_and_the_other_commands_leave_what_is_remembered_as_it_was() {
+    let rig = keyed("rf111-c1");
+    rig.open_once_with_the_key_chosen();
+    let before = settings_file(&rig.dir);
+
+    // Three key files the person chooses in the dialog, so that only the failure keeps them from being
+    // remembered: one that is not this vault's, one that is not there, and one that cannot be read.
+    let wrong = rig.dir.path().join("llaves").join("ajena.key");
+    std::fs::write(&wrong, b"otra llave").unwrap();
+    let gone = rig.dir.path().join("llaves").join("no-existe.key");
+    let unreadable = rig.dir.path().join("llaves").join("carpeta.key");
+    std::fs::create_dir(&unreadable).unwrap();
+    for (key, code) in [
+        (&wrong, "LlaveIncorrecta"),
+        (&gone, "ArchivoLlaveNoEncontrado"),
+        (&unreadable, "ArchivoLlaveDanado"),
+    ] {
+        rig.pick_key(key);
+        let answer = rig.open(Some(PASSWORD), Some(key));
+        assert_eq!(error_code(&answer), code);
+        assert_eq!(settings_file(&rig.dir), before, "after {code}");
+    }
+    // A wrong password with the right key file, chosen again.
+    rig.pick_key(&rig.key);
+    let answer = rig.open(Some("otra"), Some(&rig.key));
+    assert_eq!(error_code(&answer), "LlaveIncorrecta");
+    assert_eq!(settings_file(&rig.dir), before);
+
+    // Asking for the suggestion writes nothing either.
+    assert_eq!(suggestion(&rig.app, &rig.vault), remembered(&rig.key));
+    assert_eq!(settings_file(&rig.dir), before);
+
+    // Saving the open vault somewhere else remembers that vault, and no key file for it; the one remembered
+    // for the first vault stays.
+    rig.open(Some(PASSWORD), Some(&rig.key)).unwrap();
+    assert_eq!(settings_file(&rig.dir), before);
+    let copy = rig.dir.path().join("Copia.kdbx");
+    invoke_args(&rig.app, "vault_save_as", json!({ "path": text(&copy) })).unwrap();
+    assert_eq!(
+        invoke_plain(&rig.app, "recent_list").unwrap(),
+        json!([
+            { "path": text(&copy), "exists": true },
+            { "path": text(&rig.vault), "exists": true },
+        ])
+    );
+    assert_eq!(
+        remembered_in(&rig.dir),
+        Some(json!({ text(&rig.vault): text(&rig.key) }))
+    );
+}
+
+#[cfg(windows)]
+#[test]
+fn rf_111_c2_a_key_file_that_may_not_be_remembered_opens_the_vault_and_nothing_stays_remembered() {
+    let rig = keyed("rf111-c2");
+    rig.open_once_with_the_key_chosen();
+
+    // The same file by a path that is not `X:\…`. The person chose it in the dialog and the vault opens with it.
+    let verbatim = PathBuf::from(format!(r"\\?\{}", text(&rig.key)));
+    assert!(
+        verbatim.is_file(),
+        "the test needs its folder on a local drive"
+    );
+    rig.pick_key(&verbatim);
+    let opened = rig.open(Some(PASSWORD), Some(&verbatim)).unwrap();
+    assert_eq!(opened["state"], "open");
+    close(&rig.app);
+
+    // Not remembered, and the one that was remembered is not the last one it opened with any more.
+    assert_eq!(remembered_in(&rig.dir), None);
+    assert_eq!(suggestion(&rig.app, &rig.vault), Value::Null);
+}
+
+#[test]
+fn rf_111_c3_only_a_key_file_chosen_in_its_dialog_is_remembered_and_only_its_path() {
+    let rig = keyed("rf111-c3");
+
+    // The window sends a path nobody chose in the dialog: the vault opens and nothing is remembered.
+    let opened = rig.open(Some(PASSWORD), Some(&rig.key)).unwrap();
+    assert_eq!(opened["state"], "open");
+    close(&rig.app);
+    assert_eq!(remembered_in(&rig.dir), None);
+    assert_eq!(suggestion(&rig.app, &rig.vault), Value::Null);
+
+    // The other three dialogs answer the same path, and none of them is "the key file to open with".
+    rig.dialogs.will_choose(&rig.key);
+    for command in [
+        "pick_vault_to_open",
+        "pick_vault_to_create",
+        "pick_new_key_file",
+    ] {
+        invoke_plain(&rig.app, command).unwrap();
+        rig.open(Some(PASSWORD), Some(&rig.key)).unwrap();
+        close(&rig.app);
+        assert_eq!(remembered_in(&rig.dir), None, "after `{command}`");
+    }
+
+    // Chosen in its dialog: remembered. The file holds its four keys and, of the key file, its path.
+    rig.open_once_with_the_key_chosen();
+    let file: Value = serde_json::from_slice(&settings_file(&rig.dir)).unwrap();
+    let keys: Vec<&String> = file.as_object().unwrap().keys().collect();
+    assert_eq!(
+        keys,
+        [
+            "auto_lock_minutes",
+            "clipboard_seconds",
+            "key_files",
+            "recent_vaults"
+        ]
+    );
+    assert_eq!(
+        file["key_files"],
+        json!({ text(&rig.vault): text(&rig.key) })
+    );
+
+    // The one already remembered needs no dialog the next time: the suggestion gave it to the window.
+    rig.dialogs
+        .will_choose(rig.dir.path().join("otra-cosa.key"));
+    invoke_plain(&rig.app, "pick_key_file").unwrap();
+    let before = settings_file(&rig.dir);
+    rig.open(Some(PASSWORD), Some(&rig.key)).unwrap();
+    close(&rig.app);
+    assert_eq!(settings_file(&rig.dir), before);
+
+    // Another path to the same key file, sent without a dialog: it opens, it is not remembered, and the one
+    // that was remembered goes (it is not the key file the vault was last opened with).
+    let copy = rig.dir.path().join("llaves").join("copia.key");
+    std::fs::copy(&rig.key, &copy).unwrap();
+    rig.open(Some(PASSWORD), Some(&copy)).unwrap();
+    close(&rig.app);
+    assert_eq!(remembered_in(&rig.dir), None);
+}
+
+#[cfg(windows)]
+#[test]
+fn rf_111_c4_a_remembered_path_written_by_hand_is_validated_before_the_disk_is_asked() {
+    let dir = TempDir::new("rf111-c4");
+    let vault = dir.path().join("Familia.kdbx");
+    let other = dir.path().join("Otra.kdbx");
+    let key = dir.path().join("llave.key");
+    write_key(&key);
+    // Each of these is a file that IS there, or would send the question to another machine: if the app asked
+    // the disk about it, the answer would not be `null`.
+    let verbatim = format!(r"\\?\{}", text(&key));
+    assert!(Path::new(&verbatim).is_file());
+    let unc = format!(r"\\localhost\{}", text(&key).replacen(':', "$", 1));
+    let bad_values = [
+        json!(verbatim),
+        json!(unc),
+        json!(r"\\servidor.invalid\recurso\llave.key"),
+        json!("llave.key"),
+        json!(format!("{}:flujo", text(&key))),
+        json!(7),
+        json!(null),
+        json!([text(&key)]),
+    ];
+    for bad in bad_values {
+        let written = json!({
+            "recent_vaults": [text(&vault)],
+            // The second entry is a good path for a vault that is not in the recent list.
+            "key_files": { text(&vault): bad, text(&other): text(&key) },
+        })
+        .to_string();
+        std::fs::write(dir.settings_file(), &written).unwrap();
+        let dialogs = FakeDialogs::default();
+        let app = app_with(parts_with(&dir, &dialogs));
+
+        // The same answer as with nothing remembered: `null`, not "the remembered one is missing".
+        assert_eq!(suggestion(&app, &vault), Value::Null, "{bad}");
+        // A vault that is not recent has nothing remembered, also once the app answers about it.
+        dialogs.will_choose(&other);
+        invoke_plain(&app, "pick_vault_to_open").unwrap();
+        assert_eq!(suggestion(&app, &other), Value::Null, "{bad}");
+        // With a key file beside the vault, the plain answer of RF-110.
+        let beside = dir.path().join("Familia.keyx");
+        write_key(&beside);
+        assert_eq!(
+            suggestion(&app, &vault),
+            json!({ "key_file_path": text(&beside), "key_file": "Familia.keyx" }),
+            "{bad}"
+        );
+        std::fs::remove_file(&beside).unwrap();
+        // Reading rewrote nothing.
+        assert_eq!(
+            std::fs::read(dir.settings_file()).unwrap(),
+            written.as_bytes()
+        );
+    }
+}
+
+#[cfg(windows)]
+#[test]
+fn rf_111_c5_the_remembered_key_file_is_looked_at_without_opening_it() {
+    use std::os::windows::fs::OpenOptionsExt;
+
+    let rig = keyed("rf111-c5");
+    rig.open_once_with_the_key_chosen();
+    let before = settings_file(&rig.dir);
+
+    // Another program holds the key file and shares nothing: whoever opens it, to read or to write, fails.
+    let held = std::fs::OpenOptions::new()
+        .read(true)
+        .share_mode(0)
+        .open(&rig.key)
+        .unwrap();
+    assert!(
+        std::fs::read(&rig.key).is_err(),
+        "the lock of the test does not hold: reading the key file still works"
+    );
+    assert_eq!(suggestion(&rig.app, &rig.vault), remembered(&rig.key));
+    drop(held);
+
+    assert_eq!(std::fs::read(&rig.key).unwrap(), KEY_CONTENT.as_bytes());
+    assert_eq!(settings_file(&rig.dir), before);
+    assert_eq!(
+        files_in(&rig.dir.path().join("llaves")),
+        ["mi-llave.key"],
+        "nothing was created beside the key file"
+    );
+}
+
+#[test]
+fn rf_111_c6_a_remembered_key_file_that_is_gone_is_said_and_not_forgotten() {
+    let rig = keyed("rf111-c6");
+    rig.open_once_with_the_key_chosen();
+    let before = settings_file(&rig.dir);
+    let away = rig.dir.path().join("llaves").join("desconectada.key");
+    let missing = json!({ "remembered_missing": text(&rig.key) });
+
+    // The drive it lives on is unplugged: the answer says which file it was, and proposes none.
+    std::fs::rename(&rig.key, &away).unwrap();
+    assert_eq!(suggestion(&rig.app, &rig.vault), missing);
+    // A folder at that path is not the key file either.
+    std::fs::create_dir(&rig.key).unwrap();
+    assert_eq!(suggestion(&rig.app, &rig.vault), missing);
+    std::fs::remove_dir(&rig.key).unwrap();
+
+    // With a key file beside the vault, that one is proposed, and the answer still says the other is missing.
+    let beside = rig.dir.path().join("Familia.keyx");
+    write_key(&beside);
+    assert_eq!(
+        suggestion(&rig.app, &rig.vault),
+        json!({
+            "key_file_path": text(&beside),
+            "key_file": "Familia.keyx",
+            "remembered_missing": text(&rig.key),
+        })
+    );
+
+    // Nothing was forgotten for that: plugged in again, it comes already chosen as before.
+    assert_eq!(settings_file(&rig.dir), before);
+    std::fs::rename(&away, &rig.key).unwrap();
+    assert_eq!(suggestion(&rig.app, &rig.vault), remembered(&rig.key));
+    assert_eq!(settings_file(&rig.dir), before);
+}
+
+#[test]
+fn rf_111_c7_a_the_key_file_is_forgotten_when_the_vault_leaves_the_recent_list() {
+    let rig = keyed("rf111-c7a");
+
+    // Removed from the list by the person: one write takes the vault and its key file.
+    rig.open_once_with_the_key_chosen();
+    let left = invoke_args(
+        &rig.app,
+        "recent_remove",
+        json!({ "path": text(&rig.vault) }),
+    );
+    assert_eq!(left, Ok(json!([])));
+    assert_eq!(remembered_in(&rig.dir), None);
+
+    // Pushed out by five newer vaults.
+    rig.open_once_with_the_key_chosen();
+    let first = rig.dir.path().join("nueva-1.kdbx");
+    create(&rig.app, text(&first), Some(PASSWORD), none()).unwrap();
+    for n in 2..=4 {
+        let next = rig.dir.path().join(format!("nueva-{n}.kdbx"));
+        invoke_args(&rig.app, "vault_save_as", json!({ "path": text(&next) })).unwrap();
+        assert_eq!(
+            remembered_in(&rig.dir),
+            Some(json!({ text(&rig.vault): text(&rig.key) })),
+            "still among the five"
+        );
+    }
+    let sixth = rig.dir.path().join("nueva-5.kdbx");
+    invoke_args(&rig.app, "vault_save_as", json!({ "path": text(&sixth) })).unwrap();
+    let recent = invoke_plain(&rig.app, "recent_list").unwrap();
+    assert_eq!(recent.as_array().unwrap().len(), 5);
+    assert!(!recent.to_string().contains("Familia.kdbx"));
+    assert_eq!(remembered_in(&rig.dir), None);
+}
+
+#[test]
+fn rf_111_c7_b_opening_without_a_key_file_or_with_the_one_beside_forgets_it() {
+    let rig = keyed("rf111-c7b");
+    let beside = rig.dir.path().join("Familia.keyx");
+
+    // With the key file beside the vault, even chosen in the dialog: nothing is kept, it is found on its own.
+    rig.open_once_with_the_key_chosen();
+    std::fs::copy(&rig.key, &beside).unwrap();
+    rig.pick_key(&beside);
+    rig.open(Some(PASSWORD), Some(&beside)).unwrap();
+    close(&rig.app);
+    assert_eq!(remembered_in(&rig.dir), None);
+    assert_eq!(
+        suggestion(&rig.app, &rig.vault),
+        json!({ "key_file_path": text(&beside), "key_file": "Familia.keyx" })
+    );
+    std::fs::remove_file(&beside).unwrap();
+
+    // Without a key file: the vault at that path is now one that opens with the password alone.
+    rig.open_once_with_the_key_chosen();
+    let plain = rig.dir.path().join("sin-llave.kdbx");
+    create(&rig.app, text(&plain), Some(PASSWORD), none()).unwrap();
+    close(&rig.app);
+    std::fs::copy(&plain, &rig.vault).unwrap();
+    assert_eq!(
+        remembered_in(&rig.dir),
+        Some(json!({ text(&rig.vault): text(&rig.key) }))
+    );
+    let opened = rig.open(Some(PASSWORD), None).unwrap();
+    assert_eq!(opened["state"], "open");
+    close(&rig.app);
+    assert_eq!(remembered_in(&rig.dir), None);
+    assert_eq!(suggestion(&rig.app, &rig.vault), Value::Null);
+}
+
+#[test]
+fn rf_111_c7_c_another_key_file_chosen_takes_the_place_of_the_remembered_one() {
+    let rig = keyed("rf111-c7c");
+    rig.open_once_with_the_key_chosen();
+
+    // The person moved the key file again and chose it where it is now.
+    let moved = rig.dir.path().join("llaves").join("movida.key");
+    std::fs::rename(&rig.key, &moved).unwrap();
+    rig.pick_key(&moved);
+    rig.open(Some(PASSWORD), Some(&moved)).unwrap();
+    close(&rig.app);
+
+    assert_eq!(
+        remembered_in(&rig.dir),
+        Some(json!({ text(&rig.vault): text(&moved) }))
+    );
+    assert_eq!(suggestion(&rig.app, &rig.vault), remembered(&moved));
+}
+
+#[test]
+fn rf_111_c7_d_a_remembered_path_that_is_not_valid_leaves_the_file_at_the_next_write() {
+    let dir = TempDir::new("rf111-c7d");
+    let vault = dir.path().join("Familia.kdbx");
+    let other = dir.path().join("Otra.kdbx");
+    let good = dir.path().join("llave.key");
+    let written = json!({
+        "auto_lock_minutes": 15,
+        "recent_vaults": [text(&vault), text(&other)],
+        "key_files": { text(&vault): r"\\servidor.invalid\recurso\llave.key", text(&other): text(&good) },
+    })
+    .to_string();
+    std::fs::write(dir.settings_file(), &written).unwrap();
+    let app = app_with(test_parts(&dir));
+
+    // Read and dropped in memory; the file is not rewritten for that.
+    assert_eq!(suggestion(&app, &vault), Value::Null);
+    assert_eq!(
+        std::fs::read(dir.settings_file()).unwrap(),
+        written.as_bytes()
+    );
+
+    // The next change of the settings, whatever it is, writes the file without it.
+    let chosen = json!({ "auto_lock_minutes": 15, "clipboard_seconds": 30 });
+    invoke_args(&app, "settings_set", chosen).unwrap();
+    assert_eq!(
+        remembered_in(&dir),
+        Some(json!({ text(&other): text(&good) }))
+    );
+    let file: Value = serde_json::from_slice(&settings_file(&dir)).unwrap();
+    assert_eq!(file["auto_lock_minutes"], 15);
+    assert_eq!(file["recent_vaults"], json!([text(&vault), text(&other)]));
+}
+
+#[test]
+fn rf_111_c10_a_vault_that_opens_with_its_key_file_alone_leaves_nothing_remembered() {
+    let dir = TempDir::new("rf111-c10");
+    let dialogs = FakeDialogs::default();
+    let vault = dir.path().join("Solo-llave.kdbx");
+    let key = dir.path().join("llave.key");
+    write_key(&key);
+    // The settings already remember that key file for the vault, as a version without this rule could have.
+    let written = json!({
+        "recent_vaults": [text(&vault)],
+        "key_files": { text(&vault): text(&key) },
+    });
+    let app = app_with(parts_with(&dir, &dialogs));
+    let existing = json!({ "kind": "existing", "path": text(&key) });
+    create(&app, text(&vault), None, existing).unwrap();
+    close(&app);
+    std::fs::write(dir.settings_file(), written.to_string()).unwrap();
+
+    // A fresh app reads that file: the key file comes proposed, as remembered.
+    let app = app_with(parts_with(&dir, &dialogs));
+    assert_eq!(suggestion(&app, &vault), remembered(&key));
+
+    // Opened with the key file alone, chosen in the dialog: it opens, and nothing stays remembered.
+    for password in [None, Some("")] {
+        dialogs.will_choose(&key);
+        invoke_plain(&app, "pick_key_file").unwrap();
+        let opened = open(&app, &vault, password, Some(&key)).unwrap();
+        assert_eq!(opened["state"], "open", "with password {password:?}");
+        close(&app);
+        assert_eq!(remembered_in(&dir), None, "with password {password:?}");
+        assert_eq!(
+            suggestion(&app, &vault),
+            Value::Null,
+            "with password {password:?}"
+        );
+    }
+}
+
+// ---------- Review 0.1, Q-2: a huge file nobody chose is not proposed as a key file ----------
+
+/// Makes the file at `path` exactly `bytes` long (what is added reads as zeros).
+fn resize(path: &Path, bytes: u64) {
+    let file = std::fs::OpenOptions::new().write(true).open(path).unwrap();
+    file.set_len(bytes).unwrap();
+}
+
+#[test]
+fn rf_110_rf_111_a_key_file_larger_than_1_mib_is_not_proposed() {
+    const MIB: u64 = 1024 * 1024;
+    let rig = keyed("q2-size");
+    let beside = rig.dir.path().join("Familia.keyx");
+    let proposed_beside = json!({ "key_file_path": text(&beside), "key_file": "Familia.keyx" });
+
+    // RF-110, the one beside the vault: up to 1 MiB it is proposed, one byte more and it is not.
+    write_key(&beside);
+    assert_eq!(suggestion(&rig.app, &rig.vault), proposed_beside);
+    resize(&beside, MIB);
+    assert_eq!(suggestion(&rig.app, &rig.vault), proposed_beside);
+    resize(&beside, MIB + 1);
+    assert_eq!(suggestion(&rig.app, &rig.vault), Value::Null);
+    std::fs::remove_file(&beside).unwrap();
+
+    // RF-111, the remembered one: the same limit. Too large, it is not proposed: the answer is the one of a
+    // remembered key file that is not there, and it is not forgotten.
+    rig.open_once_with_the_key_chosen();
+    let before = settings_file(&rig.dir);
+    assert_eq!(suggestion(&rig.app, &rig.vault), remembered(&rig.key));
+    resize(&rig.key, MIB);
+    assert_eq!(suggestion(&rig.app, &rig.vault), remembered(&rig.key));
+    resize(&rig.key, MIB + 1);
+    assert_eq!(
+        suggestion(&rig.app, &rig.vault),
+        json!({ "remembered_missing": text(&rig.key) })
+    );
+    assert_eq!(settings_file(&rig.dir), before);
+}

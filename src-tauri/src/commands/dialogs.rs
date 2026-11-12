@@ -182,6 +182,7 @@ async fn pick(
 ) -> Result<Option<String>, AppError> {
     expect_no_args(request.body())?;
     let (dialogs, picked_vault) = (state.dialogs(), state.picked_vault());
+    let picked_key_file = state.picked_key_file();
     blocking(move || {
         let Some(path) = dialogs.pick(pick).map_err(|_| AppError::internal())? else {
             return Ok(None);
@@ -194,6 +195,11 @@ async fn pick(
         if pick == FilePick::VaultToOpen {
             // RF-110: the vault the person is about to unlock. Only this dialog counts, and only its last answer.
             picked_vault.set(Path::new(&path));
+        }
+        if pick == FilePick::KeyFile {
+            // RF-111: the key file the person chose with their own hand. Only this dialog counts, and only its
+            // last answer: a path that did not come from here is never remembered as a vault's key file.
+            picked_key_file.set(Path::new(&path));
         }
         Ok(Some(path))
     })

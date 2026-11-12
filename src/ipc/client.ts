@@ -8,6 +8,7 @@ import {
   entryListSchema,
   generatedSchema,
   groupTreeSchema,
+  keyProposalSchema,
   keySuggestionSchema,
   pickedPathSchema,
   recentListSchema,
@@ -26,6 +27,7 @@ import {
   type EntryVersion,
   type Generated,
   type GroupNode,
+  type KeyProposal,
   type KeySuggestion,
   type RecentVault,
   type SaveState,
@@ -117,6 +119,16 @@ export interface VaultClient {
    * Send the path exactly as the core gave it (`vaultStatus`, `recentList`, `pickVaultToOpen`).
    */
   unlockKeySuggestion(path: string): Promise<Result<KeySuggestion | null>>;
+  /**
+   * RF-110 and RF-111: the same question as `unlockKeySuggestion` (one call to the same command, use one or the
+   * other), with the whole answer. `keyFile` is the key file to bring already chosen: the one this vault was last
+   * opened with (`source: "remembered"`), which wins, or the one beside it (`source: "beside"`), or `null`.
+   * `rememberedMissing` is the path of the remembered one when it is not there any more: say so with that path; the
+   * core does not forget it for that (it may be on a drive that is not plugged in), and `keyFile` is then the one
+   * beside the vault, or `null`. The core remembers a key file only inside `vaultOpen`: nothing is asked of the
+   * window for that.
+   */
+  unlockKeyProposal(path: string): Promise<Result<KeyProposal>>;
   vaultOpen(input: OpenVaultInput): Promise<Result<VaultStatus>>;
   vaultLock(): Promise<Result<undefined>>;
   vaultClose(): Promise<Result<undefined>>;
@@ -217,6 +229,7 @@ export function createClient(transport: Transport): VaultClient {
         key_file: keyFile,
       }),
     unlockKeySuggestion: (path) => call("unlock_key_suggestion", keySuggestionSchema, { path }),
+    unlockKeyProposal: (path) => call("unlock_key_suggestion", keyProposalSchema, { path }),
     vaultOpen: ({ path, password, keyFilePath }) =>
       call("vault_open", vaultStatusSchema, {
         path,

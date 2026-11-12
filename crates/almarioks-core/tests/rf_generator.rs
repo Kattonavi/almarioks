@@ -538,3 +538,74 @@ fn rf_65_a_500_character_password_survives_saving_and_reopening_a_vault_keepass_
     // The meter reads it too (RF-70): `zxcvbn` looks at the first 100 characters only.
     assert_eq!(password_strength(&text), 4);
 }
+
+/// A source that answers `Ok` every time: first the bytes of `script`, one call after another, and from then on
+/// only the byte 255, which every alphabet that is not a power of two rejects. It never fails, and counts its calls.
+struct GoesBarren {
+    script: Vec<Vec<u8>>,
+    calls: usize,
+}
+
+impl RandomSource for GoesBarren {
+    fn fill(&mut self, buf: &mut [u8]) -> CoreResult<()> {
+        buf.fill(255);
+        if let Some(bytes) = self.script.get(self.calls) {
+            for (slot, byte) in buf.iter_mut().zip(bytes) {
+                *slot = *byte;
+            }
+        }
+        self.calls += 1;
+        Ok(())
+    }
+}
+
+#[test]
+fn rf_109_a_source_that_answers_with_only_rejected_bytes_is_not_available_instead_of_hanging() {
+    // Review 0.1, Q-4. 90 characters: bytes from 180 up are rejected, so 255 never gives a character.
+    for length in [8, 20, 500] {
+        let r = rules(length, true, true, true, true, false);
+        let mut source = GoesBarren {
+            script: Vec::new(),
+            calls: 0,
+        };
+        assert_eq!(
+            generate_with(&r, &mut source).map(|_| ()),
+            Err(CoreError::GeneradorNoDisponible),
+            "length {length}"
+        );
+        assert!(
+            (1..=100_000).contains(&source.calls),
+            "{} calls for length {length}",
+            source.calls
+        );
+    }
+
+    // The same with a candidate half made: four letters, and then nothing more. No short password comes back.
+    let r = rules(8, true, false, false, false, false);
+    let mut source = GoesBarren {
+        script: vec![vec![0, 1, 2, 3]],
+        calls: 0,
+    };
+    assert_eq!(
+        generate_with(&r, &mut source).map(|_| ()),
+        Err(CoreError::GeneradorNoDisponible)
+    );
+    assert!((2..=100_000).contains(&source.calls));
+
+    // Calls without a usable byte in between do not change what is generated: the same characters, in order, as
+    // from the bytes that were accepted.
+    let barren = vec![255; 8];
+    let mut source = GoesBarren {
+        script: vec![
+            barren.clone(),
+            vec![0, 1, 2, 255, 255, 255, 255, 255],
+            barren.clone(),
+            barren,
+            vec![3, 4, 5, 6, 7, 8, 9, 10],
+        ],
+        calls: 0,
+    };
+    let password = generate_with(&r, &mut source).unwrap();
+    assert_eq!(password.expose_secret(), "abcdefgh");
+    assert_eq!(source.calls, 5);
+}

@@ -64,6 +64,7 @@ pub struct AppState {
     new_vault_kdf: Arc<KdfChooser>,
     documents_dir: Arc<DocumentsFolder>,
     picked_vault: Arc<PickedVault>,
+    picked_key_file: Arc<PickedKeyFile>,
 }
 
 /// The last vault the person chose in the "open a vault" dialog during this run (RF-110): one of the three
@@ -83,6 +84,31 @@ impl PickedVault {
     #[must_use]
     pub fn is(&self, path: &Path) -> bool {
         self.lock().as_deref() == Some(path)
+    }
+
+    fn lock(&self) -> MutexGuard<'_, Option<PathBuf>> {
+        // The value is replaced whole: a panic while holding the lock cannot leave half a path.
+        self.0.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+}
+
+/// The last key file the person chose in the "choose the key file" dialog during this run (RF-111): the gesture
+/// without which `vault_open` remembers no new key file for a vault (security review 0.1, second round, C-3).
+/// Memory only, as [`PickedVault`]: it starts empty with the app and is never written anywhere. A dialog closed
+/// without choosing leaves it as it was.
+#[derive(Debug, Default)]
+pub struct PickedKeyFile(Mutex<Option<PathBuf>>);
+
+impl PickedKeyFile {
+    /// The dialog `pick_key_file` answered `path`.
+    pub fn set(&self, path: &Path) {
+        *self.lock() = Some(path.to_path_buf());
+    }
+
+    /// The last path that dialog answered, if it answered any.
+    #[must_use]
+    pub fn last(&self) -> Option<PathBuf> {
+        self.lock().clone()
     }
 
     fn lock(&self) -> MutexGuard<'_, Option<PathBuf>> {
@@ -113,7 +139,14 @@ impl AppState {
             new_vault_kdf: parts.new_vault_kdf,
             documents_dir: parts.documents_dir,
             picked_vault: Arc::new(PickedVault::default()),
+            picked_key_file: Arc::new(PickedKeyFile::default()),
         }
+    }
+
+    /// The last key file chosen in the "choose the key file" dialog during this run (RF-111).
+    #[must_use]
+    pub fn picked_key_file(&self) -> Arc<PickedKeyFile> {
+        Arc::clone(&self.picked_key_file)
     }
 
     /// The last vault chosen in the "open a vault" dialog during this run (RF-110).

@@ -15,6 +15,7 @@ use std::{
 use almarioks_core::{
     CoreError,
     kdbx::{KeyFile, MasterPassword, NewKeyFile},
+    location::VaultLocation,
     session::{Recovery, Status},
     vault::validate_group_name,
 };
@@ -113,6 +114,52 @@ fn status_view(status: Status, center: &LockCenter) -> StatusView {
 fn remember(settings: &SettingsStore, path: &Path) {
     drop(settings.update(|settings| {
         settings.remember_vault(path);
+        Ok(())
+    }));
+}
+
+/// What an unlock that worked leaves to remember (RF-111).
+struct Unlocked<'a> {
+    /// The vault that opened.
+    path: &'a Path,
+    /// The key file it opened with, if any.
+    key_file: Option<&'a Path>,
+    /// The unlock carried a master password that is not empty.
+    with_password: bool,
+    /// The last path `pick_key_file` answered in this run, if any.
+    picked: Option<&'a Path>,
+}
+
+impl Unlocked<'_> {
+    /// The key file to remember for this vault, given the one `remembered` so far, or `None` to remember none
+    /// (security review 0.1, second round). All of these must hold:
+    /// - the unlock carried a password (C-10): for a vault that opens with its key file alone, the remembered
+    ///   path would be all a compromised window needs;
+    /// - it is not the key file beside the vault (C-3), which `unlock_key_suggestion` finds on its own;
+    /// - it came from a gesture of the person (C-3): it is the last one the dialog answered, or the one already
+    ///   remembered for this vault.
+    ///
+    /// Whether the path may be written down at all (C-2) is decided by `Settings::set_key_file`.
+    fn key_file_to_remember(&self, remembered: Option<&Path>) -> Option<&Path> {
+        let key_file = self.key_file.filter(|_| self.with_password)?;
+        let beside = VaultLocation::chosen(None, self.path)
+            .is_some_and(|location| location.key_file_path == key_file);
+        let from_a_gesture = self.picked == Some(key_file) || remembered == Some(key_file);
+        (!beside && from_a_gesture).then_some(key_file)
+    }
+}
+
+/// RF-19 and RF-111, in one write of the settings file: the vault goes first in the recent list, and the key file
+/// it opened with is remembered for it, replaced or forgotten ([`Unlocked::key_file_to_remember`]). As in
+/// [`remember`], a settings file that cannot be written is not the answer of the command.
+///
+/// The only place that remembers a key file (C-1): creating, converting, saving as and the suggestion never do.
+fn remember_unlock(settings: &SettingsStore, unlocked: &Unlocked<'_>) {
+    drop(settings.update(|settings| {
+        settings.remember_vault(unlocked.path);
+        // Read here, inside the same change: what is remembered cannot move between the question and the answer.
+        let keep = unlocked.key_file_to_remember(settings.key_file(unlocked.path));
+        settings.set_key_file(unlocked.path, keep);
         Ok(())
     }));
 }
@@ -321,6 +368,7 @@ pub async fn vault_open(
     let path = path_arg(&args.path)?;
     let key_file = args.key_file_path.as_deref().map(path_arg).transpose()?;
     let (session, center, settings) = (state.session(), state.lock_center(), state.settings());
+    let picked_key_file = state.picked_key_file();
     blocking(move || {
         // Typing the key is activity: without this, a vault unlocked after a long wait at the unlock screen
         // could be locked by the heartbeat before this command notes the unlock.
@@ -328,13 +376,27 @@ pub async fn vault_open(
         // `vault_lock` answers as soon as the vault is locked, while the lock of the core may still be writing
         // the recovery file (up to 5 s, RF-33). Unlocking waits for it here instead of answering `Ocupada`.
         center.settle();
+        let with_password = args
+            .password
+            .as_ref()
+            .is_some_and(|password| !password.expose().is_empty());
         let status = session.unlock(
             &path,
             master_password(args.password.as_ref()),
             key_file.as_deref(),
         )?;
         center.activity();
-        remember(&settings, &path);
+        // Only after the unlock worked: a failed one leaves the settings file as it was (RF-111).
+        let picked = picked_key_file.last();
+        remember_unlock(
+            &settings,
+            &Unlocked {
+                path: &path,
+                key_file: key_file.as_deref(),
+                with_password,
+                picked: picked.as_deref(),
+            },
+        );
         Ok(status_view(status, &center))
     })
     .await
