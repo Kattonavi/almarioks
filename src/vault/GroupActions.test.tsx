@@ -109,6 +109,10 @@ describe("P7 Grupo", () => {
     let dialog = await screen.findByRole("dialog", { name: "Mover «Trabajo»" });
     const labels = within(dialog).getAllByRole("option").map((option) => option.textContent);
     expect(labels).toEqual(["Cuentas › Personal", "Cuentas › Archivo"]);
+    // D-7: the missing destinations are explained, tied to the control.
+    const select = within(dialog).getByLabelText("Grupo de destino");
+    const help = document.getElementById(select.getAttribute("aria-describedby") ?? "");
+    expect(help?.textContent).toBe("No aparecen el propio grupo ni sus subgrupos: un grupo no puede ir dentro de sí mismo.");
     fireEvent.click(within(dialog).getByRole("button", { name: "Cancelar" }));
 
     await selectGroup("Clientes");

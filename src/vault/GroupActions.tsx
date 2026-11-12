@@ -330,6 +330,8 @@ interface MoveGroupDialogProps {
   readonly onDone: (tree: GroupNode, targetName: string) => void;
 }
 
+const SELF_HELP = "No aparecen el propio grupo ni sus subgrupos: un grupo no puede ir dentro de sí mismo.";
+
 /** RF-54, RF-55: destinations are every group but itself, its subgroups, its current parent and the recycle bin. */
 function MoveGroupDialog({ client, root, group, onClose, onDone }: MoveGroupDialogProps) {
   const parentId = trailTo(root, group.id)?.at(-2)?.id;
@@ -337,6 +339,8 @@ function MoveGroupDialog({ client, root, group, onClose, onDone }: MoveGroupDial
     (option) => option.node.id !== parentId,
   );
   const [target, setTarget] = useState(options[0]?.node.id ?? "");
+  /** RF-55: its subgroups are left out on purpose; say so, or the missing destinations look like a fault. */
+  const selfHelp = group.children.length > 0 ? SELF_HELP : null;
   const [error, setError] = useState<AppError | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -355,12 +359,16 @@ function MoveGroupDialog({ client, root, group, onClose, onDone }: MoveGroupDial
     <Dialog title={`Mover ${nameOf(group)}`} onClose={onClose}>
       <form onSubmit={(event) => void submit(event)}>
         {options.length === 0 ? (
-          <p>No hay otro grupo al que moverlo.</p>
+          <>
+            <p>No hay otro grupo al que moverlo.</p>
+            {selfHelp !== null && <p className="path">{selfHelp}</p>}
+          </>
         ) : (
           <div className="field">
             <label htmlFor="move-group-target">Grupo de destino</label>
             <select
               id="move-group-target"
+              aria-describedby={selfHelp === null ? undefined : "move-group-help"}
               value={target}
               onChange={(event) => {
                 setTarget(event.target.value);
@@ -372,6 +380,11 @@ function MoveGroupDialog({ client, root, group, onClose, onDone }: MoveGroupDial
                 </option>
               ))}
             </select>
+            {selfHelp !== null && (
+              <p id="move-group-help" className="path field-hint">
+                {selfHelp}
+              </p>
+            )}
           </div>
         )}
         <p role="alert" className="error">
