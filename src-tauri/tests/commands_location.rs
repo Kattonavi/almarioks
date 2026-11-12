@@ -1446,6 +1446,33 @@ fn rf_111_c10_a_vault_that_opens_with_its_key_file_alone_leaves_nothing_remember
     }
 }
 
+// ---------- Review 0.1, second round, U-1: a new file at a recent path does not inherit its key file ----------
+
+#[test]
+fn rf_111_u1_a_vault_created_where_a_recent_one_was_does_not_inherit_its_key_file() {
+    let dir = TempDir::new("rf111-u1");
+    let dialogs = FakeDialogs::default();
+    let vault = dir.path().join("Recreada.kdbx");
+    let key = dir.path().join("llave-vieja.key");
+    write_key(&key);
+    // The settings remember a key file for a recent vault whose file is gone (deleted, or moved away).
+    let written = json!({
+        "recent_vaults": [text(&vault)],
+        "key_files": { text(&vault): text(&key) },
+    });
+    std::fs::write(dir.settings_file(), written.to_string()).unwrap();
+
+    // A new vault is created at that same path, with a password and no key file.
+    let app = app_with(parts_with(&dir, &dialogs));
+    let created = create(&app, text(&vault), Some(PASSWORD), none()).unwrap();
+    assert_eq!(created["state"], "open");
+    close(&app);
+
+    // Nothing is remembered for it and nothing is proposed: the old key file is not its key file.
+    assert_eq!(remembered_in(&dir), None);
+    assert_eq!(suggestion(&app, &vault), Value::Null);
+}
+
 // ---------- Review 0.1, Q-2: a huge file nobody chose is not proposed as a key file ----------
 
 /// Makes the file at `path` exactly `bytes` long (what is added reads as zeros).

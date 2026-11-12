@@ -191,6 +191,28 @@ describe("P5 Entrada — ver, mostrar y copiar", () => {
     expect((await within(row).findByText("usuario-vpn")).className).toBe("secret");
   });
 
+  it("RF-44: RF-108: un «Mostrar» que responde tarde, después de pulsar «Editar», no deja el valor a la vista al volver", async () => {
+    const { backend } = await setup();
+    await openEntry("Trabajo", "GitHub");
+
+    // The core is still answering the reveal when the person goes to edit.
+    const release = backend.hold("entry_reveal");
+    fireEvent.click(screen.getByRole("button", { name: "Mostrar contraseña" }));
+    fireEvent.click(within(detailZone()).getByRole("button", { name: "Editar" }));
+    await screen.findByRole("dialog", { name: "Editar entrada" });
+    release();
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    // Back in the window of the entry, the late value is not there: it was dropped, not shown.
+    fireEvent.click(screen.getByRole("button", { name: "Cancelar" }));
+    await within(detailZone()).findByRole("button", { name: "Editar" });
+    expect(bodyContains(PASSWORD)).toBe(false);
+    expect(within(detailZone()).getByRole("button", { name: "Mostrar contraseña" })).toBeDefined();
+  });
+
   it("RF-44: mostrar pide solo ese campo, lo oculta con el botón y al cambiar de entrada", async () => {
     const { backend } = await setup();
     await openEntry("Trabajo", "GitHub");

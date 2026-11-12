@@ -111,9 +111,15 @@ fn status_view(status: Status, center: &LockCenter) -> StatusView {
 
 /// RF-19: the vault goes first in the recent list. If the settings file cannot be written the vault is open all
 /// the same, so the failure is not the answer of the command: the list simply does not change.
+///
+/// For the commands that put a NEW file at `path` (create, convert, save as): the key file remembered for
+/// whatever was at that path before is not the key file of this vault, so it is forgotten (security review 0.1,
+/// second round, U-1: a vault recreated there with a key file alone would otherwise open by itself). Only an
+/// unlock that worked remembers one (`remember_unlocked`).
 fn remember(settings: &SettingsStore, path: &Path) {
     drop(settings.update(|settings| {
         settings.remember_vault(path);
+        settings.set_key_file(path, None);
         Ok(())
     }));
 }

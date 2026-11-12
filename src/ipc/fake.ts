@@ -700,6 +700,8 @@ export function createFakeBackend(options: FakeOptions = {}): FakeBackend {
     if (kind === "generate" && keyPath !== undefined) files.add(keyPath);
     status = openStatus(path, name, null);
     remember(path);
+    // A new file at this path: the key file remembered for the one before is not its key file (review, U-1).
+    keyFiles.delete(path);
     return status;
   }
 
@@ -1024,6 +1026,7 @@ export function createFakeBackend(options: FakeOptions = {}): FakeBackend {
         openNow();
         files.add(path);
         remember(path);
+        keyFiles.delete(path);
         return settle({ path });
       }
       case "vault_convert": {
@@ -1034,6 +1037,7 @@ export function createFakeBackend(options: FakeOptions = {}): FakeBackend {
         // RF-15: a new KDBX 4 file; the original one stays as it was.
         files.add(path);
         remember(path);
+        keyFiles.delete(path);
         return settle({ path, read_only: false, weak_kdf: false });
       }
       case "recent_list":

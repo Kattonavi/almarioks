@@ -302,6 +302,11 @@ export function EntryPanel({
     setEditSince(null);
   }
   const timers = useRef(new Map<FieldName, ReturnType<typeof setTimeout>>());
+  /**
+   * Counts every time something shown is hidden. A reveal that was asked before and answers after must not put
+   * the value back: the person pressed "Editar" (or hid it) while the core was still answering (review, U-2).
+   */
+  const hideCount = useRef(0);
   const mounted = useRef(false);
   const editRef = useRef<HTMLButtonElement>(null);
   const copyPasswordRef = useRef<HTMLButtonElement>(null);
@@ -347,12 +352,14 @@ export function EntryPanel({
   }, [editing]);
 
   function hide(field: FieldName) {
+    hideCount.current += 1;
     clearTimeout(timers.current.get(field));
     timers.current.delete(field);
     setRevealed((current) => new Map([...current].filter(([name]) => name !== field)));
   }
 
   function hideAll() {
+    hideCount.current += 1;
     for (const timer of timers.current.values()) clearTimeout(timer);
     timers.current.clear();
     setRevealed(new Map());
@@ -360,8 +367,11 @@ export function EntryPanel({
 
   async function reveal(field: FieldName) {
     setActionError(null);
+    const asked = hideCount.current;
     const result = await client.entryReveal(entryId, field);
     if (!mounted.current) return;
+    // Something was hidden meanwhile: this answer is late and its value is dropped, not shown.
+    if (hideCount.current !== asked) return;
     if (!result.ok) {
       setActionError(result.error);
       return;
@@ -550,6 +560,8 @@ export function EntryPanel({
           setEditing(false);
         }}
         onSaved={(saved, changed) => {
+          // What was shown belongs to the entry as it was: nothing of it comes back with the saved one.
+          hideAll();
           setLoad({ kind: "ready", entry: saved });
           setStatus(changed ? "" : "No había cambios que guardar.");
           setEditSince(changed ? saveSignal.saved : null);
