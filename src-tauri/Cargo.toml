@@ -20,6 +20,11 @@ tauri-build = { version = "2.7.4", features = [] }
 [dependencies]
 # Pinned to the 2.12 line by hand: `cargo add tauri` resolves to the 3.0 alpha.
 tauri = { version = "~2.12.5", features = [] }
+# Error codes of the spec (`Bloqueada`, `ArgumentoInvalido`) for the clipboard service.
+almarioks-core = { workspace = true }
+# The copied secret enters the clipboard service as a type that is wiped when dropped (RF-71).
+secrecy = { workspace = true }
+thiserror = { workspace = true }
 # `generate_context!` emits the `plugins` config of tauri.conf.json as `serde_json` values.
 serde_json = "1.0.149"
 
