@@ -517,6 +517,20 @@ Nuevos:
 Decisión del dueño: las versiones 0.x ya no llevan el aviso "no la uses con tus contraseñas reales". Los datos
 siguen dichos donde corresponde (sin firma de Windows y sin auditoría externa hasta la 1.0).
 
+## Cambio 2026-11-15: decisiones del dueño sobre la segunda ronda
+Origen: respuesta del dueño a las tres preguntas que dejó abiertas el recorrido de la segunda ronda
+(`docs/revisiones/0.1-ronda-2-dueno.md`, "Decisiones del dueño (2026-11-15)").
+
+- RF-114: CUANDO el dueño pulsa Ctrl+L con la bóveda abierta, EL SISTEMA la bloqueará igual que el botón "Bloquear"
+  y el bloqueo por inactividad (RF-30 a RF-33), también con cualquier ventana o diálogo abierto y con el foco en un
+  campo; lo que estaba sin guardar en un formulario se descarta sin preguntar (RF-32). La ayuda del botón dice
+  "Bloquear (Ctrl+L)".
+- RF-115: En el formulario de entrada, la línea de fortaleza ocupa siempre su alto: con el campo vacío se ve la
+  barra vacía y sin texto, y nada de lo que está debajo se mueve al teclear (RF-70).
+- RF-116: La ventana de la entrada (RF-43) queda anclada arriba y crece hacia abajo; su cabecera (título, "Editar",
+  más acciones y cerrar) no se mueve al mostrar u ocultar valores ni al desplazar el contenido. Un valor protegido
+  mostrado se ve hasta en 4 líneas; si es más largo, se desplaza dentro de su fila.
+
 ## Propuestas al dueño sobre la constitución (no se cambió nada)
 - Regla 4: nombrar como excepción el generador y validador de `.keyx` (hoy está en "Reglas específicas del proyecto").
 - Regla 6: decir "salvo `reveal_*` y la salida del generador", como ya dice el ADR-0002.
