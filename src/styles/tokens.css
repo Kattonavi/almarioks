@@ -12,8 +12,8 @@
   --text-control: 0.875rem; /* 14 */
   --text-md: 0.9375rem; /* 15: body */
   --text-lg: 1.125rem; /* 18 */
-  --text-xl: 1.875rem; /* 30: list header */
-  --text-2xl: 2.75rem; /* 44: entry title */
+  --text-xl: 1.25rem; /* 20: list header, dialog title */
+  --text-2xl: 1.75rem; /* 28: entry title, screen title */
   --leading: 1.45;
   --leading-tight: 1.1;
   --weight-regular: 400;
@@ -32,20 +32,27 @@
 
   /* ---- Shape and measures. ---- */
   --radius-sm: 3px;
-  --radius: 4px;
+  --radius: 4px; /* controls */
+  --radius-card: 6px; /* cards, menus, notices */
+  --radius-dialog: 8px;
   --radius-round: 50%;
   --row-h: 44px;
-  --control-h: 36px;
-  --bar-h: 64px;
-  --rail-w: 272px;
+  --control-h: 44px;
+  --control-h-inline: 36px; /* a button inside a field ("Generar") */
+  --bar-h: 56px;
+  --rail-w: 232px;
+  --list-w: 340px;
+  --detail-min-w: 420px;
+  --dialog-w: 560px;
   --bullet: 26px;
   --focus-width: 3px;
   --content-width: 40rem;
 }
 
-/* A dialog is always a work surface, even when it is mounted inside the signal frame: it takes the colour roles again. */
+/* A dialog or a menu is always a work surface, even when it is mounted inside the signal frame: it takes the colour roles again. */
 :root,
-dialog {
+dialog,
+.menu {
   color-scheme: light;
 
   /* ---- Work area. ---- */
@@ -83,6 +90,8 @@ dialog {
   --danger: #d7263d;
   --on-danger: #ffffff;
   --ok: #157a52;
+  /* The confirmation mark over the panel plate (the copy notice): the green that reads on that plate. */
+  --on-panel-ok: #4cc38a;
 
   /* ---- Line colours: an ordered family that only names groups. Text on a line is always --on-line. ---- */
   --line-1: #6aa5ff;

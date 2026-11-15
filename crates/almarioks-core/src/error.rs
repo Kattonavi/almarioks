@@ -88,6 +88,9 @@ pub enum CoreError {
         "No se pudo guardar. Tu archivo original no se tocó. Revisa el espacio y los permisos de la carpeta."
     )]
     GuardadoFallido,
+    /// The operating system gave no randomness, so nothing was generated (RF-109).
+    #[error("No se pudo generar la contraseña. Inténtalo otra vez.")]
+    GeneradorNoDisponible,
     /// Another app changed the vault file since it was opened (RF-24).
     #[error("Otra app cambió el archivo de la bóveda. Recárgala antes de seguir.")]
     CambioExterno,
@@ -126,6 +129,7 @@ impl CoreError {
             Self::GrupoProtegido => "GrupoProtegido",
             Self::ReglasImposibles => "ReglasImposibles",
             Self::GuardadoFallido => "GuardadoFallido",
+            Self::GeneradorNoDisponible => "GeneradorNoDisponible",
             Self::CambioExterno => "CambioExterno",
             Self::ArchivoNoEncontrado => "ArchivoNoEncontrado",
             Self::ArchivoLlaveNoEncontrado => "ArchivoLlaveNoEncontrado",
@@ -249,7 +253,7 @@ impl From<FieldError> for CoreError {
 mod tests {
     use super::{CoreError, Field, FieldError};
 
-    const ALL: [CoreError; 25] = [
+    const ALL: [CoreError; 26] = [
         CoreError::Bloqueada,
         CoreError::Ocupada,
         CoreError::ArgumentoInvalido,
@@ -272,6 +276,7 @@ mod tests {
         CoreError::GrupoProtegido,
         CoreError::ReglasImposibles,
         CoreError::GuardadoFallido,
+        CoreError::GeneradorNoDisponible,
         CoreError::CambioExterno,
         CoreError::ArchivoNoEncontrado,
         CoreError::ArchivoLlaveNoEncontrado,

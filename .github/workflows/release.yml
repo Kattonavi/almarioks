@@ -120,7 +120,7 @@ jobs:
         env:
           REPO: ${{ github.repository }}
         run: |
-          node scripts/release-manifest.mjs release-assets "$VERSION" "$REPO" "Versión de desarrollo. No la uses con tus contraseñas reales."
+          node scripts/release-manifest.mjs release-assets "$VERSION" "$REPO" "Sin firma de Windows ni auditoría externa hasta la 1.0."
       - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-path: |

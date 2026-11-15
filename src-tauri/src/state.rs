@@ -23,6 +23,10 @@ use crate::{
 /// tests give a fixed one.
 pub type KdfChooser = dyn Fn() -> CoreResult<NewVaultKdf> + Send + Sync;
 
+/// Asks the system for the person's Documents folder (RF-97), every time it is needed: the person can move it
+/// while the app runs. `None` if the system has none to give. The tests give a temporary folder.
+pub type DocumentsFolder = dyn Fn() -> Option<PathBuf> + Send + Sync;
+
 /// Name of the settings file inside the app's configuration folder (RF-82).
 pub const SETTINGS_FILE_NAME: &str = "settings.json";
 
@@ -42,6 +46,8 @@ pub struct AppParts {
     pub reloader: Arc<dyn WebviewReloader>,
     /// The KDF of a vault created or converted here (RF-2).
     pub new_vault_kdf: Arc<KdfChooser>,
+    /// The person's Documents folder, where new vaults are proposed (RF-97).
+    pub documents_dir: Arc<DocumentsFolder>,
 }
 
 /// The state managed by Tauri: `tauri::State<'_, AppState>` in every command.
@@ -56,6 +62,59 @@ pub struct AppState {
     /// The session of the core with its lock, its inactivity timer and its events (`crate::lock`).
     lock: Arc<LockCenter>,
     new_vault_kdf: Arc<KdfChooser>,
+    documents_dir: Arc<DocumentsFolder>,
+    picked_vault: Arc<PickedVault>,
+    picked_key_file: Arc<PickedKeyFile>,
+}
+
+/// The last vault the person chose in the "open a vault" dialog during this run (RF-110): one of the three
+/// sources `unlock_key_suggestion` answers about. Memory only: it starts empty with the app and is never written
+/// anywhere. A dialog closed without choosing answers no path and leaves it as it was.
+#[derive(Debug, Default)]
+pub struct PickedVault(Mutex<Option<PathBuf>>);
+
+impl PickedVault {
+    /// The dialog `pick_vault_to_open` answered `path`.
+    pub fn set(&self, path: &Path) {
+        *self.lock() = Some(path.to_path_buf());
+    }
+
+    /// Whether `path` is the last one that dialog answered. Compared as the recent vaults are: as written, with
+    /// no case folding and nothing resolved.
+    #[must_use]
+    pub fn is(&self, path: &Path) -> bool {
+        self.lock().as_deref() == Some(path)
+    }
+
+    fn lock(&self) -> MutexGuard<'_, Option<PathBuf>> {
+        // The value is replaced whole: a panic while holding the lock cannot leave half a path.
+        self.0.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+}
+
+/// The last key file the person chose in the "choose the key file" dialog during this run (RF-111): the gesture
+/// without which `vault_open` remembers no new key file for a vault (security review 0.1, second round, C-3).
+/// Memory only, as [`PickedVault`]: it starts empty with the app and is never written anywhere. A dialog closed
+/// without choosing leaves it as it was.
+#[derive(Debug, Default)]
+pub struct PickedKeyFile(Mutex<Option<PathBuf>>);
+
+impl PickedKeyFile {
+    /// The dialog `pick_key_file` answered `path`.
+    pub fn set(&self, path: &Path) {
+        *self.lock() = Some(path.to_path_buf());
+    }
+
+    /// The last path that dialog answered, if it answered any.
+    #[must_use]
+    pub fn last(&self) -> Option<PathBuf> {
+        self.lock().clone()
+    }
+
+    fn lock(&self) -> MutexGuard<'_, Option<PathBuf>> {
+        // The value is replaced whole: a panic while holding the lock cannot leave half a path.
+        self.0.lock().unwrap_or_else(PoisonError::into_inner)
+    }
 }
 
 impl AppState {
@@ -78,7 +137,22 @@ impl AppState {
             url_opener: parts.url_opener,
             lock,
             new_vault_kdf: parts.new_vault_kdf,
+            documents_dir: parts.documents_dir,
+            picked_vault: Arc::new(PickedVault::default()),
+            picked_key_file: Arc::new(PickedKeyFile::default()),
         }
+    }
+
+    /// The last key file chosen in the "choose the key file" dialog during this run (RF-111).
+    #[must_use]
+    pub fn picked_key_file(&self) -> Arc<PickedKeyFile> {
+        Arc::clone(&self.picked_key_file)
+    }
+
+    /// The last vault chosen in the "open a vault" dialog during this run (RF-110).
+    #[must_use]
+    pub fn picked_vault(&self) -> Arc<PickedVault> {
+        Arc::clone(&self.picked_vault)
     }
 
     /// The session of the core: the vault, open or not.
@@ -97,6 +171,14 @@ impl AppState {
     #[must_use]
     pub fn new_vault_kdf(&self) -> Arc<KdfChooser> {
         Arc::clone(&self.new_vault_kdf)
+    }
+
+    /// The person's Documents folder as the system gives it now (RF-97), or `None` if it gives none or one that
+    /// is not a full path. Asks the system: call it from `spawn_blocking`.
+    #[must_use]
+    pub fn documents_dir(&self) -> Arc<DocumentsFolder> {
+        let ask = Arc::clone(&self.documents_dir);
+        Arc::new(move || ask().filter(|folder| folder.is_absolute()))
     }
 
     /// The settings and recent vaults.

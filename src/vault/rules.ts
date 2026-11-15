@@ -109,7 +109,7 @@ const TOO_LONG: Readonly<Record<EntryFieldKey, (limit: number) => string>> = {
   title: (limit) => `El título admite hasta ${count(limit)} caracteres. Acórtalo.`,
   username: (limit) => `El usuario admite hasta ${count(limit)} caracteres. Acórtalo.`,
   password: (limit) => `La contraseña admite hasta ${count(limit)} caracteres. Usa una más corta.`,
-  url: (limit) => `La URL admite hasta ${count(limit)} caracteres. Acórtala.`,
+  url: (limit) => `El sitio admite hasta ${count(limit)} caracteres. Acórtalo.`,
   notes: (limit) => `Las notas admiten hasta ${count(limit)} caracteres. Acórtalas.`,
   // Two limits (how many and how long): the core's single number cannot say which, so the text names both.
   tags: () =>

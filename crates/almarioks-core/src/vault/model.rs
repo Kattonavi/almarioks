@@ -163,6 +163,9 @@ pub struct EntrySummary {
     pub title: Option<String>,
     /// User name; `None` if protected.
     pub username: Option<String>,
+    /// Whether the entry has a password: the field exists and is not empty (RF-105). Only yes or no: never the
+    /// value, its length nor anything else taken from it.
+    pub has_password: bool,
     /// URL; `None` if protected.
     pub url: Option<String>,
     /// Tags, as stored.

@@ -15,6 +15,7 @@ use std::{
 use almarioks_core::{
     CoreError,
     kdbx::{KeyFile, MasterPassword, NewKeyFile},
+    location::VaultLocation,
     session::{Recovery, Status},
     vault::validate_group_name,
 };
@@ -26,6 +27,7 @@ use super::{
     args::{SecretArg, expect_no_args, parse_args, present},
     blocking,
     error::AppError,
+    location::ensure_default_folder,
     require_open, with_field_data,
 };
 use crate::{
@@ -109,15 +111,67 @@ fn status_view(status: Status, center: &LockCenter) -> StatusView {
 
 /// RF-19: the vault goes first in the recent list. If the settings file cannot be written the vault is open all
 /// the same, so the failure is not the answer of the command: the list simply does not change.
+///
+/// For the commands that put a NEW file at `path` (create, convert, save as): the key file remembered for
+/// whatever was at that path before is not the key file of this vault, so it is forgotten (security review 0.1,
+/// second round, U-1: a vault recreated there with a key file alone would otherwise open by itself). Only an
+/// unlock that worked remembers one (`remember_unlocked`).
 fn remember(settings: &SettingsStore, path: &Path) {
     drop(settings.update(|settings| {
         settings.remember_vault(path);
+        settings.set_key_file(path, None);
+        Ok(())
+    }));
+}
+
+/// What an unlock that worked leaves to remember (RF-111).
+struct Unlocked<'a> {
+    /// The vault that opened.
+    path: &'a Path,
+    /// The key file it opened with, if any.
+    key_file: Option<&'a Path>,
+    /// The unlock carried a master password that is not empty.
+    with_password: bool,
+    /// The last path `pick_key_file` answered in this run, if any.
+    picked: Option<&'a Path>,
+}
+
+impl Unlocked<'_> {
+    /// The key file to remember for this vault, given the one `remembered` so far, or `None` to remember none
+    /// (security review 0.1, second round). All of these must hold:
+    /// - the unlock carried a password (C-10): for a vault that opens with its key file alone, the remembered
+    ///   path would be all a compromised window needs;
+    /// - it is not the key file beside the vault (C-3), which `unlock_key_suggestion` finds on its own;
+    /// - it came from a gesture of the person (C-3): it is the last one the dialog answered, or the one already
+    ///   remembered for this vault.
+    ///
+    /// Whether the path may be written down at all (C-2) is decided by `Settings::set_key_file`.
+    fn key_file_to_remember(&self, remembered: Option<&Path>) -> Option<&Path> {
+        let key_file = self.key_file.filter(|_| self.with_password)?;
+        let beside = VaultLocation::chosen(None, self.path)
+            .is_some_and(|location| location.key_file_path == key_file);
+        let from_a_gesture = self.picked == Some(key_file) || remembered == Some(key_file);
+        (!beside && from_a_gesture).then_some(key_file)
+    }
+}
+
+/// RF-19 and RF-111, in one write of the settings file: the vault goes first in the recent list, and the key file
+/// it opened with is remembered for it, replaced or forgotten ([`Unlocked::key_file_to_remember`]). As in
+/// [`remember`], a settings file that cannot be written is not the answer of the command.
+///
+/// The only place that remembers a key file (C-1): creating, converting, saving as and the suggestion never do.
+fn remember_unlock(settings: &SettingsStore, unlocked: &Unlocked<'_>) {
+    drop(settings.update(|settings| {
+        settings.remember_vault(unlocked.path);
+        // Read here, inside the same change: what is remembered cannot move between the question and the answer.
+        let keep = unlocked.key_file_to_remember(settings.key_file(unlocked.path));
+        settings.set_key_file(unlocked.path, keep);
         Ok(())
     }));
 }
 
 /// A path the window sends: any text but the empty one.
-fn path_arg(text: &str) -> Result<PathBuf, AppError> {
+pub(super) fn path_arg(text: &str) -> Result<PathBuf, AppError> {
     if text.is_empty() {
         return Err(AppError::invalid_argument());
     }
@@ -201,7 +255,7 @@ pub struct VaultSaveAsArgs {
 }
 
 /// Whether anything (a file, a folder or a link) is at `path`.
-fn something_at(path: &Path) -> bool {
+pub(super) fn something_at(path: &Path) -> bool {
     path.symlink_metadata().is_ok()
 }
 
@@ -235,6 +289,11 @@ pub async fn vault_status(
 
 /// Creates a vault and leaves it open (RF-1 to RF-6, RF-9).
 ///
+/// The folder of the vault must exist, with one exception (RF-97): if the vault goes directly inside
+/// `Documents › AlmarioKS` and that folder is missing, it is created first (and removed again if the creation
+/// fails). No other folder is ever created. Whatever the path, a file that is already there is never replaced
+/// (RF-4, RF-98): the answer is `ArchivoExiste`, also for the new key file (RF-6, RF-99).
+///
 /// # Errors
 /// In the order of the plan ("Precisiones" 12): `ArgumentoInvalido` › `LlaveVacia` › `ArchivoExiste` (vault) ›
 /// `ArchivoExiste` (new key file); then those of the key file given (`ArchivoLlaveNoEncontrado`,
@@ -249,6 +308,7 @@ pub async fn vault_create(
     let path = path_arg(&args.path)?;
     let (session, center) = (state.session(), state.lock_center());
     let (settings, choose_kdf) = (state.settings(), state.new_vault_kdf());
+    let documents = state.documents_dir();
     blocking(move || {
         // The cheap refusals first, in the order of the plan: choosing the KDF takes seconds and the person
         // should not wait for it to learn that the file exists. The core checks them all again.
@@ -276,6 +336,9 @@ pub async fn vault_create(
         // A lock that is still writing its recovery file ends first (see `vault_open`).
         center.settle();
         center.unlocking();
+        // RF-97: after every cheap refusal and right before writing. Only `Documents › AlmarioKS`, and only when
+        // the vault goes directly inside it; if the creation fails, the folder this call made goes away again.
+        let made_folder = ensure_default_folder(documents().as_deref(), &path)?;
         let status = session
             .create(
                 &path,
@@ -287,6 +350,7 @@ pub async fn vault_create(
             .map_err(|error| {
                 with_field_data(error, || validate_group_name(&args.name).map(drop))
             })?;
+        made_folder.keep();
         center.activity();
         remember(&settings, &path);
         Ok(status_view(status, &center))
@@ -310,6 +374,7 @@ pub async fn vault_open(
     let path = path_arg(&args.path)?;
     let key_file = args.key_file_path.as_deref().map(path_arg).transpose()?;
     let (session, center, settings) = (state.session(), state.lock_center(), state.settings());
+    let picked_key_file = state.picked_key_file();
     blocking(move || {
         // Typing the key is activity: without this, a vault unlocked after a long wait at the unlock screen
         // could be locked by the heartbeat before this command notes the unlock.
@@ -317,13 +382,27 @@ pub async fn vault_open(
         // `vault_lock` answers as soon as the vault is locked, while the lock of the core may still be writing
         // the recovery file (up to 5 s, RF-33). Unlocking waits for it here instead of answering `Ocupada`.
         center.settle();
+        let with_password = args
+            .password
+            .as_ref()
+            .is_some_and(|password| !password.expose().is_empty());
         let status = session.unlock(
             &path,
             master_password(args.password.as_ref()),
             key_file.as_deref(),
         )?;
         center.activity();
-        remember(&settings, &path);
+        // Only after the unlock worked: a failed one leaves the settings file as it was (RF-111).
+        let picked = picked_key_file.last();
+        remember_unlock(
+            &settings,
+            &Unlocked {
+                path: &path,
+                key_file: key_file.as_deref(),
+                with_password,
+                picked: picked.as_deref(),
+            },
+        );
         Ok(status_view(status, &center))
     })
     .await

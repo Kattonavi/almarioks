@@ -30,7 +30,7 @@ use almarioks_lib::{
     },
     lock::{SystemIdleClock, WebviewReloader},
     plugins,
-    state::{AppParts, SETTINGS_FILE_NAME},
+    state::{AppParts, DocumentsFolder, SETTINGS_FILE_NAME},
 };
 use serde_json::Value;
 use tauri::{
@@ -179,7 +179,19 @@ pub fn parts_with(dir: &TempDir, dialogs: &FakeDialogs) -> AppParts {
         idle_clock: Arc::new(SystemIdleClock),
         reloader: Arc::new(CountingReloader::default()),
         new_vault_kdf: Arc::new(fast_kdf),
+        documents_dir: documents_in(dir),
     }
+}
+
+/// Name of the folder that plays the person's Documents inside the test's folder.
+pub const DOCUMENTS: &str = "Documentos";
+
+/// The Documents folder of a test app (RF-97): a folder inside the test's own, created here and empty. Never the
+/// real one of the machine.
+pub fn documents_in(dir: &TempDir) -> Arc<DocumentsFolder> {
+    let documents = dir.path().join(DOCUMENTS);
+    std::fs::create_dir_all(&documents).expect("create the test's Documents folder");
+    Arc::new(move || Some(documents.clone()))
 }
 
 /// The weakest KDF a new vault may have (RF-2: 64 MiB, 2 iterations): the tests create vaults without waiting

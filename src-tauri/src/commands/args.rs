@@ -61,6 +61,20 @@ where
     T::deserialize(deserializer).map(Some)
 }
 
+/// For a field of `args` that is always sent and may be `null` ("the person chose nothing"): `null` is `None`, a
+/// value must be of its type, and a missing key is refused, so the call says which of the two it means (RF-80).
+/// Use with `#[serde(deserialize_with = "nullable")]` and WITHOUT `default`, which would let the key be missing.
+///
+/// # Errors
+/// Whatever `T` answers for a value that is not `null`.
+pub(crate) fn nullable<'de, D, T>(deserializer: D) -> Result<Option<T>, D::Error>
+where
+    D: Deserializer<'de>,
+    T: Deserialize<'de>,
+{
+    Option::<T>::deserialize(deserializer)
+}
+
 /// A secret text argument (a password being typed). It is moved into a [`SecretString`] while it is being read,
 /// so the copy this crate owns is wiped when the command ends; it has no `Debug` that shows it and is never
 /// logged. The copy inside Tauri's request is not ours to wipe (ADR-0002; plan, "Precisiones" 14).

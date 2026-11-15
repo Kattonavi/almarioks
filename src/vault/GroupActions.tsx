@@ -1,10 +1,9 @@
-import { useState, type SubmitEvent } from "react";
+import { useState, type ReactNode, type SubmitEvent } from "react";
 
 import { assertNever } from "../assertNever";
 import type { VaultClient } from "../ipc/client";
 import { errorMessage, type AppError, type Result } from "../ipc/errors";
 import type { DeletePreview, GroupNode } from "../ipc/schemas";
-import { EditIcon, MoveIcon, PlusIcon, TrashIcon } from "../ui/icons";
 import { Dialog } from "./Dialog";
 import { groupOptions, isInBin, plural, shown, trailTo } from "./format";
 import { checkGroupName, groupNameText, type GroupNameProblem } from "./rules";
@@ -14,28 +13,56 @@ export type GroupClient = Pick<
   "groupCreate" | "groupRename" | "groupMove" | "groupDeletePreview" | "groupDelete" | "recycleBinEmpty"
 >;
 
+/** What can be asked of a group (P7). */
+export type GroupOrder = "create" | "rename" | "move" | "delete" | "empty-bin";
+
+/** One line of the menu of a group. */
+export interface GroupOrderItem {
+  readonly order: GroupOrder;
+  readonly label: string;
+  /** The order that destroys or sends to the bin: drawn in the danger role, always the last one. */
+  readonly danger: boolean;
+}
+
+/**
+ * The orders a group takes, in menu order. The core decides what is protected; the menu only leaves out what can
+ * never apply (moving the root, renaming the bin, a new group inside the bin). A new group in the root is not here:
+ * it is the "+" of the rail.
+ */
+export function groupOrders(root: GroupNode, group: GroupNode): readonly GroupOrderItem[] {
+  if (group.kind === "recycle_bin") return [{ order: "empty-bin", label: "Vaciar papelera…", danger: true }];
+  const rename: GroupOrderItem = { order: "rename", label: "Renombrar…", danger: false };
+  if (group.kind === "root") return [rename];
+  const inBin = isInBin(root, group.id);
+  return [
+    ...(inBin ? [] : [{ order: "create", label: "Nuevo subgrupo…", danger: false } as const]),
+    rename,
+    { order: "move", label: "Mover a otro grupo…", danger: false },
+    // Outside the bin a group goes to the bin; the order says so, like its dialog.
+    { order: "delete", label: inBin ? "Borrar…" : "Enviar a la papelera…", danger: true },
+  ];
+}
+
 type GroupDialog =
-  | { readonly kind: "create" }
-  | { readonly kind: "rename" }
-  | { readonly kind: "move" }
-  /** `groupId`: the preview belongs to this group; a late one for another selection is not shown. */
-  | { readonly kind: "delete"; readonly groupId: string; readonly preview: DeletePreview; readonly forGood: boolean }
-  | { readonly kind: "empty-bin" };
+  | { readonly kind: "create"; readonly group: GroupNode }
+  | { readonly kind: "rename"; readonly group: GroupNode }
+  | { readonly kind: "move"; readonly group: GroupNode }
+  | { readonly kind: "delete"; readonly group: GroupNode; readonly preview: DeletePreview; readonly forGood: boolean }
+  | { readonly kind: "empty-bin"; readonly group: GroupNode };
 
 /** What changed, for the screen that owns the tree. */
 export interface GroupChange {
   readonly root: GroupNode;
-  /** The group to open next. */
-  readonly select: string;
-  /** Entries left the view (deleted, moved): the detail is closed and focus goes back to the tree. */
+  /** The group that left its place (sent to the bin or deleted), if any: a list that showed it shows something else. */
+  readonly gone: string | null;
+  /** Entries left the view (deleted, bin emptied): the detail is closed and focus goes back to the tree. */
   readonly removed: boolean;
 }
 
-interface GroupActionsProps {
-  readonly client: GroupClient;
-  readonly root: GroupNode;
-  readonly group: GroupNode;
-  readonly onChange: (change: GroupChange) => void;
+/** The group orders of the rail: `start` runs one, `view` is what it leaves to say and its open dialog. */
+export interface GroupActions {
+  readonly start: (group: GroupNode, order: GroupOrder) => void;
+  readonly view: ReactNode;
 }
 
 function nameOf(group: GroupNode): string {
@@ -60,28 +87,22 @@ function binContent(bin: GroupNode): DeletePreview {
 }
 
 /**
- * P7 (RF-51 to RF-58): create, rename, move and delete the selected group, and empty the recycle bin. Every action is
- * a button and a native dialog: no dragging. The core decides what is protected; the buttons only hide what can never
- * apply (moving the root, renaming the bin).
+ * P7 (RF-51 to RF-58): create, rename, move and delete a group, and empty the recycle bin. Every order is asked from
+ * the menu of its group (or the "+" of the rail) and answered in a native dialog: no dragging. One order at a time,
+ * for whichever group asked; `root` is `null` until the tree arrives.
  */
-export function GroupActions({ client, root, group, onChange }: GroupActionsProps) {
+export function useGroupActions(
+  client: GroupClient,
+  root: GroupNode | null,
+  onChange: (change: GroupChange) => void,
+): GroupActions {
   const [dialog, setDialog] = useState<GroupDialog | null>(null);
   const [error, setError] = useState<AppError | null>(null);
   const [status, setStatus] = useState("");
   const [busy, setBusy] = useState(false);
-  const inBin = isInBin(root, group.id);
-  const isBin = group.kind === "recycle_bin";
-  const isRoot = group.kind === "root";
-  /** Outside the bin a group goes to the bin; the button says so, like its dialog. */
-  const deleteLabel = inBin ? "Borrar grupo…" : "Enviar grupo a la papelera…";
 
-  function open(next: GroupDialog) {
-    setError(null);
-    setStatus("");
-    setDialog(next);
-  }
-
-  async function askDelete() {
+  async function askDelete(group: GroupNode, forGood: boolean) {
+    if (busy) return;
     setError(null);
     setStatus("");
     setBusy(true);
@@ -91,94 +112,53 @@ export function GroupActions({ client, root, group, onChange }: GroupActionsProp
       setError(result.error);
       return;
     }
-    setDialog({ kind: "delete", groupId: group.id, preview: result.value, forGood: inBin });
+    setDialog({ kind: "delete", group, preview: result.value, forGood });
   }
 
-  function done(root: GroupNode, message: string, select: string, removed: boolean) {
+  function start(group: GroupNode, order: GroupOrder) {
+    switch (order) {
+      case "create":
+      case "rename":
+      case "move":
+      case "empty-bin":
+        setError(null);
+        setStatus("");
+        setDialog({ kind: order, group });
+        return;
+      case "delete":
+        // What is already in the bin is deleted for good; the dialog says which of the two it is.
+        void askDelete(group, root !== null && isInBin(root, group.id));
+        return;
+      default:
+        assertNever(order);
+    }
+  }
+
+  function done(tree: GroupNode, message: string, gone: string | null, removed: boolean) {
     setDialog(null);
     setStatus(message);
-    onChange({ root, select, removed });
+    onChange({ root: tree, gone, removed });
   }
-
-  return (
-    <div className="group-actions">
-      <div className="actions" role="group" aria-label={`Acciones del grupo ${nameOf(group)}`}>
-        {!isBin && !inBin && (
-          <button
-            type="button"
-            title="Nuevo grupo…"
-            onClick={() => {
-              open({ kind: "create" });
-            }}
-          >
-            <PlusIcon />
-            <span className="label">Nuevo grupo…</span>
-          </button>
-        )}
-        {!isBin && (
-          <button
-            type="button"
-            title="Renombrar grupo…"
-            onClick={() => {
-              open({ kind: "rename" });
-            }}
-          >
-            <EditIcon />
-            <span className="label">Renombrar grupo…</span>
-          </button>
-        )}
-        {!isBin && !isRoot && (
-          <button
-            type="button"
-            title="Mover grupo…"
-            onClick={() => {
-              open({ kind: "move" });
-            }}
-          >
-            <MoveIcon />
-            <span className="label">Mover grupo…</span>
-          </button>
-        )}
-        {!isBin && !isRoot && (
-          <button
-            type="button"
-            className="btn-danger"
-            title={deleteLabel}
-            disabled={busy}
-            onClick={() => void askDelete()}
-          >
-            <TrashIcon />
-            <span className="label">{deleteLabel}</span>
-          </button>
-        )}
-        {isBin && (
-          <button
-            type="button"
-            className="btn-danger"
-            title="Vaciar papelera…"
-            onClick={() => {
-              open({ kind: "empty-bin" });
-            }}
-          >
-            <TrashIcon />
-            <span className="label">Vaciar papelera…</span>
-          </button>
-        )}
-      </div>
-      <div aria-live="polite">{status !== "" && <p>{status}</p>}</div>
-      <p role="alert" className="error">
-        {error === null || dialog !== null ? "" : errorMessage(error)}
-      </p>
-      {renderDialog()}
-    </div>
-  );
 
   function close() {
     setDialog(null);
   }
 
-  function renderDialog() {
+  const view = (
+    <div className="rail-status">
+      <div aria-live="polite">{status !== "" && <p>{status}</p>}</div>
+      <p role="alert" className="error">
+        {error === null || dialog !== null ? "" : errorMessage(error)}
+      </p>
+      {root !== null && renderDialog(root)}
+    </div>
+  );
+
+  return { start, view };
+
+  function renderDialog(tree: GroupNode) {
     if (dialog === null) return null;
+    const { group } = dialog;
     switch (dialog.kind) {
       case "create":
         return (
@@ -188,8 +168,8 @@ export function GroupActions({ client, root, group, onChange }: GroupActionsProp
             submitLabel="Crear grupo"
             onClose={close}
             onSubmit={(name) => client.groupCreate(group.id, name)}
-            onDone={(tree) => {
-              done(tree, "Grupo creado.", group.id, false);
+            onDone={(next) => {
+              done(next, "Grupo creado.", null, false);
             }}
           />
         );
@@ -201,8 +181,8 @@ export function GroupActions({ client, root, group, onChange }: GroupActionsProp
             submitLabel="Guardar nombre"
             onClose={close}
             onSubmit={(name) => client.groupRename(group.id, name)}
-            onDone={(tree) => {
-              done(tree, "Grupo renombrado.", group.id, false);
+            onDone={(next) => {
+              done(next, "Grupo renombrado.", null, false);
             }}
           />
         );
@@ -210,16 +190,15 @@ export function GroupActions({ client, root, group, onChange }: GroupActionsProp
         return (
           <MoveGroupDialog
             client={client}
-            root={root}
+            root={tree}
             group={group}
             onClose={close}
-            onDone={(tree, targetName) => {
-              done(tree, `${nameOf(group)} se movió a ${targetName}.`, group.id, false);
+            onDone={(next, targetName) => {
+              done(next, `${nameOf(group)} se movió a ${targetName}.`, null, false);
             }}
           />
         );
       case "delete":
-        if (dialog.groupId !== group.id) return null;
         return (
           <ConfirmDialog
             title={
@@ -233,11 +212,11 @@ export function GroupActions({ client, root, group, onChange }: GroupActionsProp
             confirmLabel={dialog.forGood ? "Borrar definitivamente" : "Enviar a la papelera"}
             onClose={close}
             onConfirm={() => client.groupDelete(group.id)}
-            onDone={(tree) => {
+            onDone={(next) => {
               done(
-                tree,
+                next,
                 dialog.forGood ? `Se borró ${nameOf(group)} de forma definitiva.` : `${nameOf(group)} se movió a la papelera.`,
-                root.id,
+                group.id,
                 true,
               );
             }}
@@ -251,8 +230,8 @@ export function GroupActions({ client, root, group, onChange }: GroupActionsProp
             confirmLabel="Vaciar papelera"
             onClose={close}
             onConfirm={() => client.recycleBinEmpty()}
-            onDone={(tree) => {
-              done(tree, "La papelera quedó vacía.", group.id, true);
+            onDone={(next) => {
+              done(next, "La papelera quedó vacía.", null, true);
             }}
           />
         );

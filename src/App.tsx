@@ -2,7 +2,6 @@ import { getVersion } from "@tauri-apps/api/app";
 import { useEffect, useState, type ReactNode } from "react";
 
 import { BrandMark } from "./ui/BrandMark";
-import { WarningIcon } from "./ui/icons";
 
 type VersionState =
   | { readonly kind: "loading" }
@@ -54,16 +53,14 @@ export function App({ children }: { readonly children?: ReactNode }) {
       <header className="app-bar">
         <BrandMark />
         <h1 className="app-name">AlmarioKS</h1>
+        {/* Shown only beside "Crear bóveda", where the totem is the brand panel (`gate.css`). */}
+        <p className="app-tagline">Tus contraseñas en un archivo tuyo. Sin cuenta y sin nube.</p>
       </header>
       <main className="app-main">{children}</main>
       <footer className="app-status">
         <p>Gestor de contraseñas local.</p>
         <p aria-live="polite" className="num">
           <VersionText state={state} />
-        </p>
-        <p className="app-status-note">
-          <WarningIcon />
-          Versión de desarrollo: no la uses con tus contraseñas reales.
         </p>
       </footer>
     </div>

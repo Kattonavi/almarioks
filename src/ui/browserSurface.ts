@@ -53,8 +53,12 @@ export function isBrowserKey(press: KeyPress): boolean {
   return (press.shiftKey ? WITH_CTRL_SHIFT : WITH_CTRL).has(key);
 }
 
-/** Where a protected value is on screen: shown or hidden, the element is the same. */
-const SECRET_SELECTOR = ".secret";
+/**
+ * Where a protected value is on screen. `.secret` is a value being read (shown or hidden, the element is the same);
+ * `[data-secret]` is a field where one is being typed or generated: it must stay selectable to be edited, but the
+ * browser's copy, cut and drag from it would skip the clipboard exclusion and the timed clear just the same.
+ */
+const SECRET_SELECTOR = ".secret, [data-secret]";
 
 /** Whether what is selected in the document, or the element a gesture starts on, includes a protected value. */
 export function touchesSecret(target: Document, origin: EventTarget | null): boolean {

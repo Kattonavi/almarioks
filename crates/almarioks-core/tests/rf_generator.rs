@@ -11,9 +11,12 @@ use almarioks_core::{
         DIGITS, LOOKALIKES, LOWERCASE, MAX_LENGTH, MIN_LENGTH, OsRandom, PasswordRules,
         RandomSource, SYMBOLS, UPPERCASE, generate_password, generate_with,
     },
+    kdbx::{MasterPassword, VaultKey, open},
     strength::{is_weak, password_strength},
+    vault::{NewEntry, Timestamp},
 };
-use secrecy::ExposeSecret;
+use secrecy::{ExposeSecret, SecretString};
+use std::{fs, path::PathBuf};
 
 /// Deterministic source for tests only (SplitMix64).
 struct Seeded(u64);
@@ -54,7 +57,7 @@ struct Broken;
 
 impl RandomSource for Broken {
     fn fill(&mut self, _buf: &mut [u8]) -> CoreResult<()> {
-        Err(CoreError::GuardadoFallido)
+        Err(CoreError::GeneradorNoDisponible)
     }
 }
 
@@ -289,10 +292,11 @@ fn rf_69_a_discarded_candidate_is_replaced_whole_and_a_dead_source_fails() {
         },
     )
     .unwrap_err();
-    assert_eq!(error, CoreError::GuardadoFallido);
+    // RF-109 (owner's second round): neither case is a failed save; both say the generator is not available.
+    assert_eq!(error, CoreError::GeneradorNoDisponible);
     assert_eq!(
         generate_with(&PasswordRules::default(), &mut Broken).unwrap_err(),
-        CoreError::GuardadoFallido
+        CoreError::GeneradorNoDisponible
     );
 }
 
@@ -321,4 +325,287 @@ fn rf_70_generated_passwords_do_not_show_their_text_in_debug() {
     let password = generate_with(&PasswordRules::default(), &mut Seeded(5)).unwrap();
     let shown = format!("{password:?}");
     assert!(!shown.contains(password.expose_secret()));
+}
+
+// ---------- Second round of the owner (2026-11-12): 8 to 500, and RF-109 ----------
+
+#[test]
+fn rf_65_rf_68_lengths_8_and_500_generate_and_7_and_501_do_not() {
+    assert_eq!((MIN_LENGTH, MAX_LENGTH), (8, 500));
+    assert_eq!(PasswordRules::default().length, 20);
+    let mut source = Seeded(0x0500);
+    for length in [8, 500] {
+        let r = rules(length, true, true, true, true, false);
+        for password in [
+            generate_with(&r, &mut source).unwrap(),
+            generate_password(&r).unwrap(),
+        ] {
+            assert_eq!(password.expose_secret().chars().count(), length);
+        }
+    }
+    for length in [7, 501] {
+        let r = rules(length, true, true, true, true, false);
+        assert_eq!(
+            generate_with(&r, &mut source).unwrap_err(),
+            CoreError::ReglasImposibles,
+            "length {length}"
+        );
+        assert_eq!(
+            generate_password(&r).unwrap_err(),
+            CoreError::ReglasImposibles,
+            "length {length}"
+        );
+    }
+}
+
+#[test]
+fn rf_65_rf_66_every_subset_of_types_at_8_and_500_with_and_without_lookalikes() {
+    let every_type = [LOWERCASE, UPPERCASE, DIGITS, SYMBOLS];
+    let mut source = Seeded(0x0850_0000);
+    let mut combinations = 0;
+    for mask in 1_u8..16 {
+        for avoid in [false, true] {
+            for length in [8, 500] {
+                let r = rules(
+                    length,
+                    mask & 1 != 0,
+                    mask & 2 != 0,
+                    mask & 4 != 0,
+                    mask & 8 != 0,
+                    avoid,
+                );
+                let chosen = [r.lowercase, r.uppercase, r.digits, r.symbols];
+                for _ in 0..25 {
+                    let password = generate_with(&r, &mut source).unwrap();
+                    let text = password.expose_secret();
+                    assert_eq!(text.chars().count(), length, "{r:?}");
+                    assert_eq!(text.len(), length, "one byte per character: {r:?}");
+                    // A chosen type is there (RF-66) and a type that was not chosen is not (RF-65).
+                    for (set, on) in every_type.iter().zip(chosen) {
+                        assert_eq!(text.chars().any(|c| set.contains(c)), on, "{r:?}: {set}");
+                    }
+                    assert!(
+                        text.chars()
+                            .all(|c| every_type.iter().any(|set| set.contains(c))),
+                        "{r:?}"
+                    );
+                    if avoid {
+                        assert!(!text.chars().any(|c| LOOKALIKES.contains(c)), "{r:?}");
+                    }
+                }
+                combinations += 1;
+            }
+        }
+    }
+    assert_eq!(combinations, 15 * 2 * 2);
+}
+
+/// A source that works for `healthy_fills` calls and is down from then on. It counts every call, so a test can
+/// tell whether the generator kept asking after the failure. Calls marked in `all_rejected` answer only the
+/// byte 255, which no alphabet accepts: the candidate stays incomplete and the generator has to ask again.
+struct FailsAfter {
+    inner: Seeded,
+    healthy_fills: usize,
+    all_rejected: bool,
+    calls: usize,
+}
+
+impl FailsAfter {
+    fn new(healthy_fills: usize, all_rejected: bool) -> Self {
+        Self {
+            inner: Seeded(0x0109),
+            healthy_fills,
+            all_rejected,
+            calls: 0,
+        }
+    }
+}
+
+impl RandomSource for FailsAfter {
+    fn fill(&mut self, buf: &mut [u8]) -> CoreResult<()> {
+        self.calls += 1;
+        if self.calls > self.healthy_fills {
+            return Err(CoreError::GeneradorNoDisponible);
+        }
+        if self.all_rejected {
+            buf.fill(255);
+            Ok(())
+        } else {
+            self.inner.fill(buf)
+        }
+    }
+}
+
+#[test]
+fn rf_109_a_source_that_goes_down_gives_no_password_its_own_code_and_is_not_asked_again() {
+    assert_eq!(
+        CoreError::GeneradorNoDisponible.code(),
+        "GeneradorNoDisponible"
+    );
+    assert_eq!(
+        CoreError::GeneradorNoDisponible.message(),
+        "No se pudo generar la contraseña. Inténtalo otra vez."
+    );
+    assert_ne!(
+        CoreError::GeneradorNoDisponible,
+        CoreError::GuardadoFallido,
+        "it is not the code of a failed save"
+    );
+
+    // Down from the first byte, down with a candidate half made, and down after bytes that were all rejected: the
+    // answer is always the error, never a short or padded password, and the failing call is the last one.
+    for (healthy_fills, all_rejected) in [(0, false), (1, true), (3, true)] {
+        for length in [8, 20, 500] {
+            let r = rules(length, true, true, true, true, false);
+            let mut source = FailsAfter::new(healthy_fills, all_rejected);
+            let result = generate_with(&r, &mut source);
+            assert_eq!(
+                result.map(|_| ()),
+                Err(CoreError::GeneradorNoDisponible),
+                "{healthy_fills} healthy calls, length {length}"
+            );
+            assert_eq!(
+                source.calls,
+                healthy_fills + 1,
+                "the generator kept asking a source that is down"
+            );
+        }
+    }
+
+    // Half a candidate of real characters, then down: nothing of it comes back.
+    let r = rules(500, true, true, true, true, false);
+    let mut source = FailsAfter::new(1, false);
+    assert_eq!(
+        generate_with(&r, &mut source).map(|_| ()),
+        Err(CoreError::GeneradorNoDisponible),
+        "one call of 500 bytes cannot fill 500 characters: 76 of every 256 bytes are rejected"
+    );
+    assert_eq!(source.calls, 2);
+
+    // A source that is healthy long enough still gives a password: the counter is not what fails.
+    let mut source = FailsAfter::new(usize::MAX, false);
+    let password = generate_with(&r, &mut source).unwrap();
+    assert_eq!(password.expose_secret().chars().count(), 500);
+}
+
+#[test]
+fn rf_65_a_500_character_password_survives_saving_and_reopening_a_vault_keepass_wrote() {
+    const MASTER: &str = "lab-Maestra-2026";
+    let fixture = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("tests")
+        .join("fixtures")
+        .join("keepass2")
+        .join("f-pass.kdbx");
+    let key = VaultKey::new(Some(MasterPassword::new(MASTER.to_owned())), None).unwrap();
+    let mut vault = open(&fs::read(fixture).unwrap(), &key).unwrap();
+
+    let r = rules(MAX_LENGTH, true, true, true, true, false);
+    let generated = generate_with(&r, &mut Seeded(0x01F4)).unwrap();
+    let text = generated.expose_secret().to_owned();
+    assert_eq!(text.chars().count(), 500);
+
+    let root = vault.root_id();
+    let id = vault
+        .create_entry(
+            root,
+            NewEntry {
+                title: "Generada 500".to_owned(),
+                password: Some(SecretString::from(text.clone())),
+                ..NewEntry::default()
+            },
+            Timestamp::from_unix_seconds(1_794_391_200).unwrap(),
+        )
+        .unwrap();
+    // What "show" and "copy" read (`entry_reveal`, `entry_copy`), before and after the disk format.
+    assert_eq!(
+        vault.reveal_field(id, "Password").unwrap().expose_secret(),
+        text
+    );
+    let saved = vault.to_bytes(&key).unwrap();
+    let reopened = open(&saved, &key).unwrap();
+    let revealed = reopened.reveal_field(id, "Password").unwrap();
+    assert_eq!(revealed.expose_secret().chars().count(), 500);
+    assert_eq!(revealed.expose_secret(), text);
+
+    // The same bytes read by the library alone, without the core's wrapper: what another KeePass reader gets.
+    let database =
+        keepass::Database::parse(&saved, keepass::DatabaseKey::new().with_password(MASTER))
+            .unwrap();
+    let root = database.root();
+    let entry = root.entry_by_name("Generada 500").unwrap();
+    assert_eq!(entry.get_password(), Some(text.as_str()));
+
+    // The meter reads it too (RF-70): `zxcvbn` looks at the first 100 characters only.
+    assert_eq!(password_strength(&text), 4);
+}
+
+/// A source that answers `Ok` every time: first the bytes of `script`, one call after another, and from then on
+/// only the byte 255, which every alphabet that is not a power of two rejects. It never fails, and counts its calls.
+struct GoesBarren {
+    script: Vec<Vec<u8>>,
+    calls: usize,
+}
+
+impl RandomSource for GoesBarren {
+    fn fill(&mut self, buf: &mut [u8]) -> CoreResult<()> {
+        buf.fill(255);
+        if let Some(bytes) = self.script.get(self.calls) {
+            for (slot, byte) in buf.iter_mut().zip(bytes) {
+                *slot = *byte;
+            }
+        }
+        self.calls += 1;
+        Ok(())
+    }
+}
+
+#[test]
+fn rf_109_a_source_that_answers_with_only_rejected_bytes_is_not_available_instead_of_hanging() {
+    // Review 0.1, Q-4. 90 characters: bytes from 180 up are rejected, so 255 never gives a character.
+    for length in [8, 20, 500] {
+        let r = rules(length, true, true, true, true, false);
+        let mut source = GoesBarren {
+            script: Vec::new(),
+            calls: 0,
+        };
+        assert_eq!(
+            generate_with(&r, &mut source).map(|_| ()),
+            Err(CoreError::GeneradorNoDisponible),
+            "length {length}"
+        );
+        assert!(
+            (1..=100_000).contains(&source.calls),
+            "{} calls for length {length}",
+            source.calls
+        );
+    }
+
+    // The same with a candidate half made: four letters, and then nothing more. No short password comes back.
+    let r = rules(8, true, false, false, false, false);
+    let mut source = GoesBarren {
+        script: vec![vec![0, 1, 2, 3]],
+        calls: 0,
+    };
+    assert_eq!(
+        generate_with(&r, &mut source).map(|_| ()),
+        Err(CoreError::GeneradorNoDisponible)
+    );
+    assert!((2..=100_000).contains(&source.calls));
+
+    // Calls without a usable byte in between do not change what is generated: the same characters, in order, as
+    // from the bytes that were accepted.
+    let barren = vec![255; 8];
+    let mut source = GoesBarren {
+        script: vec![
+            barren.clone(),
+            vec![0, 1, 2, 255, 255, 255, 255, 255],
+            barren.clone(),
+            barren,
+            vec![3, 4, 5, 6, 7, 8, 9, 10],
+        ],
+        calls: 0,
+    };
+    let password = generate_with(&r, &mut source).unwrap();
+    assert_eq!(password.expose_secret(), "abcdefgh");
+    assert_eq!(source.calls, 5);
 }

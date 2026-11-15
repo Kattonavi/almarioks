@@ -323,3 +323,247 @@ fn rf_19_empty_paths_are_not_remembered() {
     settings.remember_vault(Path::new(""));
     assert!(settings.recent_vaults().is_empty());
 }
+
+// ---------- RF-111: the key file remembered for a recent vault ----------
+// The conditions C-1 to C-10 are those of the security review of 0.1, second round of the owner.
+
+/// A key file path that may be remembered. Nothing is at it: these tests never touch the disk.
+const KEY_FILE: &str = r"E:\llaves\cuentas.keyx";
+
+fn key_files_in(settings: &Settings) -> Vec<Option<PathBuf>> {
+    settings
+        .recent_vaults()
+        .iter()
+        .map(|vault| settings.key_file(vault).map(Path::to_path_buf))
+        .collect()
+}
+
+#[test]
+fn rf_111_c2_only_a_full_path_on_a_lettered_drive_may_be_remembered() {
+    use almarioks_core::settings::{MAX_KEY_FILE_PATH_CHARS, is_rememberable_key_file};
+
+    // The limit counts characters, not bytes: `ñ` takes two bytes.
+    assert_eq!(MAX_KEY_FILE_PATH_CHARS, 1024);
+    let at_the_limit = format!(r"C:\{}", "ñ".repeat(1021));
+    let over_the_limit = format!(r"C:\{}", "ñ".repeat(1022));
+    assert_eq!(at_the_limit.chars().count(), 1024);
+
+    let accepted = [
+        r"C:\llaves\cuentas.keyx",
+        "d:/llaves/cuentas.keyx",
+        r"E:\cuentas.keyx",
+        r"C:\carpeta con espacios\ñandú.key",
+        r"Z:\a\..\b.keyx",
+        r"C:\llaves/mezcla\cuentas",
+        at_the_limit.as_str(),
+    ];
+    for path in accepted {
+        assert!(is_rememberable_key_file(path), "refused {path:?}");
+    }
+
+    let refused = [
+        // Nothing, or no file name at the end.
+        "",
+        "C:",
+        r"C:\",
+        "C:/",
+        r"C:\llaves\",
+        r"C:\llaves\.",
+        r"C:\llaves\..",
+        // Another machine.
+        r"\\servidor\recurso\cuentas.keyx",
+        "//servidor/recurso/cuentas.keyx",
+        r"\/servidor/recurso/cuentas.keyx",
+        // Verbatim and device paths, also when they name a local drive.
+        r"\\?\C:\llaves\cuentas.keyx",
+        r"\\?\UNC\servidor\recurso\cuentas.keyx",
+        r"\\.\C:\llaves\cuentas.keyx",
+        r"\\.\pipe\cuentas",
+        r"\??\C:\llaves\cuentas.keyx",
+        // Relative to the folder or to the drive the app happens to be in.
+        "cuentas.keyx",
+        r"llaves\cuentas.keyx",
+        r".\cuentas.keyx",
+        r"..\cuentas.keyx",
+        r"\llaves\cuentas.keyx",
+        "/llaves/cuentas.keyx",
+        "C:cuentas.keyx",
+        r"C:llaves\cuentas.keyx",
+        // A `:` anywhere but after the drive letter: alternate streams and the like.
+        r"C:\llaves\cuentas.keyx:flujo",
+        r"C:\llaves:flujo\cuentas.keyx",
+        r"C:\llaves\cuentas.keyx::$DATA",
+        r"C:\D:\cuentas.keyx",
+        "file:///C:/llaves/cuentas.keyx",
+        // The drive is one ASCII letter, at the very start.
+        r"1:\cuentas.keyx",
+        r"é:\cuentas.keyx",
+        r"CC:\cuentas.keyx",
+        r" C:\cuentas.keyx",
+        over_the_limit.as_str(),
+    ];
+    for path in refused {
+        assert!(!is_rememberable_key_file(path), "accepted {path:?}");
+    }
+}
+
+#[test]
+fn rf_111_a_key_file_is_remembered_only_for_a_recent_vault_and_goes_away_with_it() {
+    let mut settings = Settings::default();
+    let key = Path::new(KEY_FILE);
+
+    // Not a recent vault: nothing to hang the key file on.
+    settings.set_key_file(&vault(1), Some(key));
+    assert_eq!(settings.key_file(&vault(1)), None);
+    assert_eq!(settings, Settings::default());
+
+    settings.remember_vault(&vault(1));
+    assert_eq!(settings.key_file(&vault(1)), None);
+    settings.set_key_file(&vault(1), Some(key));
+    assert_eq!(settings.key_file(&vault(1)), Some(key));
+
+    // C-1: the vault moving first in the list again (what creating, converting and saving as do) changes nothing.
+    settings.remember_vault(&vault(2));
+    settings.remember_vault(&vault(1));
+    assert_eq!(key_files_in(&settings), [Some(key.to_path_buf()), None]);
+
+    // C-7 (c): another key file takes its place. (b): none forgets it.
+    let other = Path::new(r"F:\otra.key");
+    settings.set_key_file(&vault(1), Some(other));
+    assert_eq!(settings.key_file(&vault(1)), Some(other));
+    settings.set_key_file(&vault(1), None);
+    assert_eq!(settings.key_file(&vault(1)), None);
+
+    // C-2: a path that may not be remembered is not, and what was remembered goes.
+    settings.set_key_file(&vault(1), Some(key));
+    settings.set_key_file(
+        &vault(1),
+        Some(Path::new(r"\\servidor\recurso\cuentas.keyx")),
+    );
+    assert_eq!(settings.key_file(&vault(1)), None);
+
+    // C-7 (a): removed from the list, and coming back later, it has none.
+    settings.set_key_file(&vault(1), Some(key));
+    settings.forget_vault(&vault(1));
+    assert_eq!(settings.key_file(&vault(1)), None);
+    settings.remember_vault(&vault(1));
+    assert_eq!(settings.key_file(&vault(1)), None);
+
+    // C-7 (a): the sixth vault pushes the oldest out, with its key file.
+    settings.set_key_file(&vault(1), Some(key));
+    settings.set_key_file(&vault(2), Some(other));
+    for n in 3..=6 {
+        settings.remember_vault(&vault(n));
+    }
+    assert_eq!(settings.recent_vaults().len(), 5);
+    assert!(!settings.recent_vaults().contains(&vault(2)));
+    assert_eq!(settings.key_file(&vault(2)), None);
+    assert_eq!(settings.key_file(&vault(1)), Some(key));
+    assert!(!settings.to_text().contains("otra.key"));
+}
+
+#[test]
+fn rf_111_the_file_gets_a_fourth_key_only_while_a_key_file_is_remembered() {
+    let mut settings = Settings::default();
+    settings.remember_vault(&vault(1));
+    settings.remember_vault(&vault(2));
+    let keys_of = |settings: &Settings| -> Vec<String> {
+        let value: serde_json::Value = serde_json::from_str(&settings.to_text()).unwrap();
+        let mut keys: Vec<String> = value.as_object().unwrap().keys().cloned().collect();
+        keys.sort_unstable();
+        keys
+    };
+    let three = ["auto_lock_minutes", "clipboard_seconds", "recent_vaults"];
+    assert_eq!(keys_of(&settings), three);
+
+    settings.set_key_file(&vault(1), Some(Path::new(KEY_FILE)));
+    assert_eq!(
+        keys_of(&settings),
+        [
+            "auto_lock_minutes",
+            "clipboard_seconds",
+            "key_files",
+            "recent_vaults"
+        ]
+    );
+    // C-3: a text for a text, the path and nothing else about the file.
+    let value: serde_json::Value = serde_json::from_str(&settings.to_text()).unwrap();
+    assert_eq!(
+        value["key_files"],
+        serde_json::json!({ vault(1).to_str().unwrap(): KEY_FILE })
+    );
+    // What is written is what is read back.
+    assert_eq!(
+        Settings::from_bytes(settings.to_text().as_bytes()),
+        settings
+    );
+
+    settings.set_key_file(&vault(1), None);
+    assert_eq!(keys_of(&settings), three);
+}
+
+#[test]
+fn rf_111_c4_what_the_file_says_is_validated_like_what_is_set() {
+    let recent: Vec<String> = (1..=5)
+        .map(|n| vault(n).to_str().unwrap().to_owned())
+        .collect();
+    let file = |key_files: serde_json::Value| -> Settings {
+        let text =
+            serde_json::json!({ "recent_vaults": recent, "key_files": key_files }).to_string();
+        Settings::from_bytes(text.as_bytes())
+    };
+
+    // One good entry among everything a hand-edited file can hold.
+    let settings = file(serde_json::json!({
+        recent[0].as_str(): r"\\servidor\recurso\cuentas.keyx",
+        recent[1].as_str(): KEY_FILE,
+        recent[2].as_str(): r"\\?\C:\llaves\cuentas.keyx",
+        recent[3].as_str(): r"llaves\cuentas.keyx",
+        recent[4].as_str(): 7,
+        "bovedas/no-es-reciente.kdbx": KEY_FILE,
+    }));
+    assert_eq!(
+        key_files_in(&settings),
+        [None, Some(PathBuf::from(KEY_FILE)), None, None, None]
+    );
+    assert_eq!(
+        settings.key_file(Path::new("bovedas/no-es-reciente.kdbx")),
+        None
+    );
+    // The rest of the file is read as always, and what was dropped is not written again.
+    assert_eq!(settings.recent_vaults().len(), 5);
+    let written: serde_json::Value = serde_json::from_str(&settings.to_text()).unwrap();
+    assert_eq!(
+        written["key_files"],
+        serde_json::json!({ recent[1].as_str(): KEY_FILE })
+    );
+
+    // Values that are not a text, and a `key_files` that is not an object: nothing remembered, nothing fails.
+    for odd in [
+        serde_json::json!({ recent[0].as_str(): null, recent[1].as_str(): [KEY_FILE], recent[2].as_str(): { "path": KEY_FILE }, recent[3].as_str(): true, recent[4].as_str(): "" }),
+        serde_json::json!([KEY_FILE]),
+        serde_json::json!(KEY_FILE),
+        serde_json::json!(null),
+        serde_json::json!(5),
+    ] {
+        let settings = file(odd.clone());
+        assert_eq!(
+            key_files_in(&settings),
+            [None, None, None, None, None],
+            "{odd}"
+        );
+        assert_eq!(settings.recent_vaults().len(), 5, "{odd}");
+    }
+
+    // A file from before RF-111 has no `key_files`: none remembered.
+    let old = Settings::from_bytes(
+        br#"{"recent_vaults": ["bovedas/cuentas-1.kdbx"], "clipboard_seconds": 90}"#,
+    );
+    assert_eq!(key_files_in(&old), [None]);
+    assert_eq!(old.clipboard_seconds(), 90);
+    // And an entry that comes before its vault in the file is still tied to the recent list.
+    let any_order = Settings::from_bytes(
+        br#"{"key_files": {"bovedas/cuentas-1.kdbx": "E:\\llaves\\cuentas.keyx"}, "recent_vaults": ["bovedas/cuentas-1.kdbx"]}"#,
+    );
+    assert_eq!(key_files_in(&any_order), [Some(PathBuf::from(KEY_FILE))]);
+}

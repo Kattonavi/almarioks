@@ -4,11 +4,18 @@
  *
  *   ?tema=oscuro|claro      forces a theme (dark is the same file production loads by media query)
  *   ?estado=…               the screen and state to show (default: copiado):
- *       without a vault     bienvenida · bienvenida-vacia · crear · crear-llave · crear-error · creando · creada ·
- *                           desbloquear · derivando · error-llave · bloqueada · ajustes
- *       open vault          copiado · detalle · ninguna · formulario · generador · editar · dialogo-mover ·
+ *       without a vault     bienvenida · bienvenida-vacia · crear · crear-segura · crear-vacia · crear-existe ·
+ *                           crear-ubicacion ·
+ *                           crear-llave · crear-llave-nueva · crear-llave-ubicacion · crear-error · creando ·
+ *                           creada · desbloquear · desbloquear-sin-llave · derivando · error-llave ·
+ *                           bloqueada · ajustes
+ *       open vault          todas · foco-todas · menu-grupo · menu-papelera · busqueda ·
+ *                           copiado · detalle · mostrada · menu-entrada · ninguna · formulario · generador · editar ·
+ *                           dialogo-nueva-boveda · dialogo-nueva-boveda-generada · dialogo-mover ·
  *                           dialogo-borrar · dialogo-papelera · dialogo-renombrar · dialogo-recarga ·
  *                           aviso-guardado · cambio-externo · solo-lectura · ajustes-abierta
+ *       entry dialog alone  dialogo-nueva · dialogo-nueva-generada · dialogo-opciones · dialogo-editar ·
+ *                           dialogo-error (the dialog by itself over the work ground; formulario, generador and editar open it over the vault)
  *   ?densidad=compacta      the compact density, which no setting offers yet
  *   ?marco=480x360          draws the preview inside a frame of that exact viewport (for screenshots)
  *   ?hoja=a:b,c:d;e:f       with `marco`: one frame per `;` item, each overriding parameters as `name:value` pairs
@@ -21,9 +28,17 @@ import "@fontsource-variable/overpass/index.css";
 import "@fontsource-variable/overpass-mono/index.css";
 import { App } from "./App";
 import { createClient } from "./ipc/client";
-import { createFakeBackend, type FakeBackend, type FakeEntry, type FakeGroup } from "./ipc/fake";
+import {
+  createFakeBackend,
+  FAKE_DEFAULT_FOLDER,
+  type FakeBackend,
+  type FakeEntry,
+  type FakeGroup,
+  keyFileBeside,
+} from "./ipc/fake";
 import "./styles.css";
 import lightTokens from "./styles/tokens.css?inline";
+import { EntryDialog, type EntryDialogMode } from "./vault/EntryDialog";
 import { VaultRoot } from "./vault/VaultRoot";
 
 const params = new URLSearchParams(window.location.search);
@@ -43,11 +58,18 @@ const CLOSED = new Set([
   "bienvenida",
   "bienvenida-vacia",
   "crear",
+  "crear-segura",
+  "crear-vacia",
+  "crear-existe",
+  "crear-ubicacion",
   "crear-llave",
+  "crear-llave-nueva",
+  "crear-llave-ubicacion",
   "crear-error",
   "creando",
   "creada",
   "desbloquear",
+  "desbloquear-sin-llave",
   "derivando",
   "error-llave",
   "ajustes",
@@ -75,16 +97,24 @@ function entry(id: string, groupId: string, title: string, username: string, mod
   return { id, groupId, title, username, url, modified, created: "2026-03-02T14:00:00Z", password: "demo-Clave-0001" };
 }
 
+/** `ventana-500`: a made-up password of 500 characters, the longest the generator makes, to see it shown whole. */
+const LONG_PASSWORD = "abcdefghjkmnpqrstuvwxyz23456789#%ABCDEFGH".repeat(13).slice(0, 500);
+
 const ENTRIES: readonly FakeEntry[] = [
   entry("e-mail", "g-work", "Correo de la oficina", "ana@example.com", "2026-11-10T15:20:00Z"),
   entry("e-figma", "g-work", "Figma", "ana@example.com", "2026-10-12T09:00:00Z", "https://figma.example"),
   {
     ...entry("e-github", "g-work", "GitHub", "ana@example.com", "2026-11-08T18:45:00Z", "https://github.com"),
+    password: state === "ventana-500" ? LONG_PASSWORD : "demo-Clave-0001",
     notes: "Cuenta de la organización. Renovar el token de acceso en enero.",
     tags: ["código", "trabajo"],
     customFields: [{ name: "PIN", protected: true, value: "4821" }],
   },
-  entry("e-jira", "g-work", "Jira", "ana.g", "2026-09-03T11:10:00Z"),
+  // `sin-clave` (RF-105): an entry without a password, to see its empty cell and its row with one button.
+  {
+    ...entry("e-jira", "g-work", "Jira", "ana.g", "2026-09-03T11:10:00Z"),
+    password: state === "sin-clave" ? "" : "demo-Clave-0001",
+  },
   entry("e-payroll", "g-work", "Nómina", "1032456789", "2026-08-30T08:00:00Z"),
   entry("e-railway", "g-work", "Railway", "ana@example.com", "2026-08-28T20:30:00Z", "https://railway.example"),
   entry("e-slack", "g-work", "Slack", "ana@example.com", "2026-08-15T13:00:00Z"),
@@ -135,9 +165,13 @@ async function stageClosed(backend: FakeBackend) {
       await find("label", /^Bloquear la bóveda/);
       return;
     case "desbloquear":
+    case "desbloquear-sin-llave":
     case "derivando":
     case "error-llave":
-      await click(".recent-row button", "Abrir cuentas.kdbx");
+      await click(".recent-row button", "cuentas.kdbx");
+      if (state === "desbloquear-sin-llave") return;
+      // RF-110: the key file beside the vault comes already chosen (see `files` below).
+      if (state !== "derivando") await find(".unlock-key .mono", /\.keyx$/);
       if (state === "desbloquear") return;
       if (state === "derivando") backend.holdUnlock();
       await fill("unlock-password", "no-es-la-clave");
@@ -145,40 +179,220 @@ async function stageClosed(backend: FakeBackend) {
       await find(state === "derivando" ? "progress" : "#unlock-error", state === "derivando" ? /^/ : /./);
       return;
     case "crear":
+    case "crear-segura":
+    case "crear-vacia":
+    case "crear-existe":
+    case "crear-ubicacion":
     case "crear-llave":
+    case "crear-llave-nueva":
+    case "crear-llave-ubicacion":
     case "crear-error":
     case "creando":
     case "creada":
       await click("button", "Crear bóveda nueva");
       await find("h2", "Crear bóveda");
-      if (state === "crear-error") {
-        await click("button", "Elegir dónde guardarla…");
-        await find(".path", NEW_PATH);
-        await fill("create-password", "una-clave");
-        await fill("create-confirm", "otra-clave");
-        await click("button", "Crear bóveda");
-        await find("#create-error", /./);
+      await find(".create-file", /\.kdbx$/);
+      if (state === "crear-vacia") return;
+      // "Cuentas" is the file the fake disk already has in the proposed folder.
+      await fill("create-name", state === "crear-existe" ? "Cuentas" : "Familia");
+      await find(".create-file", state === "crear-existe" ? "Cuentas.kdbx" : "Familia.kdbx");
+      if (state === "crear-existe") {
+        await find("#create-name-error", /./);
         return;
       }
-      await click("button", "Elegir dónde guardarla…");
-      await find(".path", NEW_PATH);
-      if (state === "crear") {
-        await fill("create-password", "abcdefgh1");
+      if (state === "crear-ubicacion" || state === "crear-llave-ubicacion") {
+        await click("button", "Cambiar ubicación…");
+        await find(".create-file", NEW_PATH);
+        if (state === "crear-ubicacion") return;
+      }
+      if (state === "crear-error") {
+        await fill("create-password", "una-clave");
+        await fill("create-confirm", "otra-clave");
+        await find("#create-confirm-error", /./);
+        return;
+      }
+      if (state === "crear" || state === "crear-segura") {
+        // "crear" shows the warning of a weak password; "crear-segura" is the form as it opens, with a good one.
+        await fill("create-password", state === "crear" ? "abcdefgh1" : "Mucho-Mejor-2026");
         await find("meter", /^/);
         return;
       }
-      await click("label", "Generar un archivo llave nuevo");
-      await click("button", "Elegir dónde guardar el archivo llave…");
-      await find(".path", KEY_PATH);
+      if (state === "crear-llave") {
+        await click("label", "Usar uno mío");
+        await click("button", "Elegir archivo llave…");
+        await find(".create-file", "familia.keyx");
+      } else {
+        // RF-99: "Sin archivo llave" is the marked one; the rest of these states are about a new key file.
+        await click("label", "Crear uno nuevo");
+        await find("#create-key-help .create-file", /\.keyx$/);
+      }
       await fill("create-password", "Mucho-Mejor-2026");
       await fill("create-confirm", "Mucho-Mejor-2026");
       await find("meter", /^/);
-      if (state === "crear-llave") return;
+      if (state !== "creando" && state !== "creada") return;
       if (state === "creando") backend.hold("vault_create");
       await click("button", "Crear bóveda");
       await find(state === "creando" ? "progress" : "h2", state === "creando" ? /^/ : "Bóveda creada");
       return;
     default:
+  }
+}
+
+/** Opens the menu of a group in the rail and chooses one of its orders. */
+async function groupOrder(group: string, label: string) {
+  await click(`button[aria-label="Más acciones de ${group}"]`, /^/);
+  await click('[role="menuitem"]', label);
+}
+
+/** The measures of the approved layout and the colours a screenshot cannot tell apart, as they are on screen. */
+function measures(): string[] {
+  const box = (selector: string) => document.querySelector(selector)?.getBoundingClientRect();
+  const px = (value: number | undefined) => (value === undefined ? "-" : String(Math.round(value * 100) / 100));
+  const paint = (selector: string) => {
+    const node = document.querySelector(selector);
+    return node === null ? "-" : getComputedStyle(node).backgroundColor;
+  };
+  const menu = box(".menu");
+  const font = (selector: string) => {
+    const node = document.querySelector(selector);
+    return node === null ? "-" : getComputedStyle(node).fontSize;
+  };
+  const WINDOW = 'dialog[data-layout="entry"]';
+  const size = (selector: string) => `${px(box(selector)?.width)}x${px(box(selector)?.height)}`;
+  const style = (selector: string, property: "borderTopLeftRadius" | "fontWeight") => {
+    const node = document.querySelector(selector);
+    return node === null ? "-" : getComputedStyle(node)[property];
+  };
+  const entryWindow = document.querySelector(WINDOW);
+  const shownSecret = document.querySelector(".card-row .secret:not([data-masked])");
+  const icons = [...document.querySelectorAll(".card-actions > button")].map((node) => node.getBoundingClientRect());
+  const lastIcons = [...document.querySelectorAll(".card-actions > button:last-child")].map(
+    (node) => node.getBoundingClientRect().right,
+  );
+  const rows = [...document.querySelectorAll(".card-row:not(.card-row-notes)")].map(
+    (node) => node.getBoundingClientRect().height,
+  );
+  // `?medidas`: the measures of the list and the detail instead of those of the frame.
+  if (params.has("medidas")) {
+    return [
+      `fila-lista ${px(box(".entries tbody tr")?.height)}`,
+      `circulo-fila ${px(box(".entries .bullet")?.width)}x${px(box(".entries .bullet")?.height)}`,
+      `titulo-lista ${font("#entries-title")}`,
+      `circulo-detalle ${px(box(".entry-badge")?.width)}x${px(box(".entry-badge")?.height)}`,
+      `titulo-entrada ${font(".entry-title")}`,
+      `filas-tarjeta ${[...new Set(rows.map(px))].join("/")}`,
+      `etiqueta ${px(box(".card-row > dt")?.width)}`,
+      `iconos ${[...new Set(icons.map((icon) => `${px(icon.width)}x${px(icon.height)}`))].join("/")} (${String(icons.length)})`,
+      // The right edge of the last button of every row: one value means they line up.
+      `bordes-derechos ${[...new Set(lastIcons.map(px))].join("/")} (${String(lastIcons.length)} filas)`,
+      // The window of the entry (RF-43) as approved: 600 wide, radius 8, and the controls of its head.
+      `ventana ${size(WINDOW)} radio ${style(WINDOW, "borderTopLeftRadius")} ${paint(WINDOW)}`,
+      `peso-titulo ${style(".entry-title", "fontWeight")}`,
+      `editar ${size(".entry-head-actions > button:first-child")} mas ${size(".entry-more")} cerrar ${size(".entry-close")}`,
+      `tarjeta ${paint(".entry-card")} radio ${style(".entry-card", "borderTopLeftRadius")} margen ${px((box(".entry-card")?.left ?? 0) - (box(WINDOW)?.left ?? 0))}`,
+      `copiar ${paint(".card-actions > .btn-primary")} menu ${paint(".entry-menu > .menu")}`,
+      // A long value shown: its box, how many characters it has, and whether anything sticks out of the window.
+      `secreto ${size(".card-row .secret:not([data-masked])")} (${String(shownSecret?.textContent.length ?? 0)})`,
+      `desborda ${String(entryWindow !== null && entryWindow.scrollWidth > entryWindow.clientWidth)} alto-total ${String(entryWindow?.scrollHeight ?? 0)}`,
+    ];
+  }
+  return [
+    `barra ${px(box(".vault-bar")?.height)}`,
+    `riel ${px(box(".rail")?.width)}`,
+    `lista ${px(box(".list-pane")?.width)}`,
+    `detalle ${px(box(".detail-pane")?.width)}`,
+    `fila ${px(box(".rail-row")?.height)}`,
+    `buscar ${px(box(".vault-search input")?.width)}x${px(box(".vault-search input")?.height)}`,
+    `marcado ${paint('.rail-row[data-current], .rail-all[aria-current="true"]')}`,
+    `menu ${menu === undefined ? "-" : `${px(menu.left)},${px(menu.top)} ${px(menu.width)}x${px(menu.height)} ${paint(".menu")}`}`,
+  ];
+}
+
+const ENTRY_DIALOG = new Set([
+  "dialogo-nueva",
+  "dialogo-nueva-generada",
+  "dialogo-opciones",
+  "dialogo-editar",
+  "dialogo-error",
+]);
+
+/** The measures of the entry dialog the approved prototype fixes, as the browser computed them. */
+function entryDialogMeasures(): string[] {
+  const node = (selector: string) => document.querySelector<HTMLElement>(selector);
+  const px = (value: number) => String(Math.round(value * 100) / 100);
+  const size = (selector: string) => {
+    const box = node(selector)?.getBoundingClientRect();
+    return box === undefined ? "-" : `${px(box.width)}x${px(box.height)}`;
+  };
+  const css = (selector: string, read: (style: CSSStyleDeclaration) => string) => {
+    const found = node(selector);
+    return found === null ? "-" : read(getComputedStyle(found));
+  };
+  const type = (selector: string) => css(selector, (style) => `${style.fontSize}/${style.fontWeight}`);
+  const first = node("#entry-dialog-title")?.getBoundingClientRect();
+  const second = node('label[for="entry-dialog-username"]')?.getBoundingClientRect();
+  return [
+    `dialogo ${size('dialog[data-layout="form"]')}`,
+    `radio ${css('dialog[data-layout="form"]', (style) => style.borderTopLeftRadius)}`,
+    `fondo ${css('dialog[data-layout="form"]', (style) => style.backgroundColor)}`,
+    `titulo ${type(".dialog-head h2")}`,
+    `grupo ${type(".dialog-lead")}`,
+    `punto ${size(".dialog-dot")}`,
+    `cerrar ${size(".dialog-close")}`,
+    `etiqueta ${type(".entry-field > label")}`,
+    `campo ${size("#entry-dialog-title")}`,
+    `entre-campos ${first === undefined || second === undefined ? "-" : px(second.top - first.bottom)}`,
+    `clave ${size("#entry-dialog-password")} caja ${size(".password-box")}`,
+    `ojo ${size(".password-eye")}`,
+    `generar ${size(".password-generate")}`,
+    `fortaleza ${size(".strength-bar")}`,
+    `opciones ${css(".generator-options", (style) => `${style.borderTopLeftRadius} ${style.backgroundColor}`)}`,
+    `casilla ${size(".generator-length-exact")} ${type(".generator-length-exact")}`,
+    `largo-clave ${String(document.querySelector<HTMLInputElement>("#entry-dialog-password")?.value.length ?? 0)}`,
+    `desborda ${String((node('dialog[data-layout="form"]')?.scrollWidth ?? 0) > (node('dialog[data-layout="form"]')?.clientWidth ?? 0))}`,
+    `notas ${size("#entry-dialog-notes")}`,
+    `cancelar ${size(".entry-dialog-foot > button:not(.btn-primary)")}`,
+    `guardar ${size(".entry-dialog-foot > .btn-primary")}`,
+  ];
+}
+
+/** The entry dialog by itself, over the work ground, to judge it without the vault behind. */
+async function stageEntryDialog(container: HTMLElement, backend: FakeBackend) {
+  const client = createClient(backend.transport);
+  const group = { id: "g-work", name: "Trabajo", line: "2" } as const;
+  let mode: EntryDialogMode = { kind: "new", group };
+  if (state === "dialogo-editar") {
+    const found = await client.entryGet("e-github");
+    if (found.ok) mode = { kind: "edit", entry: found.value, group };
+  }
+  const root = createRoot(container);
+  root.render(
+    <StrictMode>
+      <EntryDialog client={client} mode={mode} onClose={() => undefined} onSaved={() => undefined} />
+    </StrictMode>,
+  );
+  await find("#entry-dialog-title", /^/);
+  if (state === "dialogo-error") {
+    await click("button", "Guardar entrada");
+    await find(".field-error", /título/);
+    return;
+  }
+  if (state === "dialogo-nueva-generada" || state === "dialogo-opciones") {
+    await fill("entry-dialog-title", "GitHub");
+    await fill("entry-dialog-username", "ana@example.com");
+    await click("button", "Generar");
+    await find(".strength-row", /Fortaleza/);
+    await fill("entry-dialog-url", "https://github.com");
+    if (state === "dialogo-opciones") {
+      await click("button", "Opciones del generador");
+      // The exact length, up to 500: the slider stays at its end and what is in the field is generated again.
+      await fill("entry-dialog-password-length-exact", "500");
+      // The new password takes a moment to land: the measures are read once the field has its 500 characters.
+      for (let attempt = 0; attempt < 100; attempt += 1) {
+        if (document.querySelector<HTMLInputElement>("#entry-dialog-password")?.value.length === 500) break;
+        await sleep(30);
+      }
+    }
   }
 }
 
@@ -190,31 +404,52 @@ async function stageOpen(backend: FakeBackend) {
     await find("label", /^Bloquear la bóveda/);
     return;
   }
+  // A save reached the disk: the foot of the rail says so.
+  await find(".rail-all", /^Todas/);
+  backend.emit("vault-save-state", "saved");
+  if (state === "todas") return;
+  if (state === "foco-todas") {
+    (await find(".rail-all", /^Todas/)).focus();
+    return;
+  }
+  if (state === "busqueda") {
+    await fill("vault-search", "ana");
+    await find(".list-title p", /resultado/);
+    return;
+  }
   await click(".rail-item", /^Trabajo/);
   switch (state) {
+    case "menu-grupo":
+      await click('button[aria-label="Más acciones de Trabajo"]', /^/);
+      await find('[role="menuitem"]', /./);
+      return;
+    case "menu-papelera":
+      // The menu of the last row of the rail: without room below, it opens upward.
+      await click('button[aria-label="Más acciones de Papelera de reciclaje"]', /^/);
+      await find('[role="menuitem"]', /./);
+      return;
     case "dialogo-borrar":
-      await click("button", "Enviar grupo a la papelera…");
+      await groupOrder("Trabajo", "Enviar a la papelera…");
       return;
     case "dialogo-renombrar":
-      await click("button", "Renombrar grupo…");
+      await groupOrder("Trabajo", "Renombrar…");
       return;
     case "dialogo-papelera":
       await click(".rail-item", /^Papelera/);
-      await click("button", "Vaciar papelera…");
+      await groupOrder("Papelera de reciclaje", "Vaciar papelera…");
       return;
     case "formulario":
     case "generador":
       await click("button", "Nueva entrada");
-      await fill("entry-title", "Banco de la esquina");
-      await fill("entry-username", "ana@example.com");
+      await fill("entry-dialog-title", "Banco de la esquina");
+      await fill("entry-dialog-username", "ana@example.com");
       if (state === "formulario") {
-        await fill("entry-password", "abcdefgh1");
-        await find("meter", /^/);
+        await fill("entry-dialog-password", "abcdefgh1");
+        await find(".strength-row", /Fortaleza/);
         return;
       }
-      await click("button", "Generar contraseña");
-      await click(".generator button", "Generar");
-      await find(".generator output", /./);
+      await click("button", "Generar");
+      await find(".strength-row", /Fortaleza/);
       return;
     case "aviso-guardado":
     case "cambio-externo":
@@ -223,18 +458,41 @@ async function stageOpen(backend: FakeBackend) {
       if (state === "dialogo-recarga") await click("button", "Recargar descartando lo pendiente…");
       else await click(".entries button", "GitHub");
       return;
-    case "copiado":
-      // Copy from one entry, then move on: the stamp must stay on the row that was copied.
-      await click(".entries button", "Nómina");
-      await click("button", "Copiar contraseña");
-      await find(".stamp", /copiado/i);
-      break;
     default:
   }
+  if (state === "sin-clave") {
+    await click(".entries button", "Jira");
+    return;
+  }
   await click(".entries button", "GitHub");
-  await find("button", "Copiar contraseña");
-  if (state === "dialogo-mover") await click("button", "Mover a otro grupo…");
+  // RF-106: the click chose the row; the window of the entry opens with a double click on its title.
+  (await find(".entries .cell-title button", "GitHub")).dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
+  // Icon buttons have no text: they are found by their name.
+  await find('button[aria-label="Copiar contraseña"]', /^/);
+  if (state === "menu-entrada" || state === "dialogo-mover") {
+    await click('button[aria-label="Más acciones de la entrada"]', /^/);
+    await find('[role="menuitem"]', /./);
+  }
+  if (state === "dialogo-mover") await click('[role="menuitem"]', "Mover a otro grupo…");
   if (state === "editar") await click("button", "Editar");
+  // Screen 2 of the approved prototype: the vault behind, as it was, and the new entry dialog over it.
+  if (state === "dialogo-nueva-boveda" || state === "dialogo-nueva-boveda-generada") {
+    await click("button", "Nueva entrada");
+    await find("#entry-dialog-title", /^/);
+    if (state === "dialogo-nueva-boveda-generada") {
+      await fill("entry-dialog-title", "GitLab");
+      await click("button", "Generar");
+      await find(".strength-row", /Fortaleza/);
+    }
+  }
+  if (state === "mostrada" || state === "ventana-500") {
+    await click('button[aria-label="Mostrar contraseña"]', /^/);
+    await find(".secret:not([data-masked])", /./);
+  }
+  if (state === "copiado") {
+    await click('button[aria-label="Copiar contraseña"]', /^/);
+    await find(".toast", /copiada/);
+  }
 }
 
 /** What a screenshot cannot show by itself: the real viewport, horizontal overflow and whether the fonts loaded. */
@@ -246,10 +504,13 @@ function badge() {
   const widest = Math.max(...[...document.querySelectorAll("*")].map((element) => element.scrollWidth));
   node.textContent = [
     `${String(window.innerWidth)}x${String(window.innerHeight)}`,
-    `ancho max ${String(Math.max(widest, root.scrollWidth))}`,
+    // The document is what scrolls; `max` also counts what is clipped on purpose (text only for screen readers).
+    `ancho doc ${String(root.scrollWidth)} max ${String(Math.max(widest, root.scrollWidth))}`,
     `sans ${document.fonts.check('16px "Overpass Variable"') ? "ok" : "NO"}`,
     `esquema ${getComputedStyle(root).colorScheme}`,
     `foco ${document.activeElement?.textContent.trim().slice(0, 24) ?? ""}`,
+    // The entry dialog brings its own measures, alone or over the vault.
+    ...(document.querySelector('dialog[data-layout="form"]') === null ? measures() : entryDialogMeasures()),
   ].join(" · ");
   // Inside an open modal dialog everything else is inert and hidden behind the top layer.
   (document.querySelector("dialog[open]") ?? document.body).append(node);
@@ -289,8 +550,16 @@ async function boot() {
             weak_kdf: state === "solo-lectura",
             save_pending: false,
             recovery: null,
+            // The lock countdown of the bar, next to "Bloquear".
+            locks_in_seconds: 252,
           },
     vaults: [{ path: VAULT_PATH, name: "Cuentas", password: "demo-clave" }],
+    // "Crear bóveda" proposes this folder: a file already there is the "ya existe" state (`crear-existe`).
+    files: [
+      `${FAKE_DEFAULT_FOLDER}/Cuentas.kdbx`,
+      // RF-110: in these states there is a key file beside the vault, so unlocking proposes it.
+      ...(state === "desbloquear" || state === "error-llave" ? [keyFileBeside(VAULT_PATH)] : []),
+    ],
     recent:
       state === "bienvenida-vacia"
         ? []
@@ -310,6 +579,17 @@ async function boot() {
 
   const container = document.getElementById("root");
   if (container === null) throw new Error("Missing #root element in preview.html");
+
+  if (ENTRY_DIALOG.has(state)) {
+    try {
+      await stageEntryDialog(container, backend);
+    } catch (error) {
+      console.error(error);
+    }
+    await document.fonts.ready;
+    badge();
+    return;
+  }
 
   createRoot(container).render(
     <StrictMode>

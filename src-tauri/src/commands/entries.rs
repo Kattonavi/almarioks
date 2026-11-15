@@ -26,12 +26,16 @@ use super::{
 };
 use crate::{clipboard::ClipboardService, lock::LockCenter, state::AppState};
 
-/// `EntrySummary = { id, title, username, url, tags, modified }`; a protected field is `null`.
+/// `EntrySummary = { id, title, username, has_password, url, tags, modified }`; a protected field is `null`.
+/// It travels in `entry_list`, flat inside every `search` result and flat inside `EntryDetail`.
 #[derive(Serialize)]
 pub struct EntrySummaryView {
     id: String,
     title: Option<String>,
     username: Option<String>,
+    /// RF-105: whether there is a password, and nothing else about it. The value only leaves through
+    /// `entry_reveal`, and `entry_copy` uses it without answering it.
+    has_password: bool,
     url: Option<String>,
     tags: Vec<String>,
     /// ISO 8601 in UTC.
@@ -44,6 +48,7 @@ impl From<EntrySummary> for EntrySummaryView {
             id: summary.id.to_string(),
             title: summary.title,
             username: summary.username,
+            has_password: summary.has_password,
             url: summary.url,
             tags: summary.tags,
             modified: summary.modified.to_iso8601(),

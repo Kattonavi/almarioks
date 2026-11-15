@@ -1,12 +1,15 @@
 import { toAppError, type Result } from "./errors";
 import {
   copySchema,
+  createLocationSchema,
   deletePreviewSchema,
   entryDetailSchema,
   entryHistorySchema,
   entryListSchema,
   generatedSchema,
   groupTreeSchema,
+  keyProposalSchema,
+  keySuggestionSchema,
   pickedPathSchema,
   recentListSchema,
   revealSchema,
@@ -17,12 +20,15 @@ import {
   unitSchema,
   vaultStatusSchema,
   type AutoLockMinutes,
+  type CreateLocation,
   type DeletePreview,
   type EntryDetail,
   type EntrySummary,
   type EntryVersion,
   type Generated,
   type GroupNode,
+  type KeyProposal,
+  type KeySuggestion,
   type RecentVault,
   type SaveState,
   type SearchResult,
@@ -98,7 +104,31 @@ export type FieldName = string;
 /** One method per command of plan.md. Every response is validated with `safeParse` before it reaches the UI. */
 export interface VaultClient {
   vaultStatus(): Promise<Result<VaultStatus>>;
+  /**
+   * RF-97 to RF-99: where a vault called `name` would be created and where its new key file would go, without
+   * writing anything. `chosenPath` is `null` while the person has not chosen another location (the answer is then
+   * Documents › AlmarioKS › `<name>.kdbx`), or the path `pickVaultToCreate` answered (the answer is that same path).
+   * `ErrorInterno` with `null` means the system gave no Documents folder: ask for a location with the dialog.
+   */
+  vaultCreateLocation(name: string, chosenPath: string | null): Promise<Result<CreateLocation>>;
   vaultCreate(input: CreateVaultInput): Promise<Result<VaultStatus>>;
+  /**
+   * RF-110: the key file to bring already chosen when the person is about to unlock the vault at `path`: the
+   * `X.keyx` beside `X.kdbx`, or `null`. Read only. The core answers only for the locked vault, a recent one or the
+   * one `pickVaultToOpen` just answered; for any other path it answers `null`, the same as "nothing to propose".
+   * Send the path exactly as the core gave it (`vaultStatus`, `recentList`, `pickVaultToOpen`).
+   */
+  unlockKeySuggestion(path: string): Promise<Result<KeySuggestion | null>>;
+  /**
+   * RF-110 and RF-111: the same question as `unlockKeySuggestion` (one call to the same command, use one or the
+   * other), with the whole answer. `keyFile` is the key file to bring already chosen: the one this vault was last
+   * opened with (`source: "remembered"`), which wins, or the one beside it (`source: "beside"`), or `null`.
+   * `rememberedMissing` is the path of the remembered one when it is not there any more: say so with that path; the
+   * core does not forget it for that (it may be on a drive that is not plugged in), and `keyFile` is then the one
+   * beside the vault, or `null`. The core remembers a key file only inside `vaultOpen`: nothing is asked of the
+   * window for that.
+   */
+  unlockKeyProposal(path: string): Promise<Result<KeyProposal>>;
   vaultOpen(input: OpenVaultInput): Promise<Result<VaultStatus>>;
   vaultLock(): Promise<Result<undefined>>;
   vaultClose(): Promise<Result<undefined>>;
@@ -188,6 +218,9 @@ export function createClient(transport: Transport): VaultClient {
 
   return {
     vaultStatus: () => call("vault_status", vaultStatusSchema),
+    // `chosen_path` always travels, also as `null`: the core refuses a call without it.
+    vaultCreateLocation: (name, chosenPath) =>
+      call("vault_create_location", createLocationSchema, { name, chosen_path: chosenPath }),
     vaultCreate: ({ path, name, password, keyFile }) =>
       call("vault_create", vaultStatusSchema, {
         path,
@@ -195,6 +228,8 @@ export function createClient(transport: Transport): VaultClient {
         ...(password === undefined ? {} : { password }),
         key_file: keyFile,
       }),
+    unlockKeySuggestion: (path) => call("unlock_key_suggestion", keySuggestionSchema, { path }),
+    unlockKeyProposal: (path) => call("unlock_key_suggestion", keyProposalSchema, { path }),
     vaultOpen: ({ path, password, keyFilePath }) =>
       call("vault_open", vaultStatusSchema, {
         path,

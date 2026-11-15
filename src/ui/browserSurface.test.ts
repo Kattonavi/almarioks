@@ -187,6 +187,21 @@ describe("closeBrowserSurface", () => {
       expect(fireEvent.copy(title)).toBe(true);
     });
 
+    it("RF-72: a field where a secret is typed or generated cannot be copied, cut or dragged from either", () => {
+      document.body.innerHTML = '<input id="typed" data-secret="" value="fake-typed-value"><input id="plain" value="x">';
+      const typed = document.querySelector<HTMLInputElement>("#typed");
+      const plain = document.querySelector<HTMLInputElement>("#plain");
+      if (typed === null || plain === null) throw new Error("fixture");
+      typed.select();
+      expect(fireEvent.copy(typed)).toBe(false);
+      expect(fireEvent.cut(typed)).toBe(false);
+      expect(fireEvent.dragStart(typed)).toBe(false);
+      // Typing and pasting into it, and copying from any other field, go on as always.
+      expect(fireEvent.paste(typed)).toBe(true);
+      plain.select();
+      expect(fireEvent.copy(plain)).toBe(true);
+    });
+
     it("RF-72: undoing it gives the copy back", () => {
       const { secret } = show();
       select(secret);

@@ -10,6 +10,7 @@
 pub mod error;
 pub mod generator;
 pub mod kdbx;
+pub mod location;
 pub mod search;
 pub mod session;
 pub mod settings;

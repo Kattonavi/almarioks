@@ -59,3 +59,20 @@ export function initialOf(name: string): string {
   const first = /[\p{L}\p{N}]/u.exec(name)?.[0] ?? "";
   return first.toLocaleUpperCase("es");
 }
+
+/** What the circle of an entry shows when its title has no letter or digit to offer: empty, protected, or only signs. */
+export const NO_INITIAL = "#";
+
+/** RF-42: the circle of an entry carries the initial of its own title; a protected title (`null`) gives nothing away. */
+export function entryInitial(title: string | null): string {
+  const initial = title === null ? "" : initialOf(title);
+  return initial === "" ? NO_INITIAL : initial;
+}
+
+/**
+ * The colour under the circle of an entry: the line of its group. An entry that hangs from the root itself, or from
+ * a group the tree no longer has, is neutral: the white of the station is not the colour of any group.
+ */
+export function entryLine(line: GroupLine | undefined): GroupLine {
+  return line === undefined || line === "station" ? "neutral" : line;
+}

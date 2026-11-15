@@ -22,8 +22,8 @@ use serde_json::{Value, json};
 use tauri::{App, Listener, Manager, WebviewWindow, test::MockRuntime};
 
 use super::{
-    Answer, CountingReloader, FakeDialogs, FakeOpener, TempDir, app_with, fast_kdf, invoke_args,
-    invoke_plain, main_window,
+    Answer, CountingReloader, DOCUMENTS, FakeDialogs, FakeOpener, TempDir, app_with, documents_in,
+    fast_kdf, invoke_args, invoke_plain, main_window,
 };
 
 /// How long a test waits for another thread before failing instead of hanging.
@@ -257,6 +257,7 @@ impl Rig {
             idle_clock: Arc::new(idle_clock.clone()),
             reloader: Arc::new(reloader.clone()),
             new_vault_kdf: Arc::new(kdf),
+            documents_dir: documents_in(&dir),
         });
         let events = Events::listen(&app);
         Self {
@@ -278,6 +279,11 @@ impl Rig {
     /// A path inside the test's folder, as the text the window would send.
     pub fn path(&self, name: &str) -> String {
         self.dir.path().join(name).to_str().unwrap().to_owned()
+    }
+
+    /// The folder that plays the person's Documents (RF-97): inside the test's folder, never the real one.
+    pub fn documents(&self) -> PathBuf {
+        self.dir.path().join(DOCUMENTS)
     }
 
     /// One heartbeat of the app, by hand (production runs it every second).

@@ -98,6 +98,27 @@ muestra "(protegido)".
     inactividad vivo. La ventana lo llama y espera después de verificar la firma y antes de `install()`, porque el
     actualizador termina el proceso sin pasar por el cierre normal de la app (revisión 0.1, C-1 / S-1). Si
     `install()` falla, la ventana vuelve a la bienvenida en la siguiente consulta de estado (≤ 5 s).
+20. `vault_create_location{name, chosen_path}` (RF-97 a RF-99; `chosen_path` viaja siempre, `null` o texto): no
+    escribe nada. Responde `{vault_path, vault_file, key_file_path, key_file, in_default_folder, vault_exists,
+    key_file_exists}`: sin `chosen_path`, `Documentos\AlmarioKS\<archivo>.kdbx` (la regla del nombre de archivo vive
+    en `almarioks_core::location`); con él, esa misma ruta; siempre con el archivo llave al lado. `ErrorInterno` si el
+    sistema no da Documentos. `vault_create` crea la carpeta solo si la ruta es exactamente la propuesta.
+21. `unlock_key_suggestion{path}` (RF-110): solo lectura. Responde `{key_file_path, key_file}` si junto a `X.kdbx`
+    existe el archivo `X.keyx`, o `null`. Solo contesta si `path` es la bóveda bloqueada de la sesión, una reciente
+    de ajustes o la última ruta que devolvió `pick_vault_to_open` en esta ejecución; para cualquier otra responde
+    `null` sin mirar el disco. No abre el archivo ni sigue enlaces. `null` no significa que la bóveda no use llave.
+    Límite conocido (revisión de seguridad, Q-1): una ventana comprometida puede volver "conocida" una ruta sin
+    gesto del usuario (un bloqueo durante `vault_open`, o `vault_create`/`save_as`/`convert`, que la meten en
+    recientes); no gana capacidad, porque `vault_open` ya responde si una ruta existe. Se cierra con el punto 2 de S-2.
+    RF-111: la respuesta lleva además `source: "remembered"` cuando la llave propuesta es la recordada para esa
+    bóveda (gana a la de al lado; sin `source` es la de al lado) y `remembered_missing: <ruta>` cuando la recordada
+    ya no está (sola, o junto a la de al lado si existe). Solo se propone un archivo de 1 MiB o menos. Lo recordado
+    vive en `settings.json`, clave `key_files` (ruta de la bóveda → ruta de la llave; ausente si está vacío): lo
+    escribe solo `vault_open` tras un desbloqueo correcto con contraseña y una llave elegida con el diálogo, en una
+    ruta `X:\…`; `vault_create`, `vault_convert` y `vault_save_as` olvidan la de esa ruta. En la ventana:
+    `unlockKeyProposal(path)`.
+22. El resumen de una entrada (`entry_list`, `search`, y dentro del detalle) lleva `has_password` (RF-105): si el
+    campo de contraseña existe y no está vacío. Nunca el valor ni su longitud.
 
 ## Concurrencia y bloqueo (RF-30, RF-33, RF-88 a RF-90)
 - Un solo dueño del estado: todas las operaciones de la bóveda, la copia al portapapeles y el bloqueo pasan por el
