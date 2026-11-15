@@ -1595,6 +1595,9 @@ describe("RF-116: la ventana de la entrada", () => {
     const shown = await screen.findByText(PASSWORD);
     expect(shown.className).toBe("secret");
     expect(shown.tabIndex).toBe(0);
+    // Reached with Tab it is named by its field, not by its value: a screen reader does not speak the secret aloud.
+    expect(within(entryWindow).getByRole("group", { name: "Contraseña" })).toBe(shown);
+    expect(shown.getAttribute("aria-label")).not.toContain(PASSWORD);
     for (const masked of entryWindow.querySelectorAll(".secret[data-masked]")) {
       expect(masked.getAttribute("tabindex")).toBeNull();
     }

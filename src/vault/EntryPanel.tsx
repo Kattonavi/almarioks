@@ -212,14 +212,15 @@ function PlainValue({ value, empty }: { readonly value: string | null; readonly 
  * in a `.secret` element, which cannot be selected or dragged (copying goes through the core). The value is a React
  * text child and nothing else: it never reaches an attribute.
  */
-function SecretValue({ value }: { readonly value: string | undefined }) {
+function SecretValue({ value, name }: { readonly value: string | undefined; readonly name: string }) {
   return value === undefined ? (
     <span className="secret" data-masked="">
       <span className="sr-only">(oculto)</span>
     </span>
   ) : (
-    // RF-116: past four lines it scrolls inside its row, so it takes the focus to be scrolled by keyboard.
-    <span className="secret" tabIndex={0}>
+    // RF-116: past four lines it scrolls inside its row, so it takes the focus to be scrolled by keyboard. Named by
+    // its field, never by its value: reaching it with Tab says "Contraseña", it does not speak the secret aloud.
+    <span className="secret" tabIndex={0} role="group" aria-label={name}>
       {value}
     </span>
   );
@@ -634,7 +635,7 @@ export function EntryPanel({
               onGesture={() => void copy("UserName")}
               actions={secretActions("UserName")}
             >
-              <SecretValue value={revealed.get("UserName")} />
+              <SecretValue value={revealed.get("UserName")} name="Usuario" />
             </CardRow>
           ) : (
             <CardRow
@@ -655,7 +656,7 @@ export function EntryPanel({
               onGesture={() => void copy("Password")}
               actions={secretActions("Password")}
             >
-              <SecretValue value={revealed.get("Password")} />
+              <SecretValue value={revealed.get("Password")} name="Contraseña" />
             </CardRow>
           ) : (
             <CardRow label="Contraseña">
@@ -674,7 +675,7 @@ export function EntryPanel({
                 </>
               }
             >
-              <SecretValue value={revealed.get("URL")} />
+              <SecretValue value={revealed.get("URL")} name="Sitio" />
             </CardRow>
           ) : (
             <CardRow
@@ -698,7 +699,7 @@ export function EntryPanel({
             .filter((field) => !OWN_ROW.includes(field))
             .map((field) => (
               <CardRow key={`secret:${field}`} label={labelOf(field)} actions={secretActions(field)}>
-                <SecretValue value={revealed.get(field)} />
+                <SecretValue value={revealed.get(field)} name={labelOf(field)} />
               </CardRow>
             ))}
           {plainCustom.map((field) => (
@@ -733,7 +734,7 @@ export function EntryPanel({
           {/* The notes close the card, without buttons unless the file protects them. */}
           {isSecret("Notes") ? (
             <CardRow label="Notas" notes actions={secretActions("Notes")}>
-              <SecretValue value={revealed.get("Notes")} />
+              <SecretValue value={revealed.get("Notes")} name="Notas" />
             </CardRow>
           ) : (
             <CardRow label="Notas" notes>

@@ -637,9 +637,12 @@ dialog[data-layout="entry"][open] {
 .card-row .secret:not([data-masked]) {
   flex: 1;
   min-width: 0;
-  /* RF-116: up to four lines; a longer one scrolls inside its row (11 px above and below, as one line has). */
-  max-height: calc(4lh + 22px);
-  padding-block: 11px;
+  /*
+   * RF-116: up to four lines; a longer one scrolls inside its row. The 11 px above and below are a margin, not a
+   * padding: the text scrolls through a padding, and half of a fifth line would peep out at the foot.
+   */
+  max-height: 4lh;
+  margin-block: 11px;
   overflow-y: auto;
   letter-spacing: 0.06em;
 }
