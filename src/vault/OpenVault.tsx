@@ -393,7 +393,14 @@ export function OpenVault(props: OpenVaultProps) {
               <LockCountdown key={props.lockDeadline} deadline={props.lockDeadline} />
             )}
             {/* A bar action without a plate: the weight of the bar is the search. */}
-            <button type="button" className="btn-bar" onClick={props.onLock}>
+            {/* RF-114: the shortcut is said in its help and given to assistive technology. */}
+            <button
+              type="button"
+              className="btn-bar"
+              title="Bloquear (Ctrl+L)"
+              aria-keyshortcuts="Control+L"
+              onClick={props.onLock}
+            >
               <LockIcon />
               Bloquear
             </button>

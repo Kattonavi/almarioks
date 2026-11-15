@@ -50,6 +50,15 @@ const DERIVING_POLL_MS = 250;
 export const STATUS_POLL_MS = 5000;
 
 /**
+ * RF-114: Ctrl+L, the shortcut that locks the vault. Ctrl together with Alt is not Ctrl: on Windows it is AltGr, which
+ * types characters. The physical key also counts, for keyboard layouts where that key is not an "l".
+ */
+export function isLockShortcut(event: Pick<KeyboardEvent, "key" | "code" | "ctrlKey" | "metaKey" | "altKey" | "shiftKey">) {
+  if (!(event.ctrlKey || event.metaKey) || event.altKey || event.shiftKey) return false;
+  return event.key.toLowerCase() === "l" || event.code === "KeyL";
+}
+
+/**
  * Owns the app state machine. Fed by `vault_status` and by the core's `vault-locked` event. Every async answer is
  * tagged with the lock epoch it started in: an answer that arrives after a lock is dropped, so a late `vault_open`
  * can never mount the vault again (RF-32).
@@ -179,11 +188,29 @@ export function VaultRoot({ client }: { readonly client: VaultClient }) {
     else dispatch({ type: "unlock-failed", error: result.error });
   }
 
-  async function lock() {
+  const lock = useCallback(async () => {
     dropVault();
     await client.vaultLock();
     await refresh();
-  }
+  }, [client, dropVault, refresh]);
+
+  // RF-114: Ctrl+L locks from anywhere while the vault is open, with any window or dialog open and the focus in any
+  // field: the same lock as the button and the automatic one, so what was not saved in a form goes, without asking
+  // (RF-32). Taken in the capture phase, before anything inside a dialog or a menu could keep the key for itself.
+  useEffect(() => {
+    if (!isOpen) return;
+    function onKeyDown(event: KeyboardEvent) {
+      if (!isLockShortcut(event)) return;
+      event.preventDefault();
+      // A key held down repeats: one lock is enough.
+      if (event.repeat) return;
+      void lock();
+    }
+    window.addEventListener("keydown", onKeyDown, { capture: true });
+    return () => {
+      window.removeEventListener("keydown", onKeyDown, { capture: true });
+    };
+  }, [isOpen, lock]);
 
   async function close() {
     dropVault();

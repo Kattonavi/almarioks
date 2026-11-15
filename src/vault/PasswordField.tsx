@@ -285,15 +285,17 @@ export function PasswordField({ ref, id, client, hint, invalid, errorId, onWritt
           {errorMessage(fieldError)}
         </p>
       )}
-      <div id={strengthId} aria-live="polite" className="strength-live">
-        {written && score !== null && (
-          <p className="strength-row">
-            <span className="strength-bar" data-score={score} aria-hidden="true">
-              <span />
-            </span>
-            Fortaleza: {strengthLabel(score)}
-          </p>
-        )}
+      {/*
+        RF-115: the line is always there and always as tall, so nothing under it moves while the password is typed:
+        with nothing to measure, an empty bar and no text. Only the text is announced, when it arrives.
+      */}
+      <div id={strengthId} className="strength-row">
+        <span className="strength-bar" data-score={written && score !== null ? score : undefined} aria-hidden="true">
+          <span />
+        </span>
+        <span aria-live="polite" className="strength-text">
+          {written && score !== null ? `Fortaleza: ${strengthLabel(score)}` : ""}
+        </span>
       </div>
       {hint !== null && (
         <p id={hintId} className="path">

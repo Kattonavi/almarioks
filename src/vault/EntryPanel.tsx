@@ -218,7 +218,10 @@ function SecretValue({ value }: { readonly value: string | undefined }) {
       <span className="sr-only">(oculto)</span>
     </span>
   ) : (
-    <span className="secret">{value}</span>
+    // RF-116: past four lines it scrolls inside its row, so it takes the focus to be scrolled by keyboard.
+    <span className="secret" tabIndex={0}>
+      {value}
+    </span>
   );
 }
 
@@ -461,26 +464,28 @@ export function EntryPanel({
               {closeButton}
             </div>
           </header>
-          {load.kind === "loading" ? (
-            <p role="status">Cargando la entrada…</p>
-          ) : (
-            <>
-              <p role="alert" className="error">
-                {errorMessage(load.error)}
-              </p>
-              <div className="actions">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setLoad({ kind: "loading" });
-                    setAttempt((value) => value + 1);
-                  }}
-                >
-                  Reintentar
-                </button>
-              </div>
-            </>
-          )}
+          <div className="entry-body">
+            {load.kind === "loading" ? (
+              <p role="status">Cargando la entrada…</p>
+            ) : (
+              <>
+                <p role="alert" className="error">
+                  {errorMessage(load.error)}
+                </p>
+                <div className="actions">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setLoad({ kind: "loading" });
+                      setAttempt((value) => value + 1);
+                    }}
+                  >
+                    Reintentar
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
         </div>
         {foot}
       </Dialog>
@@ -619,153 +624,156 @@ export function EntryPanel({
           {closeButton}
         </div>
       </header>
-      <dl className="entry-card">
-        {isSecret("UserName") ? (
-          <CardRow
-            label="Usuario"
-            help={COPY_HELP}
-            onGesture={() => void copy("UserName")}
-            actions={secretActions("UserName")}
-          >
-            <SecretValue value={revealed.get("UserName")} />
-          </CardRow>
-        ) : (
-          <CardRow
-            label="Usuario"
-            help={has(entry.username) ? COPY_HELP : undefined}
-            onGesture={() => void copy("UserName")}
-            actions={has(entry.username) ? <CopyButton field="UserName" onCopy={copy} /> : undefined}
-          >
-            <PlainValue value={entry.username} empty="Sin usuario" />
-          </CardRow>
-        )}
-        {/* RF-105: the entry says whether it has a password; without one the row says so and offers nothing. */}
-        {entry.hasPassword ? (
-          <CardRow
-            label="Contraseña"
-            help={COPY_HELP}
-            // A copy is the core's: the double click shows nothing.
-            onGesture={() => void copy("Password")}
-            actions={secretActions("Password")}
-          >
-            <SecretValue value={revealed.get("Password")} />
-          </CardRow>
-        ) : (
-          <CardRow label="Contraseña">
-            <span className="card-empty">Sin contraseña</span>
-          </CardRow>
-        )}
-        {isSecret("URL") ? (
-          <CardRow
-            label="Sitio"
-            help={OPEN_HELP}
-            onGesture={() => void openUrl()}
-            actions={
-              <>
-                {openButton}
-                {secretActions("URL")}
-              </>
-            }
-          >
-            <SecretValue value={revealed.get("URL")} />
-          </CardRow>
-        ) : (
-          <CardRow
-            label="Sitio"
-            help={entry.url === "" ? undefined : OPEN_HELP}
-            onGesture={() => void openUrl()}
-            actions={
-              entry.url === "" ? undefined : (
+      {/* RF-116: what scrolls when the entry is long. The header above it never moves. */}
+      <div className="entry-body">
+        <dl className="entry-card">
+          {isSecret("UserName") ? (
+            <CardRow
+              label="Usuario"
+              help={COPY_HELP}
+              onGesture={() => void copy("UserName")}
+              actions={secretActions("UserName")}
+            >
+              <SecretValue value={revealed.get("UserName")} />
+            </CardRow>
+          ) : (
+            <CardRow
+              label="Usuario"
+              help={has(entry.username) ? COPY_HELP : undefined}
+              onGesture={() => void copy("UserName")}
+              actions={has(entry.username) ? <CopyButton field="UserName" onCopy={copy} /> : undefined}
+            >
+              <PlainValue value={entry.username} empty="Sin usuario" />
+            </CardRow>
+          )}
+          {/* RF-105: the entry says whether it has a password; without one the row says so and offers nothing. */}
+          {entry.hasPassword ? (
+            <CardRow
+              label="Contraseña"
+              help={COPY_HELP}
+              // A copy is the core's: the double click shows nothing.
+              onGesture={() => void copy("Password")}
+              actions={secretActions("Password")}
+            >
+              <SecretValue value={revealed.get("Password")} />
+            </CardRow>
+          ) : (
+            <CardRow label="Contraseña">
+              <span className="card-empty">Sin contraseña</span>
+            </CardRow>
+          )}
+          {isSecret("URL") ? (
+            <CardRow
+              label="Sitio"
+              help={OPEN_HELP}
+              onGesture={() => void openUrl()}
+              actions={
                 <>
                   {openButton}
-                  {has(entry.url) && <CopyButton field="URL" onCopy={copy} />}
+                  {secretActions("URL")}
                 </>
-              )
-            }
-          >
-            <PlainValue value={entry.url} empty="Sin sitio" />
-          </CardRow>
-        )}
-        {/* What the file protects beyond the rows above: a protected title and the protected custom fields. */}
-        {secretFields
-          .filter((field) => !OWN_ROW.includes(field))
-          .map((field) => (
-            <CardRow key={`secret:${field}`} label={labelOf(field)} actions={secretActions(field)}>
-              <SecretValue value={revealed.get(field)} />
+              }
+            >
+              <SecretValue value={revealed.get("URL")} />
+            </CardRow>
+          ) : (
+            <CardRow
+              label="Sitio"
+              help={entry.url === "" ? undefined : OPEN_HELP}
+              onGesture={() => void openUrl()}
+              actions={
+                entry.url === "" ? undefined : (
+                  <>
+                    {openButton}
+                    {has(entry.url) && <CopyButton field="URL" onCopy={copy} />}
+                  </>
+                )
+              }
+            >
+              <PlainValue value={entry.url} empty="Sin sitio" />
+            </CardRow>
+          )}
+          {/* What the file protects beyond the rows above: a protected title and the protected custom fields. */}
+          {secretFields
+            .filter((field) => !OWN_ROW.includes(field))
+            .map((field) => (
+              <CardRow key={`secret:${field}`} label={labelOf(field)} actions={secretActions(field)}>
+                <SecretValue value={revealed.get(field)} />
+              </CardRow>
+            ))}
+          {plainCustom.map((field) => (
+            <CardRow
+              key={`custom:${field.name}`}
+              label={field.name}
+              actions={has(field.value) ? <CopyButton field={field.name} onCopy={copy} /> : undefined}
+            >
+              <PlainValue value={field.value ?? ""} empty="Sin valor" />
             </CardRow>
           ))}
-        {plainCustom.map((field) => (
-          <CardRow
-            key={`custom:${field.name}`}
-            label={field.name}
-            actions={has(field.value) ? <CopyButton field={field.name} onCopy={copy} /> : undefined}
-          >
-            <PlainValue value={field.value ?? ""} empty="Sin valor" />
-          </CardRow>
-        ))}
-        {entry.tags.length > 0 && (
-          <CardRow label="Etiquetas">
-            <ul className="tags">
-              {entry.tags.map((tag) => (
-                <li key={tag}>{tag}</li>
-              ))}
-            </ul>
-          </CardRow>
-        )}
-        {entry.attachments.length > 0 && (
-          <CardRow label="Adjuntos">
-            <ul className="attachments">
-              {entry.attachments.map((attachment) => (
-                <li key={attachment.name}>
-                  <span>{attachment.name}</span> <span className="path">({attachment.size} bytes)</span>
-                </li>
-              ))}
-            </ul>
-          </CardRow>
-        )}
-        {/* The notes close the card, without buttons unless the file protects them. */}
-        {isSecret("Notes") ? (
-          <CardRow label="Notas" notes actions={secretActions("Notes")}>
-            <SecretValue value={revealed.get("Notes")} />
-          </CardRow>
-        ) : (
-          <CardRow label="Notas" notes>
-            {entry.notes === null ? (
-              <span className="card-empty">{shown(entry.notes)}</span>
-            ) : entry.notes === "" ? (
-              <span className="card-empty">Sin notas</span>
-            ) : (
-              <span className="card-notes">{entry.notes}</span>
-            )}
-          </CardRow>
-        )}
-      </dl>
+          {entry.tags.length > 0 && (
+            <CardRow label="Etiquetas">
+              <ul className="tags">
+                {entry.tags.map((tag) => (
+                  <li key={tag}>{tag}</li>
+                ))}
+              </ul>
+            </CardRow>
+          )}
+          {entry.attachments.length > 0 && (
+            <CardRow label="Adjuntos">
+              <ul className="attachments">
+                {entry.attachments.map((attachment) => (
+                  <li key={attachment.name}>
+                    <span>{attachment.name}</span> <span className="path">({attachment.size} bytes)</span>
+                  </li>
+                ))}
+              </ul>
+            </CardRow>
+          )}
+          {/* The notes close the card, without buttons unless the file protects them. */}
+          {isSecret("Notes") ? (
+            <CardRow label="Notas" notes actions={secretActions("Notes")}>
+              <SecretValue value={revealed.get("Notes")} />
+            </CardRow>
+          ) : (
+            <CardRow label="Notas" notes>
+              {entry.notes === null ? (
+                <span className="card-empty">{shown(entry.notes)}</span>
+              ) : entry.notes === "" ? (
+                <span className="card-empty">Sin notas</span>
+              ) : (
+                <span className="card-notes">{entry.notes}</span>
+              )}
+            </CardRow>
+          )}
+        </dl>
 
-      {revealed.size > 0 && <p className="path field-hint">Lo que muestres se oculta solo a los 20 segundos.</p>}
+        {revealed.size > 0 && <p className="path field-hint">Lo que muestres se oculta solo a los 20 segundos.</p>}
 
-      {/* RF-107: the day and the hour of this computer, to the minute. The list keeps the short day. */}
-      <p className="entry-dates">
-        <span className="entry-date">
-          Creada el <time dateTime={entry.created}>{formatDate(entry.created)}</time>
-        </span>
-        <span className="dot-sep"> · </span>
-        <span className="entry-date">
-          Modificada el <time dateTime={entry.modified}>{formatDate(entry.modified)}</time>
-        </span>
-      </p>
+        {/* RF-107: the day and the hour of this computer, to the minute. The list keeps the short day. */}
+        <p className="entry-dates">
+          <span className="entry-date">
+            Creada el <time dateTime={entry.created}>{formatDate(entry.created)}</time>
+          </span>
+          <span className="dot-sep"> · </span>
+          <span className="entry-date">
+            Modificada el <time dateTime={entry.modified}>{formatDate(entry.modified)}</time>
+          </span>
+        </p>
 
-      {readOnly && <p className="path">Solo lectura: esta entrada no se puede editar, mover ni borrar.</p>}
+        {readOnly && <p className="path">Solo lectura: esta entrada no se puede editar, mover ni borrar.</p>}
 
-      {/* What an order left to say. A copy is not said here: its notice is the one at the foot of the detail zone. */}
-      <div aria-live="polite" aria-atomic="true" className="entry-status">
-        {status !== "" && <p>{status}</p>}
-        {status === "" && savedText !== "" && <p>{savedText}</p>}
+        {/* What an order left to say. A copy is not said here: its notice is the one at the foot of the detail zone. */}
+        <div aria-live="polite" aria-atomic="true" className="entry-status">
+          {status !== "" && <p>{status}</p>}
+          {status === "" && savedText !== "" && <p>{savedText}</p>}
+        </div>
+        <p role="alert" className="error">
+          {actionError === null ? "" : errorMessage(actionError)}
+        </p>
+
+        {renderDialog()}
       </div>
-      <p role="alert" className="error">
-        {actionError === null ? "" : errorMessage(actionError)}
-      </p>
-
-      {renderDialog()}
     </div>
   );
 

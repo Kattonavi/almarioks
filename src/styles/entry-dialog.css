@@ -252,15 +252,12 @@ dialog[data-layout="form"][open] {
   height: var(--space-4);
 }
 
-/* The live region stays rendered while empty (so its next text is announced) without taking a gap of the column. */
-.strength-live:empty {
-  margin-top: calc(var(--space-1) * -1.5);
-}
-
+/* RF-115: always one line tall, with or without its text, so nothing under it moves while typing. */
 .strength-row {
   display: flex;
   gap: calc(var(--space-2) + 2px);
   align-items: center;
+  min-height: calc(var(--text-sm) * var(--leading));
   font-size: var(--text-sm);
   color: var(--ink-muted);
 }
@@ -277,6 +274,11 @@ dialog[data-layout="form"][open] {
 .strength-bar > span {
   width: 20%;
   background: var(--ok);
+}
+
+/* Nothing measured yet (empty field, or the score on its way): the bar is there, empty. */
+.strength-bar:not([data-score]) > span {
+  width: 0;
 }
 
 .strength-bar[data-score="1"] > span {

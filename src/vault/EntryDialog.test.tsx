@@ -511,6 +511,30 @@ describe("Diálogo de entrada — contraseña y generador en el campo", () => {
     expect(screen.queryByText(/^Fortaleza: /)).toBeNull();
   });
 
+  it("RF-115: la línea de fortaleza está siempre, con la barra vacía y sin texto mientras no hay nada que medir", async () => {
+    const { view } = open();
+    const row = () => view.container.ownerDocument.getElementById(passwordField().getAttribute("aria-describedby")?.split(" ").find((id) => id.endsWith("-strength")) ?? "");
+    const bar = () => row()?.querySelector(".strength-bar");
+
+    // Empty field: the line and its bar are already there, empty, with no text.
+    expect(row()).not.toBeNull();
+    expect(bar()?.hasAttribute("data-score")).toBe(false);
+    expect(row()?.textContent).toBe("");
+
+    // Typed and measured: the same line, now with its score and text.
+    const before = row();
+    typePassword("abcdefgh1");
+    expect(await screen.findByText(/^Fortaleza: /)).toBeDefined();
+    expect(row()).toBe(before);
+    expect(bar()?.getAttribute("data-score")).not.toBeNull();
+
+    // Emptied again: still there, empty again.
+    typePassword("");
+    expect(row()).toBe(before);
+    expect(bar()?.hasAttribute("data-score")).toBe(false);
+    expect(row()?.textContent).toBe("");
+  });
+
   it("RF-65: RF-67: las opciones nacen plegadas y con los valores por defecto: longitud 20 (deslizante de 8 a 64, casilla de 8 a 500), los cuatro tipos y sin evitar parecidos", () => {
     open();
     const toggle = screen.getByRole("button", { name: "Opciones del generador" });

@@ -5,7 +5,7 @@ import { createClient } from "../ipc/client";
 import { ERROR_MESSAGES } from "../ipc/errors";
 import { createFakeBackend, SAMPLE_ENTRIES, SAMPLE_GROUPS, type FakeEntry, type FakeOptions } from "../ipc/fake";
 import { formatDate } from "./format";
-import { VaultRoot } from "./VaultRoot";
+import { isLockShortcut, VaultRoot } from "./VaultRoot";
 
 afterEach(() => {
   cleanup();
@@ -1568,5 +1568,120 @@ describe("P5 Entrada — la ventana, segunda ronda", () => {
     for (const element of document.querySelectorAll("*")) {
       for (const attribute of element.attributes) expect(attribute.value).not.toContain(LONG.slice(0, 40));
     }
+  });
+});
+
+describe("RF-116: la ventana de la entrada", () => {
+  it("RF-116: la cabecera queda fuera de lo que se desplaza, y un valor mostrado se puede alcanzar con el teclado", async () => {
+    await setup();
+    await openEntry("Trabajo", "GitHub");
+    const entryWindow = detailZone();
+    const body = entryWindow.querySelector(".entry-body");
+    const head = entryWindow.querySelector(".entry-head");
+
+    // The header (title, Editar, more actions, close) is not inside the part that scrolls.
+    expect(body).not.toBeNull();
+    expect(head).not.toBeNull();
+    expect(body?.contains(head ?? null)).toBe(false);
+    for (const name of ["Editar", "Más acciones de la entrada", "Cerrar"]) {
+      expect(body?.contains(within(entryWindow).getByRole("button", { name }))).toBe(false);
+    }
+    // The card and the dates are.
+    expect(body?.querySelector(".entry-card")).not.toBeNull();
+    expect(body?.querySelector(".entry-dates")).not.toBeNull();
+
+    // A shown value can take the focus, so a long one can be scrolled inside its row by keyboard; hidden, it cannot.
+    fireEvent.click(within(entryWindow).getByRole("button", { name: "Mostrar contraseña" }));
+    const shown = await screen.findByText(PASSWORD);
+    expect(shown.className).toBe("secret");
+    expect(shown.tabIndex).toBe(0);
+    for (const masked of entryWindow.querySelectorAll(".secret[data-masked]")) {
+      expect(masked.getAttribute("tabindex")).toBeNull();
+    }
+  });
+});
+
+describe("RF-114: Ctrl+L bloquea desde cualquier parte", () => {
+  const ctrlL = { key: "l", code: "KeyL", ctrlKey: true };
+  const lockedScreen = () => screen.findByRole("heading", { name: "Desbloquear cuentas.kdbx" });
+
+  it("RF-114: solo Ctrl+L, también por la tecla física; Ctrl+Alt (AltGr) y Ctrl+Shift no", () => {
+    const press = (overrides: Partial<KeyboardEvent>) =>
+      isLockShortcut({ key: "l", code: "KeyL", ctrlKey: false, metaKey: false, altKey: false, shiftKey: false, ...overrides });
+    expect(press({ ctrlKey: true })).toBe(true);
+    expect(press({ ctrlKey: true, key: "L" })).toBe(true);
+    // A layout where that key types another letter: the physical key still locks.
+    expect(press({ ctrlKey: true, key: "д" })).toBe(true);
+    expect(press({})).toBe(false);
+    expect(press({ ctrlKey: true, altKey: true })).toBe(false);
+    expect(press({ ctrlKey: true, shiftKey: true })).toBe(false);
+    expect(press({ ctrlKey: true, key: "k", code: "KeyK" })).toBe(false);
+  });
+
+  it("RF-114: con la lista a la vista bloquea, igual que el botón, cuya ayuda dice el atajo", async () => {
+    const { backend } = await setup();
+    const button = screen.getByRole("button", { name: "Bloquear" });
+    expect(button.title).toBe("Bloquear (Ctrl+L)");
+    expect(button.getAttribute("aria-keyshortcuts")).toBe("Control+L");
+
+    fireEvent.keyDown(document.body, ctrlL);
+
+    expect(await lockedScreen()).toBeDefined();
+    expect(backend.count("vault_lock")).toBe(1);
+  });
+
+  it("RF-114: RF-32: con el formulario a medio llenar descarta lo escrito, sin preguntar", async () => {
+    const { backend } = await setup();
+    const dialog = await startNewEntry();
+    fireEvent.change(within(dialog).getByLabelText("Título"), { target: { value: "Borrador-sin-guardar" } });
+    typePassword("escrita-sin-guardar");
+
+    // The key comes from the field that has the focus, inside the modal dialog.
+    fireEvent.keyDown(within(dialog).getByLabelText("Título"), ctrlL);
+
+    expect(await lockedScreen()).toBeDefined();
+    expect(screen.queryByRole("dialog", { name: "¿Descartar los cambios?" })).toBeNull();
+    expect(bodyContains("Borrador-sin-guardar")).toBe(false);
+    expect(bodyContains("escrita-sin-guardar")).toBe(false);
+    expect(backend.count("entry_create")).toBe(0);
+    expect(backend.count("vault_lock")).toBe(1);
+  });
+
+  it("RF-114: con la ventana de la entrada abierta y la contraseña a la vista, bloquea y no deja nada", async () => {
+    const { backend } = await setup();
+    await openEntry("Trabajo", "GitHub");
+    fireEvent.click(within(detailZone()).getByRole("button", { name: "Mostrar contraseña" }));
+    expect(await screen.findByText(PASSWORD)).toBeDefined();
+
+    fireEvent.keyDown(within(detailZone()).getByRole("button", { name: "Editar" }), ctrlL);
+
+    expect(await lockedScreen()).toBeDefined();
+    expect(document.querySelector('dialog[data-layout="entry"]')).toBeNull();
+    expect(bodyContains(PASSWORD)).toBe(false);
+    expect(backend.count("vault_lock")).toBe(1);
+  });
+
+  it("RF-114: con el foco en la búsqueda también bloquea; una tecla sostenida bloquea una sola vez", async () => {
+    const { backend } = await setup();
+    const search = screen.getByRole("searchbox", { name: "Buscar en la bóveda" });
+    search.focus();
+
+    fireEvent.keyDown(search, ctrlL);
+    fireEvent.keyDown(search, { ...ctrlL, repeat: true });
+
+    expect(await lockedScreen()).toBeDefined();
+    expect(backend.count("vault_lock")).toBe(1);
+  });
+
+  it("RF-114: con la bóveda ya bloqueada, Ctrl+L no hace nada", async () => {
+    const { backend } = await setup();
+    fireEvent.keyDown(document.body, ctrlL);
+    await lockedScreen();
+
+    fireEvent.keyDown(document.body, ctrlL);
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(backend.count("vault_lock")).toBe(1);
   });
 });

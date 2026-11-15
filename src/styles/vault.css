@@ -357,12 +357,26 @@
  * entry, its title with the group under it, and at the end "Editar", the menu with the rest of what can be asked of
  * the entry, and "Cerrar". ----
  */
+/*
+ * RF-116: anchored at the top and growing down. The top is a fixed distance from the top of the window, whatever the
+ * entry holds, so the header (title, "Editar", more actions, close) stays put while values are shown, hidden or
+ * scrolled; only the body under it scrolls. The copy notice sits at the foot, out of the scroll.
+ */
 dialog[data-layout="entry"] {
+  --entry-window-top: max(var(--space-6), 10vh);
+
   width: min(600px, calc(100vw - var(--space-6) * 2));
-  max-height: calc(100vh - var(--space-6) * 2);
+  max-height: calc(100vh - var(--entry-window-top) - var(--space-6));
+  margin-block: var(--entry-window-top) auto;
   padding: 0;
+  overflow: hidden;
   border: 0;
   border-radius: var(--radius-dialog);
+}
+
+dialog[data-layout="entry"][open] {
+  display: flex;
+  flex-direction: column;
 }
 
 /*
@@ -371,17 +385,28 @@ dialog[data-layout="entry"] {
  */
 .entry {
   display: flex;
+  flex: 1 1 auto;
   flex-direction: column;
-  padding-bottom: var(--space-5);
+  min-height: 0;
 }
 
-.entry > :is(p, .entry-status, .actions) {
+.entry-body {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+  padding-bottom: var(--space-5);
+  overflow-y: auto;
+}
+
+.entry-body > :is(p, .entry-status, .actions) {
   max-width: none;
   margin: var(--space-2) var(--space-6) 0;
 }
 
 .entry-head {
   display: flex;
+  flex: none;
   flex-wrap: wrap;
   align-items: center;
   gap: 14px;
@@ -612,7 +637,10 @@ dialog[data-layout="entry"] {
 .card-row .secret:not([data-masked]) {
   flex: 1;
   min-width: 0;
+  /* RF-116: up to four lines; a longer one scrolls inside its row (11 px above and below, as one line has). */
+  max-height: calc(4lh + 22px);
   padding-block: 11px;
+  overflow-y: auto;
   letter-spacing: 0.06em;
 }
 
@@ -644,7 +672,7 @@ dialog[data-layout="entry"] {
 }
 
 /* RF-107: both dates with their hour. Each one stays whole; when they do not fit, the line breaks between them. */
-.entry > .entry-dates {
+.entry-body > .entry-dates {
   display: flex;
   flex-wrap: wrap;
   margin-top: var(--space-4);
@@ -682,7 +710,7 @@ dialog[data-layout="entry"] {
 }
 
 /* While they have nothing to say they take no room; they stay rendered, so their next text is announced. */
-.entry > :is(.entry-status, .error):empty {
+.entry-body > :is(.entry-status, .error):empty {
   margin-top: 0;
 }
 
@@ -697,8 +725,7 @@ dialog[data-layout="entry"] {
 }
 
 dialog[data-layout="entry"] > .toast-zone {
-  position: sticky;
-  bottom: 0;
+  flex: none;
 }
 
 dialog[data-layout="entry"] > .toast-zone:not(:empty) {
