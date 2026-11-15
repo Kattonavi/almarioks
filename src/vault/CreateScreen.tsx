@@ -604,23 +604,33 @@ export function CreateScreen({ client, onBack, onDone }: CreateScreenProps) {
                   {revealed ? <HideIcon /> : <ShowIcon />}
                 </button>
               </div>
+              {/*
+                RF-115, owner's decision of 2026-11-15 for this screen too: the line of the meter and the room of its
+                warning are always there and always as tall, so "Repite la contraseña maestra" never moves while the
+                password is typed. With nothing measured: an empty bar, hidden from assistive technology, and no text.
+              */}
               <div id="create-strength" aria-live="polite" className="create-strength">
-                {score !== null && (
-                  <>
-                    <p className="create-strength-line">
-                      <meter min={0} max={4} low={2} high={3} optimum={4} value={score} aria-label="Fortaleza" />
-                      Fortaleza: {strengthLabel(score)} ({score} de 4)
-                    </p>
-                    {/* RF-7: below 3 it warns and never blocks; only a score of 0 or 1 is called weak. */}
-                    {score < 3 && (
-                      <p className="create-hint">
-                        {score <= 1
-                          ? "Es una contraseña débil. Puedes continuar, pero una más larga y variada protege mejor tu bóveda."
-                          : "Todavía es fácil de adivinar. Puedes continuar, pero una más larga y variada protege mejor tu bóveda."}
-                      </p>
-                    )}
-                  </>
-                )}
+                <p className="create-strength-line">
+                  <meter
+                    min={0}
+                    max={4}
+                    low={2}
+                    high={3}
+                    optimum={4}
+                    value={score ?? 0}
+                    aria-label="Fortaleza"
+                    aria-hidden={score === null}
+                  />
+                  {score === null ? "" : `Fortaleza: ${strengthLabel(score)} (${String(score)} de 4)`}
+                </p>
+                {/* RF-7: below 3 it warns and never blocks; only a score of 0 or 1 is called weak. */}
+                <p className="create-hint">
+                  {score === null || score >= 3
+                    ? ""
+                    : score <= 1
+                      ? "Es una contraseña débil. Puedes continuar, pero una más larga y variada protege mejor tu bóveda."
+                      : "Todavía es fácil de adivinar. Puedes continuar, pero una más larga y variada protege mejor tu bóveda."}
+                </p>
               </div>
             </div>
 

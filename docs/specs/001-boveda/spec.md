@@ -525,8 +525,9 @@ Origen: respuesta del dueño a las tres preguntas que dejó abiertas el recorrid
   y el bloqueo por inactividad (RF-30 a RF-33), también con cualquier ventana o diálogo abierto y con el foco en un
   campo; lo que estaba sin guardar en un formulario se descarta sin preguntar (RF-32). La ayuda del botón dice
   "Bloquear (Ctrl+L)".
-- RF-115: En el formulario de entrada, la línea de fortaleza ocupa siempre su alto: con el campo vacío se ve la
-  barra vacía y sin texto, y nada de lo que está debajo se mueve al teclear (RF-70).
+- RF-115: En el formulario de entrada y en "Crear bóveda", la línea de fortaleza (y en "Crear bóveda", el sitio de
+  su aviso de RF-7) ocupa siempre su alto: con el campo vacío se ve la barra vacía y sin texto, y nada de lo que
+  está debajo se mueve al teclear (RF-70, RF-7). "Crear bóveda" sigue cabiendo a 1120 × 720.
 - RF-116: La ventana de la entrada (RF-43) queda anclada arriba y crece hacia abajo; su cabecera (título, "Editar",
   más acciones y cerrar) no se mueve al mostrar u ocultar valores ni al desplazar el contenido. Un valor protegido
   mostrado se ve hasta en 4 líneas; si es más largo, se desplaza dentro de su fila.

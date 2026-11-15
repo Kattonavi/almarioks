@@ -142,6 +142,30 @@ describe("P2 Crear bóveda", () => {
     expect(screen.getByRole("button", { name: "Mostrar contraseña" })).toBeDefined();
   });
 
+  it("RF-115: la línea de fortaleza y el sitio de su aviso están siempre, también con la contraseña vacía", async () => {
+    await openCreate({ strength: () => 2 });
+    const block = () => document.getElementById("create-strength");
+    const parts = () => [...(block()?.children ?? [])].map((child) => child.className);
+
+    // Empty: the same two parts, the bar hidden from assistive technology and no text.
+    expect(parts()).toEqual(["create-strength-line", "create-hint"]);
+    expect(block()?.querySelector("meter")?.getAttribute("aria-hidden")).toBe("true");
+    expect(block()?.textContent).toBe("");
+
+    // Measured: the same two parts, now with their text.
+    fireEvent.input(passwordField(), { target: { value: "abcdefgh1" } });
+    expect(await screen.findByText(/Fortaleza: regular \(2 de 4\)/)).toBeDefined();
+    expect(parts()).toEqual(["create-strength-line", "create-hint"]);
+    expect(block()?.querySelector("meter")?.getAttribute("aria-hidden")).toBe("false");
+
+    // Emptied again: still there, empty.
+    fireEvent.input(passwordField(), { target: { value: "" } });
+    await waitFor(() => {
+      expect(block()?.textContent).toBe("");
+    });
+    expect(parts()).toEqual(["create-strength-line", "create-hint"]);
+  });
+
   it("RF-7: con puntaje 2 avisa sin llamarla débil (no contradice «regular»)", async () => {
     await openCreate({ strength: () => 2 });
 
