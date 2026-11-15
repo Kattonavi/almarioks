@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-labelledby="t">
+  <title id="t">AlmarioKS, sin placa (solo sobre negro de señal u otros fondos oscuros)</title>
+  <path fill="#6AA5FF" d="M0 192h320v128H0zM704 192h320v128H704z"/>
+  <path fill="#F26A1B" d="M0 448h320v128H0zM704 448h320v128H704z"/>
+  <path fill="#F2B705" d="M0 704h320v128H0zM704 704h320v128H704z"/>
+  <rect x="384" y="64" width="256" height="896" rx="128" fill="#FFFFFF"/>
+</svg>

@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-vault-retry-save"
+description = "Enables the vault_retry_save command without any pre-configured scope."
+commands.allow = ["vault_retry_save"]
+
+[[permission]]
+identifier = "deny-vault-retry-save"
+description = "Denies the vault_retry_save command without any pre-configured scope."
+commands.deny = ["vault_retry_save"]

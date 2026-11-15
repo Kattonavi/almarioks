@@ -3,7 +3,7 @@ resolver = "3"
 members = ["crates/*", "src-tauri"]
 
 [workspace.package]
-version = "0.0.2"
+version = "0.1.0"
 edition = "2024"
 # Minimum required by tauri 2.12 (keepass 0.17 needs 1.89). Raised on purpose, never by accident.
 rust-version = "1.90"
@@ -14,9 +14,35 @@ publish = false
 [workspace.dependencies]
 almarioks-core = { path = "crates/almarioks-core" }
 keepass = { version = "=0.17.0", features = ["save_kdbx4"] }
+# Errors and secrets of the core.
+thiserror = "=2.0.21"
+secrecy = "=0.10.3"
+zeroize = "=1.9.1"
+# Used ONLY inside `almarioks-core::kdbx` (constitution rule 4). All four are already in the dependency tree of
+# `keepass` 0.17.0 at these exact versions (`cargo tree -p almarioks-core`), so they add no new code to audit:
+# - sha2: the 4-byte `Hash` of a `.keyx` v2 key file (KeePass format), never for the vault crypto itself.
+# - getrandom: the 32 random bytes of a new `.keyx` from the operating system's generator. The password
+#   generator (`generator`, RF-69) also uses it: one OS source, no second one.
+# - hex: the hexadecimal text of a `.keyx` v2.
+# - quick-xml: read a key file exactly like `keepass` does, to validate the `.keyx` v2 hash it does not check.
+sha2 = "=0.11.1"
+getrandom = "=0.4.3"
+hex = "=0.4.3"
+quick-xml = "=0.42.0"
+# Password strength 0 to 4 (RF-7, RF-70). No default features: no clock or WebAssembly dependencies (lab P5).
+zxcvbn = { version = "=3.1.1", default-features = false }
+# Settings file (RF-82): read field by field as `Value`, so one bad field never discards the others.
+serde_json = "=1.0.154"
+# sha2 is also the content fingerprint of `almarioks-core::storage` (RF-24): a SHA-256 of bytes already encrypted,
+# to notice that another app rewrote the file. It is not vault crypto and protects nothing (constitution rule 4).
+# Domain types of the core (T5). uuid and chrono are already in the tree of `keepass` 0.17.0 at these versions;
+# unicode-normalization is new (NFKD to fold text, spec "Definiciones"): (MIT OR Apache-2.0) AND Unicode-3.0.
+uuid = { version = "=1.29.2", default-features = false, features = ["std"] }
+chrono = { version = "=0.4.45", default-features = false, features = ["std"] }
+unicode-normalization = { version = "=0.1.26", default-features = false, features = ["std"] }
 
 [workspace.lints.rust]
-unsafe_code = "forbid"         # only an `ffi` module may lower it, block by block
+unsafe_code = "deny"           # only the two `ffi.rs` of `src-tauri` (clipboard, webview) allow it; the other crates `forbid` it in their roots
 
 [workspace.lints.clippy]
 unwrap_used = "deny"
@@ -28,6 +54,11 @@ cast_sign_loss = "deny"
 float_arithmetic = "warn"
 dbg_macro = "deny"
 todo = "warn"
+
+# The KDF crate is 7-8x slower without optimizations (docs/lab/boveda-0.1, P4 b): `pnpm tauri dev` and the tests
+# would wait seconds per unlock and calibrate a weaker KDF. Only this crate is optimized in debug.
+[profile.dev.package.rust-argon2]
+opt-level = 3
 
 [profile.release]
 lto = "thin"

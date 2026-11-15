@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-group-delete-preview"
+description = "Enables the group_delete_preview command without any pre-configured scope."
+commands.allow = ["group_delete_preview"]
+
+[[permission]]
+identifier = "deny-group-delete-preview"
+description = "Denies the group_delete_preview command without any pre-configured scope."
+commands.deny = ["group_delete_preview"]

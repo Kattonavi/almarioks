@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>AlmarioKS · Señalética</title>
+<link href="https://fonts.googleapis.com/css2?family=Overpass:wght@400;600;800&family=Overpass+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root{--sign:#16181D;--sign2:#23262E;--ground:#F6F6F3;--paper:#FFFFFF;--ink:#16181D;--ink2:#565B66;--rule:#DDDDD6;
+--l-personal:#6AA5FF;--l-trabajo:#F26A1B;--l-bancos:#1E9E6A;--l-compras:#F2B705;--danger:#D7263D;--ok:#157A52}
+*{box-sizing:border-box;margin:0}
+body{width:1440px;height:900px;overflow:hidden;font:400 15px/1.45 Overpass,sans-serif;color:var(--ink);background:var(--ground);display:grid;grid-template-columns:272px 456px 1fr;grid-template-rows:64px 1fr}
+::selection{background:var(--l-compras);color:var(--sign)}
+svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex:none}
+button{font:600 14px Overpass,sans-serif;border:0;border-radius:4px;padding:9px 14px;display:inline-flex;gap:8px;align-items:center;cursor:pointer}
+.bullet{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;font:800 13px Overpass;color:var(--sign);flex:none}
+.b-p{background:var(--l-personal)}.b-t{background:var(--l-trabajo)}.b-b{background:var(--l-bancos)}.b-c{background:var(--l-compras)}.b-x{background:#C9CEDB}
+/* shell */
+header{grid-column:1/-1;background:var(--sign);color:#fff;display:flex;align-items:center;gap:20px;padding:0 20px}
+.brand{font:800 20px Overpass;letter-spacing:.01em;width:232px}
+.brand span{color:var(--l-compras)}
+.search{flex:1;max-width:560px;background:var(--sign2);border-radius:4px;display:flex;align-items:center;gap:10px;padding:10px 14px;color:#E8EAF2}
+.search kbd{margin-left:auto;font:600 12px Overpass Mono;border:1px solid #4A4E58;border-radius:3px;padding:1px 6px}
+.lockin{margin-left:auto;font:400 13px Overpass Mono;color:#E8EAF2}
+.btn-lock{background:#fff;color:var(--sign)}
+nav{background:var(--sign);color:#fff;padding:18px 12px;border-top:1px solid var(--sign2)}
+nav h2{font:600 12px Overpass;color:#C3CAE0;padding:0 10px 10px}
+nav a{display:flex;align-items:center;gap:12px;padding:9px 10px;border-radius:4px;color:#E9EAED;text-decoration:none;font-weight:600}
+nav a.on{background:#fff;color:var(--sign)}
+nav a small{margin-left:auto;font:400 13px Overpass Mono;color:inherit;opacity:.7}
+nav a.sub{padding-left:48px;font-weight:400}
+nav .file{position:absolute;left:12px;bottom:16px;width:248px;font:400 12px/1.5 Overpass Mono;color:#C3CAE0;padding:0 10px}
+/* list */
+.list{background:var(--paper);border-right:1px solid var(--rule);overflow:hidden}
+.list-head{display:flex;align-items:center;gap:14px;padding:22px 24px 16px}
+.list-head h1{font:800 30px/1 Overpass}
+.list-head p{color:var(--ink2);font-size:14px}
+.btn-new{margin-left:auto;background:var(--sign);color:#fff}
+.row{display:grid;grid-template-columns:26px 1fr auto;gap:14px;align-items:center;padding:9px 24px;border-top:1px solid var(--rule)}
+.row b{display:block;font-weight:600}
+.row div span{color:var(--ink2);font-size:13px}
+.row time{font:400 12px Overpass Mono;color:var(--ink2)}
+.row.on{background:var(--sign);color:#fff;border-color:var(--sign)}
+.row.on div span,.row.on time{color:#E8EAF2}
+.stamp{font:600 11px Overpass Mono;border:1.5px solid var(--ok);color:var(--ok);border-radius:3px;padding:2px 7px;transform:rotate(-2deg)}
+/* detail */
+main{padding:26px 40px;overflow:hidden}
+.route{display:flex;align-items:center;font:600 13px Overpass;color:var(--ink2);margin-bottom:22px}
+.route i{width:14px;height:14px;border-radius:50%;border:3px solid var(--l-trabajo);background:#fff}
+.route em{font-style:normal;margin:0 10px}
+.route u{width:56px;height:4px;background:var(--l-trabajo);text-decoration:none;margin-right:10px}
+main h1{font:800 44px/1.05 Overpass;letter-spacing:-.01em;margin-bottom:6px}
+.meta{color:var(--ink2);margin-bottom:26px}
+dl{display:grid;grid-template-columns:120px minmax(0,1fr) auto;border-top:2px solid var(--sign)}
+dt,dd{padding:16px 0;border-bottom:1px solid var(--rule);display:flex;align-items:center;gap:10px}
+dt{font:600 13px Overpass;color:var(--ink2)}
+dd{font-size:16px}
+dd.act{gap:6px}
+.ghost{background:transparent;color:var(--ink);border:1px solid var(--rule);padding:7px 10px}
+.mask{width:208px;height:14px;border-radius:2px;background:repeating-linear-gradient(90deg,var(--sign) 0 9px,transparent 9px 13px)}
+.meter{display:flex;gap:3px}
+.meter i{width:34px;height:10px;background:repeating-linear-gradient(135deg,var(--ok) 0 4px,#9FD3BC 4px 6px)}
+.tag{font:600 12px Overpass;border:1px solid var(--ink2);border-radius:3px;padding:2px 8px}
+.notes{margin-top:22px;max-width:60ch;color:var(--ink2)}
+.foot{display:flex;gap:10px;margin-top:28px}
+.btn-danger{background:transparent;color:var(--danger);border:1px solid var(--danger)}
+</style>
+</head>
+<body>
+<svg style="display:none"><symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></symbol><symbol id="i-copy" viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="1.5"/><path d="M5 15V5h10"/></symbol><symbol id="i-eye" viewBox="0 0 24 24"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></symbol><symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="9" rx="1.5"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></symbol><symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol></svg>
+<header>
+  <div class="brand">Almario<span>KS</span></div>
+  <div class="search"><svg><use href="#i-search"/></svg>Buscar en todas las cuentas<kbd>Ctrl K</kbd></div>
+  <div class="lockin">Se bloquea en 4:12</div>
+  <button class="btn-lock"><svg><use href="#i-lock"/></svg>Bloquear</button>
+</header>
+<nav>
+  <h2>Grupos de cuentas.kdbx</h2>
+  <a href="#"><span class="bullet b-p">P</span>Personal<small>12</small></a>
+  <a href="#" class="on"><span class="bullet b-t">T</span>Trabajo<small>8</small></a>
+  <a href="#" class="sub">Clientes<small>5</small></a>
+  <a href="#"><span class="bullet b-b">B</span>Bancos<small>4</small></a>
+  <a href="#"><span class="bullet b-c">C</span>Compras<small>9</small></a>
+  <a href="#"><span class="bullet b-x">×</span>Papelera<small>2</small></a>
+  <div class="file">Guardado hace 2 min<br>Respaldo: cuentas.kdbx.bak</div>
+</nav>
+<section class="list">
+  <div class="list-head"><span class="bullet b-t">T</span><div><h1>Trabajo</h1><p>8 cuentas · 1 subgrupo</p></div><button class="btn-new"><svg><use href="#i-plus"/></svg>Nueva cuenta</button></div>
+  <div class="row"><span class="bullet b-t">T</span><div><b>Correo de la oficina</b><span>sara@example.com</span></div><time>ayer</time></div>
+  <div class="row"><span class="bullet b-t">T</span><div><b>Figma</b><span>sara@example.com</span></div><time>12 oct</time></div>
+  <div class="row on"><span class="bullet b-t">T</span><div><b>GitHub</b><span>sara@example.com · github.com</span></div><time>hace 3 días</time></div>
+  <div class="row"><span class="bullet b-t">T</span><div><b>Jira</b><span>sara.g</span></div><time>3 sep</time></div>
+  <div class="row"><span class="bullet b-t">T</span><div><b>Nómina</b><span>1032456789</span></div><span class="stamp">COPIADO · 14 s</span></div>
+  <div class="row"><span class="bullet b-t">T</span><div><b>Railway</b><span>sara@example.com</span></div><time>28 ago</time></div>
+  <div class="row"><span class="bullet b-t">T</span><div><b>Slack</b><span>sara@example.com</span></div><time>15 ago</time></div>
+  <div class="row"><span class="bullet b-t">T</span><div><b>VPN de la oficina</b><span>sgomez</span></div><time>2 jul</time></div>
+</section>
+<main>
+  <div class="route"><i></i><em>cuentas.kdbx</em><u></u><i></i><em style="color:var(--ink)">Trabajo</em></div>
+  <h1>GitHub</h1>
+  <p class="meta">Modificada hace 3 días · 3 versiones anteriores</p>
+  <dl>
+    <dt>Usuario</dt><dd>sara@example.com</dd><dd class="act"><button class="ghost"><svg><use href="#i-copy"/></svg>Copiar</button></dd>
+    <dt>Contraseña</dt><dd><span class="mask" aria-label="Contraseña oculta"></span></dd><dd class="act"><button class="ghost"><svg><use href="#i-eye"/></svg>Mostrar</button><button style="background:var(--sign);color:#fff"><svg><use href="#i-copy"/></svg>Copiar</button></dd>
+    <dt>Fortaleza</dt><dd><span class="meter"><i></i><i></i><i></i><i></i></span>Fuerte · 4 de 4</dd><dd></dd>
+    <dt>Dirección</dt><dd>https://github.com</dd><dd class="act"><button class="ghost">Abrir</button></dd>
+    <dt>Etiquetas</dt><dd><span class="tag">código</span><span class="tag">trabajo</span></dd><dd></dd>
+  </dl>
+  <p class="notes">Cuenta de la organización. Renovar el token de acceso en enero.</p>
+  <div class="foot"><button class="ghost">Editar</button><button class="ghost">Mover a otro grupo</button><button class="btn-danger">Enviar a la papelera</button></div>
+</main>
+</body>
+</html>

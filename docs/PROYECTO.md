@@ -95,7 +95,7 @@ desinstalar.
 ## Specs
 | # | Feature | Spec | Estado |
 |---|---|---|---|
-| 001 | Bóveda (0.1) | `docs/specs/001-boveda/spec.md` | se escribe al empezar la 0.1 |
+| 001 | Bóveda (0.1) | `docs/specs/001-boveda/spec.md` | borrador revisado y construido (2026-11-11); decisiones por confirmar en la propia spec |
 | 002 | Navegador (0.2) | `docs/specs/002-navegador/spec.md` | se escribe al empezar la 0.2 |
 | 003 | Importar CSV e idiomas (1.0) | `docs/specs/003-importar-idiomas/spec.md` | se escribe al empezar la 1.0 |
 
@@ -104,6 +104,7 @@ desinstalar.
 |---|---|---|---|
 | Antes del plan | Contexto, lab 19 (KDBX sin pérdida), base de documentos, 5 ADR, arquitectura y modelo de amenazas | C++ Build Tools para empezar el H0 | ~0,5 h de reloj (09:15 a 09:45) más ~23 min de dos agentes en paralelo; cuenta dentro del H0 |
 | H0 (cumplido en lo técnico, 2026-11-11) | Esqueleto Tauri con CSP y capacidades mínimas; núcleo con ida y vuelta KDBX (KeePass 2 y KeePassXC); actualizador con permiso; CI; `release.yml` en dos trabajos; entorno y etiquetas protegidos; **`v0.0.1` y `v0.0.2` publicadas por CI** y actualización real 0.0.1 → 0.0.2 desde GitHub (`docs/H0-EVIDENCIA.md`) | Probar con un usuario estándar de Windows; solicitud a SignPath; puertas de la 1.0 del dueño (`docs/RELEASE.md`) | ~3,6 h de reloj / 8 h |
+| 0.1 · Bóveda (construida la noche del 2026-11-11; pendiente de publicar) | Spec 001 con 95 requisitos; núcleo completo (abrir, crear, entradas, grupos, papelera, búsqueda, generador, guardado atómico, sesión y bloqueo); comandos de Tauri con prueba de canario; portapapeles fuera de Win+V; interfaz completa con la dirección "Señalética" y marca; 420 pruebas Rust y 247 de interfaz; cinco corridas de prueba en la ventana real (la última con el instalador de release) con la matriz de completitud en verde y la superficie de navegador cerrada; revisiones de código, seguridad y diseño (`docs/revisiones/0.1-*.md`); versión 0.1.0 | Fusionar el PR, etiquetar `v0.1.0` y aprobar el release (dueño) · KeePassXC, Win+V y usuario estándar (dueño) · 3 puntos abiertos de diseño · confirmar las decisiones de la spec · historial, adjuntos y bloqueo de sesión recortados | ~9 h de reloj / 16 h |
 
 ## Stack (según estandares/decisiones-stack.md → "Rust")
 | Capa | Elección | Por qué / desviación |

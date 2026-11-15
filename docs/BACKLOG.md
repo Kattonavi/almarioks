@@ -15,3 +15,44 @@ Lo que no cabe en la fase va aquí, un renglón por ítem: `- [origen] qué · s
 - [revisión H0, S3] El consentimiento de actualizar vive solo en la interfaz: al pintar contenido ajeno en la 0.1, revisar W1 (un script en la ventana podría instalar una actualización firmada sin clic) · Bajo hoy, revisar en la spec 001
 - [visión] Significado público de "KS" · Bajo
 - [base] Agregar al `.gitignore` los ajustes locales de Claude Code cuando el proyecto tenga carpeta `.claude/` · Bajo
+- [0.1, T9] Cada cambio confirmado vuelve a derivar la llave al cifrar (~1 s en una bóveda calibrada; medido 53 ms con 64 MiB e I = 2) y las lecturas esperan detrás: sacar el cifrado de la hebra de la orden o reutilizar la llave derivada si la librería lo permite · Alto para la experiencia; revisar antes de la 1.0
+- [0.1, T9] `lock()` y `close()` pueden tardar hasta 5 s escribiendo la recuperación aunque el estado ya sea bloqueado: la app los llama fuera de la hebra de la ventana · Medio
+- [0.1, T9] Casos que hoy responden `Ocupada` o `ArgumentoInvalido` por falta de código propio (desbloquear con una bóveda abierta, guardado anterior aún en el disco, recuperación en curso) · Bajo: decidir códigos en la 0.2
+- [0.1, T6] La poda del historial por tamaño (`HistoryMaxSize`) usa una estimación no contrastada con KeePass y no cuenta adjuntos; las bóvedas nuevas llevan 10 versiones y 6 MiB sin verificar que sean los valores de KeePass · Medio
+- [0.1, T15] En CI las pruebas reales del portapapeles se saltan si el runner no tiene estación de ventana y nextest las muestra como aprobadas: agregar `--success-output final` a ese paso · Medio
+- [0.1, T15] Sincronización del portapapeles con la nube sin verificar (estaba apagada en el PC de pruebas) · Medio: prueba manual de la 1.0
+- [0.1, lab] `zxcvbn` da 4 de 4 a contraseñas de 11 caracteres con sustituciones conocidas: el aviso de contraseña maestra débil (< 3) casi nunca salta. Decide el dueño si se sube el umbral · Medio
+- [0.1] KDBX 4.0 sin fixture propia: todas las de prueba son 4.1 · Bajo
+- [0.1, RF-37] Bloqueo inmediato al bloquear la sesión de Windows: recortable no hecho; el bloqueo por tiempo real sí cubre la suspensión · Medio
+- [revisión 0.1, S-2] Contención tras un XSS: límite por minuto a `entry_reveal`, aceptar rutas solo si las devolvió un diálogo `pick_*` o están en recientes (y rechazar rutas UNC fuera de ese conjunto), confirmación nativa con el host antes de `entry_open_url`. Hoy no hay sumidero de XSS conocido · Medio: primer día de la 0.2, cuando entren datos de páginas web
+- [revisión 0.1, S-4] Las rutas llegan como texto: oráculo de existencia y de formato de archivos, y `P.tmp`/`P.bak` ajenos pueden pisarse al guardar junto a una ruta elegida por un script · Bajo: lo cierra el punto de rutas de S-2
+- [revisión 0.1, S-5] Carrera de microsegundos en el portapapeles: una copia que responde justo al vencer la espera queda sin plazo de limpieza · Bajo
+- [revisión 0.1, S-6] La prueba del canario solo escucha los dos eventos conocidos: contar los `emit(` de `src-tauri/src` o registrar todo lo emitido · Bajo
+- [revisión 0.1, S-7] `password_strength` no acota la longitud antes de `zxcvbn`: puntuar solo los primeros 256 caracteres · Bajo
+- [revisión 0.1, S-8] La construcción de la llave (lector de archivos llave de la librería) corre fuera del cierre protegido: un pánico ahí dejaría la sesión en `Deriving` · Bajo
+- [revisión 0.1, S-9] Nada vigila el hilo del latido del bloqueo por inactividad: `catch_unwind` alrededor de cada evaluación · Bajo
+- [revisión 0.1, I-1 a I-7] La cota de ~1 s por derivación vale solo para bóvedas creadas aquí; medir lo que queda en memoria sin borrar (cuerpos JSON de las peticiones) en la 1.0; excluir la app de WER y gancho de pánico propio; compilar `clipboard::ffi::probe` solo en pruebas; decir en la ayuda que un gestor de portapapeles que reescriba el contenido lo vuelve ajeno · Info
+- [spec 001] Patrón Isolation de Tauri (en Windows su app no carga módulos ES: evaluar de nuevo en la 1.0) y fuzzing de la cabecera KDBX con `cargo fuzz` (E3-4, 1.0) · Medio
+- [revisión 0.1, I-7] Sin verificar: si el menú contextual y las teclas de navegador de WebView2 (recargar, imprimir, guardar página) quedan activos en release · Medio: mirar en la ventana de release
+- [revisión 0.1, M-2] Si un cambio de grupo se guarda lo decide la app comparando el árbol antes y después: un cambio futuro que no se vea en el árbol quedaría sin guardar · Medio: que el núcleo devuelva si cambió
+- [revisión 0.1, M-3] La regla de qué campo es protegido al copiar vive en la capa Tauri y no en el núcleo: moverla antes del anfitrión nativo de la 0.2 · Medio
+- [revisión 0.1, M-4] El núcleo falso de las pruebas de interfaz (`src/ipc/fake.ts`) puede divergir del real: una prueba de contrato que compare formas · Medio
+- [revisión 0.1, M-6] Dos pruebas de interfaz intermitentes bajo carga (RF-29 en `VaultRoot.test.tsx`, RF-23 en `OpenVault.test.tsx`): aserciones síncronas que no esperan al efecto · Medio
+- [QA 0.1] Arranque en frío con perfil nuevo de WebView2: 7 a 8 s la primera vez (130 a 190 ms las siguientes); sin medir en release · Medio
+- [QA 0.1] `ArchivoExiste` no dice si el archivo que ya existe es la bóveda o el archivo llave · Bajo
+- [diseño 0.1] Densidad compacta sin control ni verificación visual; fortaleza no visible en el detalle (el núcleo no la da sin revelar); fechas relativas; verde de confirmación y verde de línea comparten matiz · Bajo
+- [QA 0.1, D-9] Sin menú contextual no hay "Pegar" con clic derecho en los campos (Ctrl+V sí): evaluar un menú propio mínimo (cortar, copiar, pegar) · Medio
+- [0.1, D-9] Si la app no logra cerrar la superficie de navegador al arrancar, termina con un pánico sin mensaje visible (Tauri 2.12 no devuelve el error del gancho de arranque): pasar a `run_return` o mostrar un diálogo nativo · Medio
+- [0.1, D-9] En `pnpm tauri dev` ya no se pueden abrir las herramientas de desarrollo (menú y teclas apagados): decidir una excepción solo para depuración · Bajo
+- [QA 0.1] AltGr sin ejercitar en la ventana real (teclado en-US en el PC de pruebas); arrastrar y soltar un archivo sobre la ventana y zoom con Ctrl+rueda sin probar · Medio
+- [QA 0.1] Primer arranque con perfil nuevo de WebView2 en release: 3,7 a 4,9 s (meta 2 s; los siguientes 0,6 s) · Medio
+- [diseño 0.1] Tres puntos abiertos de la revisión final: lista en modo estrecho en la ventana por defecto, valores partidos a mitad de palabra a 800 × 600, riel a 480 × 360 (`docs/revisiones/0.1-diseno.md`) · Medio / Bajo / Bajo
+- [herramientas] El detector de Impeccable marca los bocetos de decisión (`.impeccable/mocks/decision/`, `docs/diseno/mocks/`) como fuera de `DESIGN.md`: excluir esas carpetas o borrar los no escogidos, a decisión del dueño · Bajo
+- [seguridad 0.1, R-2] La capa de la página decide por `event.key`: en una distribución de teclado no latina las letras no coincidirían; comparar también `event.code`, y cubrir Ctrl+Shift+G · Bajo
+- [seguridad 0.1, R-5] Si la renovación de los ajustes de WebView2 antes de la recarga del bloqueo falla, falla en silencio (no abre nada, pero no queda registro) · Info
+- [seguridad 0.1, R-6] La ventana no usa `contentProtected` (excluirla de capturas de pantalla): decidir con el dueño · Info
+- [seguridad 0.1, R-7] `isBrowserKey` lanza si un evento de teclado llega sin `key` (autocompletado de algunos IME) · Info
+- [0.1, R-4] El valor mostrado ya no se puede seleccionar: quien quiera copiar solo una parte de una contraseña no puede; evaluar si hace falta · Bajo
+- [QA 0.1] Un texto no protegido (título, usuario, notas) copiado con Ctrl+C desde la página sobrevive al bloqueo y no se limpia por tiempo (no entra al historial de Win+V): decidir si las notas merecen el trato de un valor protegido · Medio, para seguridad
+- [QA 0.1] Con un valor protegido mostrado, Ctrl+A + Ctrl+C no copia nada (tampoco el resto del texto): efecto del arreglo de R-4 · Bajo
+- [QA 0.1] Sin probar en la ventana real: arrastrar un valor mostrado hacia otra ventana y la contraseña candidata del generador · Bajo

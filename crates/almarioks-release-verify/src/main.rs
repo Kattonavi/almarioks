@@ -3,6 +3,8 @@
 //! Exit 0 only if the installer signature verifies against the pubkey of that tauri.conf.json and was
 //! made for exactly `<version>`. `release.yml` runs it before publishing.
 
+#![forbid(unsafe_code)]
+
 use std::{fs, process::ExitCode};
 
 use almarioks_release_verify::{pubkey_from_config, verify_release};

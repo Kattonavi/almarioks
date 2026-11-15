@@ -3,6 +3,8 @@
 //! `plugins.updater.pubkey` of the given `tauri.conf.json`, and its trusted comment must carry
 //! `version:<version>`. No Tauri, no network.
 
+#![forbid(unsafe_code)]
+
 use std::fmt;
 
 use base64::Engine;

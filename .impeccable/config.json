@@ -1,0 +1,26 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "overused-font",
+        "value": "*",
+        "files": [
+          ".impeccable/mocks/decision/canon.html"
+        ],
+        "createdAt": "2026-11-12T02:03:58.736Z",
+        "reason": "Sara: the canon card is the category standard played straight; Inter is what that category ships. Sketch for a decision round, not product UI."
+      },
+      {
+        "rule": "overused-font",
+        "value": "*",
+        "files": [
+          "docs/diseno/mocks/estandar.html"
+        ],
+        "createdAt": "2026-11-12T02:03:59.274Z",
+        "reason": "Sara: copy of the canon decision sketch; Inter is the category standard it documents. Not product UI."
+      }
+    ]
+  }
+}

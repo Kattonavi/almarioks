@@ -1,0 +1,959 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-12T07:06:57Z",
+  "title": "Design System: AlmarioKS",
+  "extensions": {
+    "colorMeta": {
+      "work-ground": {
+        "role": "neutral",
+        "displayName": "Fondo de trabajo",
+        "canonical": "#f6f6f3",
+        "tonalRamp": [
+          "#2a2a23",
+          "#494937",
+          "#66664c",
+          "#838362",
+          "#a8a88a",
+          "#c2c2ad",
+          "#dcdcd0",
+          "#f3f3f1"
+        ]
+      },
+      "surface": {
+        "role": "neutral",
+        "displayName": "Superficie",
+        "canonical": "#ffffff",
+        "tonalRamp": [
+          "#262626",
+          "#404040",
+          "#595959",
+          "#737373",
+          "#999999",
+          "#b8b8b8",
+          "#d6d6d6",
+          "#f2f2f2"
+        ]
+      },
+      "ink": {
+        "role": "neutral",
+        "displayName": "Tinta",
+        "canonical": "#16181d",
+        "tonalRamp": [
+          "#232529",
+          "#373c48",
+          "#4d5466",
+          "#636c82",
+          "#8b93a7",
+          "#aeb3c1",
+          "#d1d4dc",
+          "#f1f2f3"
+        ]
+      },
+      "ink-muted": {
+        "role": "neutral",
+        "displayName": "Tinta secundaria",
+        "canonical": "#565b66",
+        "tonalRamp": [
+          "#242628",
+          "#3a3e45",
+          "#525661",
+          "#696f7d",
+          "#9096a2",
+          "#b2b5be",
+          "#d3d5da",
+          "#f2f2f3"
+        ]
+      },
+      "rule": {
+        "role": "neutral",
+        "displayName": "Regla",
+        "canonical": "#ddddd6",
+        "tonalRamp": [
+          "#282824",
+          "#46463a",
+          "#626251",
+          "#7d7d68",
+          "#a3a38f",
+          "#bebeb1",
+          "#dadad2",
+          "#f3f3f2"
+        ]
+      },
+      "control-border": {
+        "role": "neutral",
+        "displayName": "Borde de control",
+        "canonical": "#868b95",
+        "tonalRamp": [
+          "#252628",
+          "#3c3e44",
+          "#53575f",
+          "#6b707a",
+          "#9297a0",
+          "#b3b6bc",
+          "#d4d5d9",
+          "#f2f2f3"
+        ]
+      },
+      "signal": {
+        "role": "neutral",
+        "displayName": "Negro de señal",
+        "canonical": "#16181d",
+        "tonalRamp": [
+          "#232529",
+          "#373c48",
+          "#4d5466",
+          "#636c82",
+          "#8b93a7",
+          "#aeb3c1",
+          "#d1d4dc",
+          "#f1f2f3"
+        ]
+      },
+      "signal-raised": {
+        "role": "neutral",
+        "displayName": "Señal elevada",
+        "canonical": "#23262e",
+        "tonalRamp": [
+          "#232529",
+          "#373c48",
+          "#4d5465",
+          "#636c82",
+          "#8b93a7",
+          "#aeb3c1",
+          "#d1d4dc",
+          "#f1f2f3"
+        ]
+      },
+      "signal-rule": {
+        "role": "neutral",
+        "displayName": "Regla de señal",
+        "canonical": "#2e323b",
+        "tonalRamp": [
+          "#232529",
+          "#383d48",
+          "#4e5564",
+          "#656d81",
+          "#8c94a6",
+          "#afb4c0",
+          "#d1d4db",
+          "#f1f2f3"
+        ]
+      },
+      "signal-border": {
+        "role": "neutral",
+        "displayName": "Borde de señal",
+        "canonical": "#6b7280",
+        "tonalRamp": [
+          "#242628",
+          "#3a3e45",
+          "#515761",
+          "#686f7d",
+          "#9096a2",
+          "#b1b5be",
+          "#d3d5da",
+          "#f2f2f3"
+        ]
+      },
+      "on-signal": {
+        "role": "neutral",
+        "displayName": "Texto sobre señal",
+        "canonical": "#ffffff",
+        "tonalRamp": [
+          "#262626",
+          "#404040",
+          "#595959",
+          "#737373",
+          "#999999",
+          "#b8b8b8",
+          "#d6d6d6",
+          "#f2f2f2"
+        ]
+      },
+      "on-signal-muted": {
+        "role": "neutral",
+        "displayName": "Texto secundario sobre señal",
+        "canonical": "#c3cae0",
+        "tonalRamp": [
+          "#1f222e",
+          "#2b3554",
+          "#3d4b76",
+          "#4e6097",
+          "#7888ba",
+          "#a1acce",
+          "#c9cfe3",
+          "#f0f1f5"
+        ]
+      },
+      "signal-panel": {
+        "role": "primary",
+        "displayName": "Placa de señal",
+        "canonical": "#ffffff",
+        "tonalRamp": [
+          "#262626",
+          "#404040",
+          "#595959",
+          "#737373",
+          "#999999",
+          "#b8b8b8",
+          "#d6d6d6",
+          "#f2f2f2"
+        ]
+      },
+      "signal-panel-hover": {
+        "role": "neutral",
+        "displayName": "Placa de señal (puntero)",
+        "canonical": "#dcdcd6",
+        "tonalRamp": [
+          "#282824",
+          "#45453b",
+          "#606052",
+          "#7c7c6a",
+          "#a1a191",
+          "#bdbdb2",
+          "#d9d9d3",
+          "#f3f3f2"
+        ]
+      },
+      "on-signal-panel": {
+        "role": "neutral",
+        "displayName": "Texto de placa",
+        "canonical": "#16181d",
+        "tonalRamp": [
+          "#232529",
+          "#373c48",
+          "#4d5466",
+          "#636c82",
+          "#8b93a7",
+          "#aeb3c1",
+          "#d1d4dc",
+          "#f1f2f3"
+        ]
+      },
+      "panel": {
+        "role": "primary",
+        "displayName": "Panel de señal",
+        "canonical": "#16181d",
+        "tonalRamp": [
+          "#232529",
+          "#373c48",
+          "#4d5466",
+          "#636c82",
+          "#8b93a7",
+          "#aeb3c1",
+          "#d1d4dc",
+          "#f1f2f3"
+        ]
+      },
+      "panel-hover": {
+        "role": "neutral",
+        "displayName": "Panel (puntero)",
+        "canonical": "#2a2d35",
+        "tonalRamp": [
+          "#242529",
+          "#383c47",
+          "#4f5564",
+          "#656d80",
+          "#8d94a5",
+          "#afb4c0",
+          "#d1d4db",
+          "#f1f2f3"
+        ]
+      },
+      "on-panel": {
+        "role": "neutral",
+        "displayName": "Texto de panel",
+        "canonical": "#ffffff",
+        "tonalRamp": [
+          "#262626",
+          "#404040",
+          "#595959",
+          "#737373",
+          "#999999",
+          "#b8b8b8",
+          "#d6d6d6",
+          "#f2f2f2"
+        ]
+      },
+      "on-panel-muted": {
+        "role": "neutral",
+        "displayName": "Texto secundario de panel",
+        "canonical": "#c3cae0",
+        "tonalRamp": [
+          "#1f222e",
+          "#2b3554",
+          "#3d4b76",
+          "#4e6097",
+          "#7888ba",
+          "#a1acce",
+          "#c9cfe3",
+          "#f0f1f5"
+        ]
+      },
+      "danger": {
+        "role": "tertiary",
+        "displayName": "Peligro",
+        "canonical": "#d7263d",
+        "tonalRamp": [
+          "#36161a",
+          "#6c131f",
+          "#981b2b",
+          "#c32237",
+          "#e05264",
+          "#ea8693",
+          "#f3bac1",
+          "#f8edee"
+        ]
+      },
+      "danger-on-signal": {
+        "role": "neutral",
+        "displayName": "Peligro sobre señal",
+        "canonical": "#ff7a85",
+        "tonalRamp": [
+          "#3d0f13",
+          "#80000b",
+          "#b2000f",
+          "#e60013",
+          "#ff3344",
+          "#ff707c",
+          "#ffadb4",
+          "#faebec"
+        ]
+      },
+      "on-danger": {
+        "role": "neutral",
+        "displayName": "Texto sobre peligro",
+        "canonical": "#ffffff",
+        "tonalRamp": [
+          "#262626",
+          "#404040",
+          "#595959",
+          "#737373",
+          "#999999",
+          "#b8b8b8",
+          "#d6d6d6",
+          "#f2f2f2"
+        ]
+      },
+      "confirmation": {
+        "role": "tertiary",
+        "displayName": "Confirmación",
+        "canonical": "#157a52",
+        "tonalRamp": [
+          "#16362a",
+          "#136d49",
+          "#1a9866",
+          "#22c484",
+          "#51e1a8",
+          "#85eac2",
+          "#b9f3dc",
+          "#edf8f3"
+        ]
+      },
+      "line-1": {
+        "role": "secondary",
+        "displayName": "Línea 1 azul",
+        "canonical": "#6aa5ff",
+        "tonalRamp": [
+          "#0f213d",
+          "#003280",
+          "#0047b2",
+          "#005be6",
+          "#3384ff",
+          "#70a9ff",
+          "#adceff",
+          "#ebf1fa"
+        ]
+      },
+      "line-2": {
+        "role": "secondary",
+        "displayName": "Línea 2 naranja",
+        "canonical": "#f26a1b",
+        "tonalRamp": [
+          "#3b2112",
+          "#793107",
+          "#a9440a",
+          "#d9580c",
+          "#f4813e",
+          "#f7a778",
+          "#fbcdb2",
+          "#f9f0eb"
+        ]
+      },
+      "line-3": {
+        "role": "secondary",
+        "displayName": "Línea 3 verde",
+        "canonical": "#1e9e6a",
+        "tonalRamp": [
+          "#173629",
+          "#146b48",
+          "#1c9665",
+          "#25c181",
+          "#54dea6",
+          "#87e8c1",
+          "#baf2db",
+          "#edf7f3"
+        ]
+      },
+      "line-4": {
+        "role": "secondary",
+        "displayName": "Línea 4 amarillo",
+        "canonical": "#f2b705",
+        "tonalRamp": [
+          "#3c3110",
+          "#7d5e03",
+          "#af8404",
+          "#e1aa05",
+          "#fbca37",
+          "#fcda73",
+          "#fdeaaf",
+          "#faf6eb"
+        ]
+      },
+      "line-neutral": {
+        "role": "secondary",
+        "displayName": "Neutro de línea (papelera)",
+        "canonical": "#c9cedb",
+        "tonalRamp": [
+          "#22242b",
+          "#333a4c",
+          "#47516b",
+          "#5c698a",
+          "#8590ad",
+          "#a9b1c6",
+          "#ced3de",
+          "#f1f2f4"
+        ]
+      },
+      "line-station": {
+        "role": "neutral",
+        "displayName": "Estación",
+        "canonical": "#ffffff",
+        "tonalRamp": [
+          "#262626",
+          "#404040",
+          "#595959",
+          "#737373",
+          "#999999",
+          "#b8b8b8",
+          "#d6d6d6",
+          "#f2f2f2"
+        ]
+      },
+      "on-line": {
+        "role": "neutral",
+        "displayName": "Texto sobre línea",
+        "canonical": "#16181d",
+        "tonalRamp": [
+          "#232529",
+          "#373c48",
+          "#4d5466",
+          "#636c82",
+          "#8b93a7",
+          "#aeb3c1",
+          "#d1d4dc",
+          "#f1f2f3"
+        ]
+      },
+      "dark-work-ground": {
+        "role": "neutral",
+        "displayName": "Tema oscuro: work-ground",
+        "canonical": "#191b21",
+        "tonalRamp": [
+          "#232529",
+          "#373b49",
+          "#4d5366",
+          "#636b83",
+          "#8b92a7",
+          "#aeb3c1",
+          "#d1d3dc",
+          "#f1f2f3"
+        ]
+      },
+      "dark-surface": {
+        "role": "neutral",
+        "displayName": "Tema oscuro: surface",
+        "canonical": "#20232a",
+        "tonalRamp": [
+          "#232529",
+          "#373c48",
+          "#4d5465",
+          "#636d82",
+          "#8b93a7",
+          "#aeb4c1",
+          "#d1d4dc",
+          "#f1f2f3"
+        ]
+      },
+      "dark-ink": {
+        "role": "neutral",
+        "displayName": "Tema oscuro: ink",
+        "canonical": "#f2f2ee",
+        "tonalRamp": [
+          "#292923",
+          "#484837",
+          "#65654d",
+          "#828263",
+          "#a7a78b",
+          "#c1c1ae",
+          "#dcdcd1",
+          "#f3f3f1"
+        ]
+      },
+      "dark-ink-muted": {
+        "role": "neutral",
+        "displayName": "Tema oscuro: ink-muted",
+        "canonical": "#a7adba",
+        "tonalRamp": [
+          "#232529",
+          "#383d47",
+          "#4e5564",
+          "#656e81",
+          "#8d94a5",
+          "#afb4c0",
+          "#d1d4db",
+          "#f1f2f3"
+        ]
+      },
+      "dark-rule": {
+        "role": "neutral",
+        "displayName": "Tema oscuro: rule",
+        "canonical": "#343842",
+        "tonalRamp": [
+          "#242529",
+          "#383d47",
+          "#4f5564",
+          "#656d80",
+          "#8d94a5",
+          "#afb4c0",
+          "#d1d4db",
+          "#f1f2f3"
+        ]
+      },
+      "dark-control-border": {
+        "role": "neutral",
+        "displayName": "Tema oscuro: control-border",
+        "canonical": "#6b7280",
+        "tonalRamp": [
+          "#242628",
+          "#3a3e45",
+          "#515761",
+          "#686f7d",
+          "#9096a2",
+          "#b1b5be",
+          "#d3d5da",
+          "#f2f2f3"
+        ]
+      },
+      "dark-signal": {
+        "role": "neutral",
+        "displayName": "Tema oscuro: signal",
+        "canonical": "#0c0d10",
+        "tonalRamp": [
+          "#23252a",
+          "#373b49",
+          "#4c5366",
+          "#626b83",
+          "#8a92a8",
+          "#adb2c2",
+          "#d0d3dc",
+          "#f1f2f3"
+        ]
+      },
+      "dark-signal-raised": {
+        "role": "neutral",
+        "displayName": "Tema oscuro: signal-raised",
+        "canonical": "#1c1f26",
+        "tonalRamp": [
+          "#23252a",
+          "#363c49",
+          "#4c5467",
+          "#616c84",
+          "#8a93a8",
+          "#adb3c2",
+          "#d0d4dc",
+          "#f1f2f3"
+        ]
+      },
+      "dark-signal-rule": {
+        "role": "neutral",
+        "displayName": "Tema oscuro: signal-rule",
+        "canonical": "#2a2d36",
+        "tonalRamp": [
+          "#232529",
+          "#383c48",
+          "#4e5464",
+          "#646c81",
+          "#8c93a6",
+          "#afb3c1",
+          "#d1d4db",
+          "#f1f2f3"
+        ]
+      },
+      "dark-panel": {
+        "role": "neutral",
+        "displayName": "Tema oscuro: panel",
+        "canonical": "#f2f2ee",
+        "tonalRamp": [
+          "#292923",
+          "#484837",
+          "#65654d",
+          "#828263",
+          "#a7a78b",
+          "#c1c1ae",
+          "#dcdcd1",
+          "#f3f3f1"
+        ]
+      },
+      "dark-panel-hover": {
+        "role": "neutral",
+        "displayName": "Tema oscuro: panel-hover",
+        "canonical": "#dcdcd6",
+        "tonalRamp": [
+          "#282824",
+          "#45453b",
+          "#606052",
+          "#7c7c6a",
+          "#a1a191",
+          "#bdbdb2",
+          "#d9d9d3",
+          "#f3f3f2"
+        ]
+      },
+      "dark-on-panel": {
+        "role": "neutral",
+        "displayName": "Tema oscuro: on-panel",
+        "canonical": "#16181d",
+        "tonalRamp": [
+          "#232529",
+          "#373c48",
+          "#4d5466",
+          "#636c82",
+          "#8b93a7",
+          "#aeb3c1",
+          "#d1d4dc",
+          "#f1f2f3"
+        ]
+      },
+      "dark-on-panel-muted": {
+        "role": "neutral",
+        "displayName": "Tema oscuro: on-panel-muted",
+        "canonical": "#4a4f59",
+        "tonalRamp": [
+          "#242628",
+          "#3a3e46",
+          "#515761",
+          "#686f7d",
+          "#9096a2",
+          "#b1b5be",
+          "#d2d5da",
+          "#f2f2f3"
+        ]
+      },
+      "dark-danger": {
+        "role": "neutral",
+        "displayName": "Tema oscuro: danger",
+        "canonical": "#ff7a85",
+        "tonalRamp": [
+          "#3d0f13",
+          "#80000b",
+          "#b2000f",
+          "#e60013",
+          "#ff3344",
+          "#ff707c",
+          "#ffadb4",
+          "#faebec"
+        ]
+      },
+      "dark-on-danger": {
+        "role": "neutral",
+        "displayName": "Tema oscuro: on-danger",
+        "canonical": "#16181d",
+        "tonalRamp": [
+          "#232529",
+          "#373c48",
+          "#4d5466",
+          "#636c82",
+          "#8b93a7",
+          "#aeb3c1",
+          "#d1d4dc",
+          "#f1f2f3"
+        ]
+      },
+      "dark-confirmation": {
+        "role": "neutral",
+        "displayName": "Tema oscuro: confirmation",
+        "canonical": "#4cc38a",
+        "tonalRamp": [
+          "#1b3227",
+          "#205f41",
+          "#2d865b",
+          "#3aac75",
+          "#66cc9b",
+          "#94dbb9",
+          "#c2ebd7",
+          "#eef6f2"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "entry-title": {
+        "displayName": "Título de entrada",
+        "purpose": "Título de la entrada en el detalle, 44 px."
+      },
+      "list-title": {
+        "displayName": "Título de lista",
+        "purpose": "Encabezado del grupo y de las pantallas de acceso."
+      },
+      "heading": {
+        "displayName": "Encabezado",
+        "purpose": "h1/h2 por defecto."
+      },
+      "title": {
+        "displayName": "Título",
+        "purpose": "h3/h4, diálogos, nombre de bóveda en el riel."
+      },
+      "body": {
+        "displayName": "Cuerpo",
+        "purpose": "Lectura general."
+      },
+      "control": {
+        "displayName": "Control",
+        "purpose": "Botones."
+      },
+      "label": {
+        "displayName": "Etiqueta",
+        "purpose": "Etiquetas de campo, sugerencias, inicial del distintivo."
+      },
+      "caption": {
+        "displayName": "Pie",
+        "purpose": "Estado, pie del riel."
+      },
+      "data": {
+        "displayName": "Dato",
+        "purpose": "Monoespaciada para fechas, conteos, secretos, rutas."
+      },
+      "stamp": {
+        "displayName": "Sello",
+        "purpose": "Estado 'copiado · N s' estampado en la fila."
+      }
+    },
+    "shadows": [
+      {
+        "name": "modal",
+        "value": "0 12px 32px rgb(22 24 29 / 22%)",
+        "purpose": "Única sombra: diálogo nativo abierto (oscuro: 0 12px 32px rgb(0 0 0 / 50%))."
+      },
+      {
+        "name": "error-ring",
+        "value": "inset 0 0 0 1px var(--danger)",
+        "purpose": "Anillo interior de un campo con problema."
+      }
+    ],
+    "motion": [
+      {
+        "name": "stamp-in",
+        "value": "180ms cubic-bezier(0.16, 1, 0.3, 1)",
+        "purpose": "El sello copiado entra con opacity y scale."
+      },
+      {
+        "name": "progress-march",
+        "value": "700ms linear infinite",
+        "purpose": "Progreso indeterminado; solo transform."
+      },
+      {
+        "name": "press",
+        "value": "translateY(1px)",
+        "purpose": "Pulsado de botón."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "narrow-window",
+        "value": "max-width 719px (una zona a la vez, riel de 56px)"
+      },
+      {
+        "name": "default-window-and-below",
+        "value": "max-width 1099px (riel de 208px)"
+      },
+      {
+        "name": "mid-window",
+        "value": "1100px a 1289px (lista 2fr / detalle 3fr)"
+      },
+      {
+        "name": "wide-window",
+        "value": "min-width 1290px (lista fija de 456px)"
+      },
+      {
+        "name": "short-window",
+        "value": "max-height 480px (barra 48px, filas 32px)"
+      },
+      {
+        "name": "container-list",
+        "value": "max-width 22rem"
+      },
+      {
+        "name": "container-detail-title",
+        "value": "max-width 25rem"
+      },
+      {
+        "name": "container-detail-fields",
+        "value": "max-width 30rem"
+      },
+      {
+        "name": "container-banner",
+        "value": "max-width 46rem"
+      },
+      {
+        "name": "window-default",
+        "value": "1120 x 720 (minimo 480 x 360)"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "custom",
+      "refersTo": "button-primary",
+      "description": "Acción principal del trabajo: Copiar.",
+      "html": "<button class=\"ds-btn-primary\">Copiar contraseña</button>",
+      "css": ".ds-btn-primary{font-family:'Overpass Variable','Segoe UI',system-ui,sans-serif;font-weight:600;font-size:.875rem;min-height:36px;padding:0 12px;color:#fff;background:#16181d;border:1px solid #16181d;border-radius:4px;cursor:pointer}.ds-btn-primary:hover{background:#2a2d35;border-color:#2a2d35}.ds-btn-primary:focus-visible{outline:3px solid #16181d;outline-offset:2px}.ds-btn-primary:active{transform:translateY(1px)}"
+    },
+    {
+      "name": "Neutral Button",
+      "kind": "custom",
+      "refersTo": "button-neutral",
+      "description": "Botón por defecto, silencioso.",
+      "html": "<button class=\"ds-btn\">Editar</button>",
+      "css": ".ds-btn{font-family:'Overpass Variable','Segoe UI',system-ui,sans-serif;font-weight:600;font-size:.875rem;min-height:36px;padding:0 12px;color:#16181d;background:transparent;border:1px solid #868b95;border-radius:4px;cursor:pointer}.ds-btn:hover{background:rgb(22 24 29 / 7%)}.ds-btn:focus-visible{outline:3px solid #16181d;outline-offset:2px}.ds-btn:active{transform:translateY(1px)}"
+    },
+    {
+      "name": "Danger Button",
+      "kind": "custom",
+      "refersTo": "button-danger",
+      "description": "Solo dentro de la papelera: Borrar definitivamente.",
+      "html": "<button class=\"ds-btn-danger\">Borrar definitivamente…</button>",
+      "css": ".ds-btn-danger{font-family:'Overpass Variable','Segoe UI',system-ui,sans-serif;font-weight:600;font-size:.875rem;min-height:36px;padding:0 12px;color:#d7263d;background:transparent;border:1px solid #d7263d;border-radius:4px;cursor:pointer}.ds-btn-danger:hover{color:#fff;background:#d7263d}.ds-btn-danger:focus-visible{outline:3px solid #16181d;outline-offset:2px}"
+    },
+    {
+      "name": "Text Input",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Campo de formulario sobre superficie.",
+      "html": "<input class=\"ds-input\" placeholder=\"Buscar\">",
+      "css": ".ds-input{font-family:'Overpass Variable','Segoe UI',system-ui,sans-serif;font-size:.9375rem;min-height:36px;padding:4px 12px;color:#16181d;background:#fff;border:1px solid #868b95;border-radius:4px}.ds-input:hover{border-color:#16181d}.ds-input:focus-visible{outline:3px solid #16181d;outline-offset:2px}"
+    },
+    {
+      "name": "Group Badge",
+      "kind": "chip",
+      "refersTo": "group-badge",
+      "description": "Distintivo redondo con la inicial del grupo en el color de su línea.",
+      "html": "<span class=\"ds-badge\">F</span> <span class=\"ds-badge ds-l2\">T</span> <span class=\"ds-badge ds-l3\">C</span> <span class=\"ds-badge ds-l4\">P</span>",
+      "css": ".ds-badge{display:inline-grid;place-items:center;width:26px;height:26px;border-radius:50%;font:800 .8125rem/1 'Overpass Variable',system-ui,sans-serif;color:#16181d;background:#6aa5ff}.ds-l2{background:#f26a1b}.ds-l3{background:#1e9e6a}.ds-l4{background:#f2b705}"
+    },
+    {
+      "name": "Entry Row (selected)",
+      "kind": "card",
+      "refersTo": "entry-row-selected",
+      "description": "Fila de lista seleccionada como panel de señal, con el sello de copiado.",
+      "html": "<div class=\"ds-row\"><span class=\"ds-b\">F</span><div><strong>Correo personal</strong><div class=\"ds-sub\">ana@example.com</div></div><span class=\"ds-stamp\"><span class=\"ds-w\">copiado</span> · 14 s</span></div>",
+      "css": ".ds-row{font-family:'Overpass Variable','Segoe UI',system-ui,sans-serif;position:relative;display:grid;grid-template-columns:1fr auto;align-items:center;gap:0 12px;padding:8px 24px 8px 62px;min-height:60px;color:#fff;background:#16181d}.ds-b{position:absolute;left:24px;top:50%;transform:translateY(-50%);display:grid;place-items:center;width:26px;height:26px;border-radius:50%;background:#6aa5ff;color:#16181d;font:800 .8125rem/1 sans-serif}.ds-sub{font-size:.8125rem;color:#c3cae0}.ds-stamp{font:600 .75rem/1.3 'Overpass Mono Variable',Consolas,monospace;letter-spacing:.04em;padding:2px 7px;color:#fff;border:1.5px solid currentColor;border-radius:3px;transform:rotate(-2deg)}.ds-w{text-transform:uppercase}"
+    },
+    {
+      "name": "Hidden Secret Field Row",
+      "kind": "custom",
+      "refersTo": "field-row",
+      "description": "Etiqueta | valor | acciones; el secreto oculto es una barra de ancho fijo.",
+      "html": "<div class=\"ds-field\"><span class=\"ds-dt\">Contraseña</span><span class=\"ds-mask\"></span><button class=\"ds-fbtn\">Copiar</button></div>",
+      "css": ".ds-field{font-family:'Overpass Variable','Segoe UI',system-ui,sans-serif;display:grid;grid-template-columns:7.5rem 1fr auto;column-gap:12px;align-items:center;min-height:56px;padding:8px 0;border-bottom:1px solid #ddddd6;color:#16181d}.ds-dt{font-size:.8125rem;font-weight:600;color:#565b66}.ds-mask{display:inline-block;width:156px;height:14px;border-radius:2px;background:repeating-linear-gradient(90deg,#16181d 0 9px,transparent 9px 13px)}.ds-fbtn{font:600 .875rem/1.2 sans-serif;min-height:36px;padding:0 12px;border:1px solid #868b95;border-radius:4px;background:transparent;color:#16181d}"
+    },
+    {
+      "name": "Strength Meter",
+      "kind": "custom",
+      "refersTo": "notice",
+      "description": "Tres tramas (alta, media, baja) siempre junto a su texto.",
+      "html": "<p class=\"ds-s\"><span class=\"ds-m ds-ok\"></span> Fortaleza: alta</p><p class=\"ds-s\"><span class=\"ds-m ds-mid\"></span> Fortaleza: media</p><p class=\"ds-s\"><span class=\"ds-m ds-low\"></span> Fortaleza: baja</p>",
+      "css": ".ds-s{font:.8125rem sans-serif;display:flex;gap:12px;align-items:center;margin:0 0 6px;color:#16181d}.ds-m{display:inline-block;width:9rem;height:12px;border:1px solid #868b95}.ds-ok{background:repeating-linear-gradient(135deg,#157a52 0 5px,transparent 5px 7px)}.ds-mid{background:repeating-linear-gradient(135deg,#16181d 0 2px,transparent 2px 7px)}.ds-low{background:repeating-linear-gradient(90deg,#d7263d 0 2px,transparent 2px 7px)}"
+    },
+    {
+      "name": "Notice Strip",
+      "kind": "custom",
+      "refersTo": "notice",
+      "description": "Franja de aviso con regla de peligro cuando informa un problema.",
+      "html": "<div class=\"ds-n\"><strong>No se pudo guardar</strong><p>El archivo no está disponible. Reintenta.</p></div>",
+      "css": ".ds-n{font-family:'Overpass Variable','Segoe UI',system-ui,sans-serif;padding:12px 16px;color:#16181d;background:#fff;border:1px solid #ddddd6;border-bottom:2px solid #d7263d}.ds-n p{margin:4px 0 0;font-size:.8125rem}"
+    },
+    {
+      "name": "Route as Stops",
+      "kind": "nav",
+      "refersTo": "group-badge",
+      "description": "Ruta del grupo dibujada como paradas unidas por un tramo del color de la línea.",
+      "html": "<ol class=\"ds-route\"><li>Bóveda</li><li>Trabajo</li></ol>",
+      "css": ".ds-route{display:flex;align-items:center;margin:0;padding:0;list-style:none;font:600 .8125rem sans-serif;color:#565b66}.ds-route li{display:flex;align-items:center}.ds-route li::before{content:'';width:14px;height:14px;margin-right:8px;background:#f26a1b;border:2px solid #16181d;border-radius:50%;box-sizing:border-box}.ds-route li:not(:last-child)::after{content:'';width:56px;height:4px;margin:0 8px;background:#f26a1b}.ds-route li:last-child{color:#16181d}"
+    }
+  ],
+  "narrative": {
+    "northStar": "La señalética del andén",
+    "overview": "**Creative North Star: \"La señalética del andén\"**\n\nAlmarioKS se dibuja como la señalización de una estación de transporte: un armazón negro de señal (barra superior y riel de grupos) que orienta, y un fondo de trabajo claro y neutro donde se lee. Cada grupo de la bóveda es una línea con su color; una cuenta se encuentra como se encuentra un andén. El mundo rechaza el arreglo por defecto de la categoría (barra lateral gris, un acento azul, candados).\n\nLa densidad es de herramienta de uso diario: filas de 44 px, tipografía de señalización (Overpass) con su monoespaciada solo para datos, bordes de 1 px y una sola regla gruesa (2 px, tinta) bajo los títulos de formularios y sobre la lista de campos. No hay sombras en reposo; la profundidad la da el contraste entre el panel de señal y el fondo. El gesto propio es el estado estampado en la fila (\"COPIADO · 14 s\"), que se queda mientras el portapapeles conserva el valor.\n\nEl sistema se verificó en la ventana por defecto (1120 × 720) y en 800 × 600 y 480 × 360 según las capturas de revisión; los huecos conocidos están al final.",
+    "keyCharacteristics": [
+      "Panel negro de señal para el armazón; panel de señal también dentro del trabajo (fila seleccionada, acción principal).",
+      "Cuatro colores de línea que solo nombran grupos; rojo solo para peligro; verde oscuro solo para confirmar.",
+      "Distintivo redondo con la inicial del grupo, texto oscuro sobre el color.",
+      "Datos (fechas, conteos, secretos, rutas de archivo) en monoespaciada; todo lo demás en Overpass.",
+      "Estado leído por palabras, trama o forma, nunca por color solo."
+    ],
+    "rules": [
+      {
+        "name": "The Line-Names-Groups Rule",
+        "body": "Un color de línea nombra un grupo y nada más: no es acento, ni estado, ni decoración. La asignación es determinista: los grupos de primer nivel toman las líneas 1 a 4 en orden de posición y vuelven a empezar al pasar de cuatro (el distintivo los distingue por su inicial); los subgrupos heredan la línea de su grupo de primer nivel y se dibujan con aro en lugar de relleno; la papelera es siempre neutra y no ocupa posición.",
+        "section": "colors"
+      },
+      {
+        "name": "The Red-Is-Danger Rule",
+        "body": "El rojo significa peligro y solo peligro; nunca es una línea. En reposo, enviar a la papelera y las acciones raras del riel se leen como acciones normales: se pintan rojas bajo el puntero, con foco y en su diálogo. El botón de peligro con borde rojo solo vive dentro de la papelera (\"Borrar definitivamente\").",
+        "section": "colors"
+      },
+      {
+        "name": "The One-Ink Name Rule",
+        "body": "El nombre de la marca va en una sola tinta (la del armazón), nunca partido en colores.",
+        "section": "colors"
+      },
+      {
+        "name": "The Dual-Theme AA Rule",
+        "body": "Cada par texto/fondo cumple contraste AA en claro y en oscuro (comprobado por cálculo al definir los tokens); un token nuevo se añade a los dos temas.",
+        "section": "colors"
+      },
+      {
+        "name": "The Mono-Only-For-Data Rule",
+        "body": "La monoespaciada es para datos que se leen carácter a carácter o se alinean dígito bajo dígito; nunca para títulos ni etiquetas.",
+        "section": "typography"
+      },
+      {
+        "name": "The Quiet-Weight Rule",
+        "body": "El peso 800 es para títulos y distintivos; los controles usan 600 y la lectura 400.",
+        "section": "typography"
+      },
+      {
+        "name": "The Flat-Until-Modal Rule",
+        "body": "Nada proyecta sombra salvo un diálogo nativo abierto. Sin sombras duras desplazadas ni brillos.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "**Do** nombrar cada grupo con su línea (distintivo, ruta) y tomar el color de `--line-N`; texto siempre `on-line`.",
+      "**Do** añadir cada rol nuevo a `tokens.css` y a `theme-dark.css`, y comprobar AA en ambos.",
+      "**Do** leer todo estado por palabra, trama o forma además de color (fortaleza, sello, avisos).",
+      "**Do** usar Overpass Mono solo para datos; iconos propios de un trazo (1.8) en `currentColor`.",
+      "**Do** mantener el CSS sin estilos en línea (CSP `style-src 'self'`): todo valor dinámico viaja por clases o atributos `data-*`.",
+      "**Do** mantener los destinos táctiles de 32 px como mínimo."
+    ],
+    "donts": [
+      "**Don't** usar un color de línea como acento, estado o decoración.",
+      "**Don't** usar rojo para nada que no sea peligro, ni dejar un botón rojo en reposo fuera de la papelera.",
+      "**Don't** dibujar candados, escudos ni llaves, ni escribir promesas como \"seguro\" o \"auditado\".",
+      "**Don't** partir el nombre de la marca en varios colores.",
+      "**Don't** usar la monoespaciada para títulos o etiquetas.",
+      "**Don't** dar sombra a nada fuera de un diálogo abierto.",
+      "**Don't** hacer de la acción destructiva la predeterminada de un diálogo."
+    ]
+  }
+}

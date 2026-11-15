@@ -1,5 +1,6 @@
 > **Versión de desarrollo: no la uses con tus contraseñas reales.**
-> Todavía no guarda contraseñas: las versiones 0.0.x solo prueban que la app se instala, abre, se actualiza y se desinstala.
+> Ya crea y abre bóvedas KDBX 4 y guarda entradas, pero sigue en pruebas: no lleva firma de Windows ni revisión externa.
+> Úsala con datos de prueba y guarda copia de cualquier archivo que abras con ella.
 
 **Instalar:** descarga el archivo `*-setup.exe`. Se instala solo para tu usuario y no pide administrador.
 

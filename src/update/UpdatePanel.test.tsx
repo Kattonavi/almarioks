@@ -44,8 +44,12 @@ function recordAnnouncements(): string[] {
 /** Any IPC that escapes the mocked plugin (for example a process restart) is recorded here. */
 let ipcCalls: string[] = [];
 
+/** Default `beforeInstall`: closing the vault succeeds. */
+const prepared = vi.fn(() => Promise.resolve());
+
 beforeEach(() => {
   ipcCalls = [];
+  prepared.mockImplementation(() => Promise.resolve());
   mockIPC((cmd) => {
     ipcCalls.push(cmd);
   });
@@ -63,7 +67,7 @@ function clickCheck() {
 
 describe("UpdatePanel (ADR-0003: update only with consent)", () => {
   it("ADR-0003: does not check for updates until the user clicks", () => {
-    render(<UpdatePanel />);
+    render(<UpdatePanel beforeInstall={prepared} />);
     expect(check).not.toHaveBeenCalled();
     expect(ipcCalls).toEqual([]);
   });
@@ -71,7 +75,7 @@ describe("UpdatePanel (ADR-0003: update only with consent)", () => {
   it("ADR-0003: check alone never downloads; it shows version and notes and waits", async () => {
     const { update, download } = fakeUpdate(() => Promise.resolve());
     check.mockResolvedValue(update);
-    render(<UpdatePanel />);
+    render(<UpdatePanel beforeInstall={prepared} />);
 
     clickCheck();
 
@@ -85,7 +89,7 @@ describe("UpdatePanel (ADR-0003: update only with consent)", () => {
   it('ADR-0003: "Ahora no" goes back without downloading', async () => {
     const { update, download } = fakeUpdate(() => Promise.resolve());
     check.mockResolvedValue(update);
-    render(<UpdatePanel />);
+    render(<UpdatePanel beforeInstall={prepared} />);
     clickCheck();
 
     fireEvent.click(await screen.findByRole("button", { name: "Ahora no" }));
@@ -96,7 +100,7 @@ describe("UpdatePanel (ADR-0003: update only with consent)", () => {
 
   it("says when the app is up to date", async () => {
     check.mockResolvedValue(null);
-    render(<UpdatePanel />);
+    render(<UpdatePanel beforeInstall={prepared} />);
     clickCheck();
 
     expect(await screen.findByText("Tienes la versión más reciente.")).toBeDefined();
@@ -113,7 +117,7 @@ describe("UpdatePanel (ADR-0003: update only with consent)", () => {
         }),
     );
     check.mockResolvedValue(update);
-    render(<UpdatePanel />);
+    render(<UpdatePanel beforeInstall={prepared} />);
     clickCheck();
 
     fireEvent.click(await screen.findByRole("button", { name: "Actualizar" }));
@@ -143,7 +147,7 @@ describe("UpdatePanel (ADR-0003: update only with consent)", () => {
         }),
     );
     check.mockResolvedValue(update);
-    render(<UpdatePanel />);
+    render(<UpdatePanel beforeInstall={prepared} />);
     clickCheck();
     fireEvent.click(await screen.findByRole("button", { name: "Actualizar" }));
 
@@ -160,7 +164,7 @@ describe("UpdatePanel (ADR-0003: update only with consent)", () => {
   it("AMENAZAS U1: an invalid signature shows the message, never claims it was verified, installs nothing and does not restart", async () => {
     const { update, install } = fakeUpdate(downloadThenReject("The signature verification failed"));
     check.mockResolvedValue(update);
-    render(<UpdatePanel />);
+    render(<UpdatePanel beforeInstall={prepared} />);
     clickCheck();
     const actualizar = await screen.findByRole("button", { name: "Actualizar" });
     const announced = recordAnnouncements();
@@ -182,7 +186,7 @@ describe("UpdatePanel (ADR-0003: update only with consent)", () => {
       downloadThenReject("The signature was created with a different key than the one provided"),
     );
     check.mockResolvedValue(update);
-    render(<UpdatePanel />);
+    render(<UpdatePanel beforeInstall={prepared} />);
     clickCheck();
     const actualizar = await screen.findByRole("button", { name: "Actualizar" });
     const announced = recordAnnouncements();
@@ -195,11 +199,82 @@ describe("UpdatePanel (ADR-0003: update only with consent)", () => {
     expect(install).not.toHaveBeenCalled();
   });
 
+  it("RF-75 RF-36 (C-1): the vault is closed after the verified download and before installing", async () => {
+    const order: string[] = [];
+    const { update, install } = fakeUpdate(() => {
+      order.push("download");
+      return Promise.resolve();
+    });
+    install.mockImplementation(() => {
+      order.push("install");
+      return Promise.resolve();
+    });
+    let release: (() => void) | undefined;
+    const beforeInstall = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          order.push("beforeInstall");
+          release = resolve;
+        }),
+    );
+    check.mockResolvedValue(update);
+    render(<UpdatePanel beforeInstall={beforeInstall} />);
+    clickCheck();
+    fireEvent.click(await screen.findByRole("button", { name: "Actualizar" }));
+
+    // It waits for the vault to close: nothing is installed meanwhile.
+    expect(await screen.findByText("Firma verificada. Cerrando la bóveda antes de instalar…")).toBeDefined();
+    expect(install).not.toHaveBeenCalled();
+
+    release?.();
+    expect(await screen.findByText(/Firma verificada\. Instalando/)).toBeDefined();
+    expect(order).toEqual(["download", "beforeInstall", "install"]);
+  });
+
+  it("RF-75 RF-36 (C-1): if the vault cannot be closed, nothing is installed and the message says what to do", async () => {
+    const { update, install } = fakeUpdate(() => Promise.resolve());
+    const beforeInstall = vi.fn(() => Promise.reject(new Error("CoreBusy")));
+    check.mockResolvedValue(update);
+    render(<UpdatePanel beforeInstall={beforeInstall} />);
+    clickCheck();
+    fireEvent.click(await screen.findByRole("button", { name: "Actualizar" }));
+
+    expect(await screen.findByText(/No se pudo cerrar la bóveda antes de actualizar; ciérrala con «Bloquear»/)).toBeDefined();
+    expect(beforeInstall).toHaveBeenCalledTimes(1);
+    expect(install).not.toHaveBeenCalled();
+    expect(screen.queryByText(/CoreBusy/)).toBeNull();
+    expect(screen.getByRole("button", { name: "Buscar actualizaciones" }).hasAttribute("disabled")).toBe(false);
+  });
+
+  it("RF-75 (C-1): a signature that fails verification never closes the vault", async () => {
+    const { update } = fakeUpdate(downloadThenReject("The signature verification failed"));
+    check.mockResolvedValue(update);
+    render(<UpdatePanel beforeInstall={prepared} />);
+    clickCheck();
+    fireEvent.click(await screen.findByRole("button", { name: "Actualizar" }));
+
+    expect(await screen.findByText(/La firma de la actualización no es válida/)).toBeDefined();
+    expect(prepared).not.toHaveBeenCalled();
+  });
+
+  it("RF-75 (C-1): if installing fails after the vault was closed, it asks to close and reopen AlmarioKS", async () => {
+    const { update, install } = fakeUpdate(() => Promise.resolve());
+    install.mockImplementation(() => Promise.reject(new Error("installer failed")));
+    check.mockResolvedValue(update);
+    render(<UpdatePanel beforeInstall={prepared} />);
+    clickCheck();
+    fireEvent.click(await screen.findByRole("button", { name: "Actualizar" }));
+
+    expect(await screen.findByText(/Cierra AlmarioKS y vuelve a abrirlo/)).toBeDefined();
+    expect(prepared).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText(/installer failed/)).toBeNull();
+  });
+
   it("without a connection it explains what happened and lets the user retry", async () => {
     check.mockRejectedValue(
       "error sending request for url (https://github.com/Kattonavi/almarioks/releases/latest/download/latest.json)",
     );
-    render(<UpdatePanel />);
+    render(<UpdatePanel beforeInstall={prepared} />);
     clickCheck();
 
     expect(await screen.findByText(/No hay conexión con el servidor de actualizaciones/)).toBeDefined();

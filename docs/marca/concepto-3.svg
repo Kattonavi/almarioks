@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-labelledby="t">
+  <title id="t">AlmarioKS, concepto 3: Distintivo</title>
+  <!-- Distintivo redondo de línea -->
+  <circle cx="512" cy="512" r="512" fill="#F2B705"/>
+  <!-- Inicial dibujada como forma, texto oscuro sobre el color -->
+  <path fill="#16181D" fill-rule="evenodd" d="M432 208H592L832 800H660L620 688H404L364 800H192ZM512 380L448 560H576Z"/>
+</svg>

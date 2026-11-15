@@ -14,7 +14,7 @@ No hay revisor experto de Rust equivalente a `dotnet-reviewer`: lo suyo lo cubre
 | E0-1 | `cargo clippy … -D warnings` y `cargo nextest run` sin errores; `pnpm typecheck` y `pnpm lint` | H0 | R | ✅ CI `verify` en el PR #1 (clippy `-D warnings`, 11 pruebas nextest, typecheck, lint, 10 pruebas Vitest) |
 | E0-2 | Versión única en `Cargo.toml` del workspace y `tauri.conf.json`; README con cómo compilar y ejecutar | H0 | R | ✅ versión en `[workspace.package]` + `package.json` (release.yml exige que coincidan); README → "Compilar" |
 | E0-3 | El instalador de `pnpm tauri build` corre en otra máquina | H0 | P | ✅ job `installer` de CI en runner limpio |
-| E0-4 | Logs locales rotados y sin secretos | 0.1 | R | pendiente |
+| E0-4 | Logs locales rotados y sin secretos | 0.1 | R | ➖ no aplica aún: la app no escribe registros (sin `println!`, sin crate de logs; revisión de seguridad, I-3). Se decide en la 1.0 junto con el gancho de pánico |
 | E1-1 | H0 cumplido (instala, abre, actualiza, desinstala) | H0 | P | ✅ `v0.0.1` y `v0.0.2` publicadas; instalar, abrir y actualizar 0.0.1 → 0.0.2 probados desde GitHub; desinstalar, en el job `installer` de CI y en el ensayo local (`docs/H0-EVIDENCIA.md`) |
 | E1-2 | SemVer 2.0; `CHANGELOG.md` y notas del release tomadas de él | H0 | R | 🟡 `CHANGELOG.md` existe; notas del release en `docs/RELEASE_NOTES.md` |
 | E1-3 | Instalador NSIS por usuario + actualizador de Tauri (en vez de Velopack; ADR-0003) | H0 | R | ✅ NSIS `currentUser` + actualizador (config); `latest.json` lo genera `scripts/release-manifest.mjs` en `release.yml` (publicado en `v0.0.1` y `v0.0.2`; la app lo leyó al actualizar) |
@@ -23,9 +23,9 @@ No hay revisor experto de Rust equivalente a `dotnet-reviewer`: lo suyo lo cubre
 | E1-6 | Decisión de firma en un ADR; sin firma, el README avisa de SmartScreen | H0 | P | ✅ ADR-0004 + aviso en README y `docs/RELEASE_NOTES.md` |
 | E1-7 | Actualización con consentimiento y recuperación si falla | H0 | R+T | ✅ 0.0.1 → 0.0.2 desde GitHub con permiso; si la firma falla la versión queda intacta (ensayo local y pruebas `rf_h0_*`) |
 | E1-8 | Desinstalación limpia; no borra bóvedas ni datos sin preguntar | H0 | Q | ✅ job `installer` + ensayo local (bóveda intacta). Deja datos de WebView2: backlog |
-| E1-9 | "Acerca de": versión, licencia, enlace al changelog, al código y a reporte de errores | 0.1 | F | pendiente |
-| E1-10 | Prueba de humo en ventana real tras instalar (abre, crea una entrada, cierra, reabre) | 0.1 | Q | pendiente |
-| E1-11 | Accesibilidad: nombre accesible en controles sin texto, teclado completo, foco visible, contraste AA, Narrator | 0.1 básico · 1.0 completo | F+Q | pendiente |
+| E1-9 | "Acerca de": versión, licencia, enlace al changelog, al código y a reporte de errores | 0.1 | F | 🟡 Ajustes y Acerca de muestra versión, licencia y el aviso de desarrollo; faltan los enlaces al changelog, al código y a reporte de errores |
+| E1-10 | Prueba de humo en ventana real tras instalar (abre, crea una entrada, cierra, reabre) | 0.1 | Q | ✅ `docs/specs/001-boveda/validacion-app.md`: instalar, crear, entrada, cerrar y reabrir en la ventana real; reverificación con el instalador de release al final de ese archivo |
+| E1-11 | Accesibilidad: nombre accesible en controles sin texto, teclado completo, foco visible, contraste AA, Narrator | 0.1 básico · 1.0 completo | F+Q | 🟡 básico de la 0.1: teclado, nombre accesible, foco visible y AA calculado sobre los tokens (`DESIGN.md`); foco y Tab probados en la ventana real. Narrator y escalado: 1.0 |
 | E1-12 | DPI 100/125/150/200 % y segundo monitor | 1.0 | Q | pendiente |
 
 ## Escritorio E2
@@ -33,21 +33,21 @@ No hay revisor experto de Rust equivalente a `dotnet-reviewer`: lo suyo lo cubre
 |---|---|---|---|---|
 | E2-1 | Firma Authenticode del instalador y binarios con sello de tiempo; mismo firmante siempre | 1.0 | U+P | ❌ en las 0.x, aceptado por el usuario el 2026-11-11 (SignPath exige un release publicado; las 0.x van marcadas como desarrollo) |
 | E2-2 | Actualizaciones solo por HTTPS desde el canal propio, verificadas antes de aplicar | H0 | R+S | ✅ 5 pruebas `rf_h0_*` contra el plugin real + ensayo local con instalador alterado |
-| E2-3 | Configuración en el directorio de datos de la app; la app no guarda la contraseña maestra en ningún lado; nada secreto en texto plano ni en logs | 0.1 | R+S | pendiente |
+| E2-3 | Configuración en el directorio de datos de la app; la app no guarda la contraseña maestra en ningún lado; nada secreto en texto plano ni en logs | 0.1 | R+S | ✅ ajustes en la carpeta de configuración de la app (solo rutas y preferencias: inspección en `validacion-app.md`); la maestra no se guarda; canarios: 0 apariciones en disco |
 | E2-4 | Carga segura de DLL: sin DLL sueltas junto al ejecutable, instalación en carpeta del usuario no escribible por otros | 1.0 | R+S | pendiente (Process Monitor) |
 | E2-5 | Instala por usuario; no pide administrador en uso normal | H0 | R | 🟡 solo `HKCU` y `%LOCALAPPDATA%`; falta probar con usuario estándar |
 | E2-7 | `docs/PRIVACIDAD.md` público: no se recolecta nada (lo pide la tienda de extensiones) | 1.0 | U+P | pendiente |
 | E2-8 | OWASP Desktop Top 10, una línea por ítem | H0 | S | ✅ `docs/AMENAZAS.md` §3 |
 | E2-9 | `cargo deny check` (avisos, licencias, fuentes) y `pnpm audit --prod` limpios; `Cargo.lock` y `pnpm-lock.yaml` en git | H0 | R | ✅ CI `verify`: `cargo deny check` y `pnpm audit --prod`; lockfiles en git |
 | E2-10 | Lector de pantalla (Narrator o NVDA) en los flujos principales | 1.0 | Q | pendiente |
-| E2-11 | Arranque en frío medido contra la meta del proyecto | 0.1 | T | pendiente |
+| E2-11 | Arranque en frío medido contra la meta del proyecto | 0.1 | T | 🟡 medido: ventana a los 130–190 ms y bienvenida ~0,5 s después; el primer arranque con perfil nuevo de WebView2 tarda 7–8 s (backlog). Meta: ≤ 2 s |
 
 ## Escritorio E3
 | ID | Requisito (traducido) | Fase | Resp. | Evidencia |
 |---|---|---|---|---|
 | E3-1 | Modelo de amenazas STRIDE corto antes del código de seguridad | H0 | S | ✅ `docs/AMENAZAS.md` |
-| E3-2 | Cifrado, KDF y formato con librería probada; cero criptografía propia; parches documentados | 0.1 | R+S | parcial: lab 19 (`docs/lab/kdbx-roundtrip/EXPERIMENTO.md`), sin parches |
-| E3-3 | Secretos con tipos protegidos (`secrecy`, `zeroize`); el bloqueo oculta la vista y limpia el portapapeles; no falla abierto | 0.1 | R+S | pendiente |
+| E3-2 | Cifrado, KDF y formato con librería probada; cero criptografía propia; parches documentados | 0.1 | R+S | ✅ todo el cifrado, el KDF y el formato salen de `keepass` =0.17.0 sin parches; propio solo el lector de cabecera (no deriva ni descifra) y el `.keyx` v2; `cargo deny check` en CI |
+| E3-3 | Secretos con tipos protegidos (`secrecy`, `zeroize`); el bloqueo oculta la vista y limpia el portapapeles; no falla abierto | 0.1 | R+S | ✅ `secrecy`/`zeroize`; bloqueo que no espera al disco (`rf_30_*`, `spec_rf_30_*`), portapapeles (`rf_31_*`, `rf_90_*`); en la ventana real bloquea en ~300 ms y no quedan canarios en el árbol UIA |
 | E3-4 | Pruebas de formato con fixtures reales de KeePass 2 y KeePassXC y fuzzing básico del parser | H0 fixtures · 1.0 fuzzing | T+S | 🟡 H0 ✅: fixtures de KeePass 2.62 (×4) y KeePassXC 2.8.0 en `crates/almarioks-core/tests/fixtures/`, pruebas `roundtrip_*` en CI `verify`. Fuzzing: 1.0 |
 | E3-5 | Build repetible (`--locked`, `rust-toolchain.toml`, versiones fijadas) y atestación (`actions/attest`) | H0 atestación · 1.0 build repetible | R+S | 🟡 H0 ✅: `actions/attest-build-provenance` en `release.yml`; `gh attestation verify` salió con 0 en `v0.0.1` y `v0.0.2` (`docs/H0-EVIDENCIA.md`). Build repetible: 1.0 |
 | E3-6 | SBOM CycloneDX en el release | 1.0 | R | pendiente |
@@ -62,19 +62,19 @@ No hay revisor experto de Rust equivalente a `dotnet-reviewer`: lo suyo lo cubre
 | R-1 | `Cargo.lock` en git; CI corre fmt, clippy y pruebas con `--locked` | H0 | R | ✅ CI `verify` |
 | R-2 | Bloque de lints del estándar; cada `#[allow]` dice por qué | H0 | R | ✅ `Cargo.toml` del workspace |
 | R-3 | Dominio en `almarioks-core` sin Tauri; fechas en UTC, texto por caracteres | H0 | R | ✅ `cargo tree -p almarioks-core -e normal` sin `tauri` |
-| R-4 | Sin `unwrap`/`expect`/índice sobre entrada externa; un tipo de error por crate | 0.1 | R | pendiente |
+| R-4 | Sin `unwrap`/`expect`/índice sobre entrada externa; un tipo de error por crate | 0.1 | R | ✅ lints `unwrap_used = deny`; pre-lector de cabecera y `catch_unwind` ante entrada hostil (`rf_94_*`); un tipo de error por crate (`CoreError`, `AppError`) |
 | R-5 | Async sin bloqueos ni candados vivos en `.await`; canales acotados; apagado ordenado | 0.2 | R | pendiente |
 | R-6 | `cargo deny check` en CI | H0 | R | ✅ CI `verify` |
 | R-7 | `unsafe` solo en `ffi` con `// SAFETY:`. Miri no ejecuta Win32: el permiso del pipe se prueba con integración (otro usuario no abre) | 0.2 | R+S | pendiente |
-| R-8 | Pruebas del dominio con propiedades (generador, coincidencia de origen); ningún `#[ignore]` sin tarea | 0.1 | T | pendiente |
+| R-8 | Pruebas del dominio con propiedades (generador, coincidencia de origen); ningún `#[ignore]` sin tarea | 0.1 | T | ✅ propiedades con semilla fija en generador, plegado y búsqueda; `nextest`: 0 pruebas ignoradas |
 | T-1 | H0: instalador que se actualiza de N a N+1 | H0 | R+U | ✅ 0.0.1 → 0.0.2 por GitHub Releases (`docs/H0-EVIDENCIA.md`) |
 | T-2 | CSP definida; `devtools` solo en desarrollo | H0 | R | ✅ `src-tauri/tauri.conf.json` (CSP sin `unsafe-*`; sin feature `devtools`) |
 | T-3 | Capacidades mínimas por ventana; sin `remote` con comodín ni `shell` abierto | H0 | R+S | ✅ `src-tauri/capabilities/main-window.json` + `AppManifest::commands(&[])` |
-| T-4 | Cada comando valida sus argumentos; rutas desde un diálogo del sistema | 0.1 | R | pendiente |
-| T-5 | Ningún secreto en archivos de texto ni logs | 0.1 | R+S | pendiente |
+| T-4 | Cada comando valida sus argumentos; rutas desde un diálogo del sistema | 0.1 | R | ✅ un solo `args` con `deny_unknown_fields` y `ArgumentoInvalido` garantizado (`rf_80_*`); los diálogos de archivo los abre Rust. Las rutas aún llegan como texto: backlog (revisión de seguridad, S-2 y S-4) |
+| T-5 | Ningún secreto en archivos de texto ni logs | 0.1 | R+S | ✅ sin registros; canarios en disco: 0 (`validacion-app.md`); WebView2 en modo privado con autocompletado apagado (`rf_77_*`) |
 | T-6 | Actualizador con `pubkey`, HTTPS y llave privada solo en secretos de CI, con respaldo fuera del repo | H0 | R+U | 🟡 `pubkey` y HTTPS en config; llave verificada con simulacro y subida al entorno `release`; el respaldo fuera del repo es puerta de la 1.0 |
 | T-8 | Firma de código en Windows | 1.0 | U | pendiente (ADR-0004) |
-| T-9 | Ningún comando síncrono hace disco pesado (el KDF corre fuera del hilo de la interfaz) | 0.1 | R | pendiente |
+| T-9 | Ningún comando síncrono hace disco pesado (el KDF corre fuera del hilo de la interfaz) | 0.1 | R | ✅ los comandos que derivan la llave son `async` con trabajo en hilos aparte; `vault_status` responde mientras otro deriva (`rf_18_*`) |
 
 ## Extensión de navegador (X) — propios del proyecto; se afinan con `docs/AMENAZAS.md`
 | ID | Requisito | Fase | Resp. | Evidencia |
@@ -90,8 +90,8 @@ No hay revisor experto de Rust equivalente a `dotnet-reviewer`: lo suyo lo cubre
 ## Diseño y UX (nativo)
 | Requisito | Fase | Resp. | Evidencia |
 |---|---|---|---|
-| Mock de la pantalla clave aprobado por el usuario antes de construir interfaz | antes de la 0.1 | Impeccable + U | pendiente |
-| Matriz pantalla × estado de `docs/UX.md` con cada celda construida | 0.1 | F+Q | pendiente |
+| Mock de la pantalla clave aprobado por el usuario antes de construir interfaz | antes de la 0.1 | Impeccable + U | 🟡 el dueño dio una autorización general tras leer la recomendación, sin nombrar la dirección (`docs/diseno/direcciones.md`): se aplicó "Señalética" y queda por confirmar |
+| Matriz pantalla × estado de `docs/UX.md` con cada celda construida | 0.1 | F+Q | 🟡 construida y con prueba por celda en la interfaz (247 pruebas); en la ventana real: flujo principal, matriz de completitud y 7 estados de error. Sin ver en la ventana real: guardado fallido, cambio externo y solo lectura |
 | Texto escalable al 150 % y movimiento reducido respetado | 1.0 | Q | pendiente |
 | Evaluación heurística de Nielsen sin críticos abiertos | 1.0 | Q | pendiente |
 

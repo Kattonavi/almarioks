@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>AlmarioKS · Retícula</title>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@75..100,400..800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+:root{--ground:#F7F7F5;--ink:#0A0A0A;--ink2:#4A4D55;--grid:#C9D6F2;--grid2:#E4EAF8;--plane:#FF4F00;--plane-ink:#2A0D00;--ok:#0B6B3A;--danger:#B3140B;--u:24px}
+*{box-sizing:border-box;margin:0}
+body{width:1440px;height:900px;overflow:hidden;font:400 15px/24px Archivo,sans-serif;color:var(--ink);background:var(--ground);
+background-image:linear-gradient(var(--grid2) 1px,transparent 1px),linear-gradient(90deg,var(--grid2) 1px,transparent 1px);background-size:var(--u) var(--u);
+display:grid;grid-template-columns:480px 1fr;grid-template-rows:96px 1fr}
+::selection{background:var(--plane);color:var(--plane-ink)}
+svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex:none}
+button{font:600 14px/24px Archivo,sans-serif;border:1px solid var(--ink);background:var(--ground);color:var(--ink);padding:5px 14px;display:inline-flex;gap:8px;align-items:center;cursor:pointer}
+header{grid-column:1/-1;display:flex;align-items:center;gap:24px;padding:0 48px;border-bottom:1px solid var(--ink)}
+.brand{font:800 26px/24px Archivo;font-stretch:75%;letter-spacing:.02em;width:432px}
+.cmd{flex:1;display:flex;align-items:center;gap:12px;border:1px solid var(--ink);background:#fff;padding:11px 16px;font-size:17px;color:var(--ink2)}
+.cmd kbd{margin-left:auto;font:400 12px "JetBrains Mono";border:1px solid var(--grid);padding:0 6px}
+.lockin{font:400 13px "JetBrains Mono";color:var(--ink2)}
+.solid{background:var(--ink);color:var(--ground)}
+.index{border-right:1px solid var(--ink);padding:24px 0 0 48px;overflow:hidden}
+.filter{display:flex;gap:0;margin-bottom:24px}
+.filter a{font:600 13px/24px Archivo;color:var(--ink);text-decoration:none;border:1px solid var(--ink);margin-right:-1px;padding:0 12px}
+.filter a.on{background:var(--ink);color:var(--ground)}
+.index h2{font:800 48px/48px Archivo;font-stretch:75%;margin-bottom:0}
+.index p.count{font:400 13px/24px "JetBrains Mono";color:var(--ink2);margin-bottom:24px}
+.item{display:grid;grid-template-columns:48px 1fr auto;align-items:center;padding:12px 24px 12px 0;border-top:1px solid var(--grid);font-size:15px;line-height:24px}
+.item span.n{font:400 12px "JetBrains Mono";color:var(--ink2)}
+.item small{font:400 12px "JetBrains Mono";color:var(--ink2)}
+.item.on{background:var(--plane);color:var(--plane-ink);border-color:var(--plane);font-weight:700;margin-left:-48px;padding-left:48px}
+.item.on span.n,.item.on small{color:var(--plane-ink)}
+.item .state{font:700 12px "JetBrains Mono";color:var(--ok)}
+main{padding:48px 72px 0 72px;overflow:hidden}
+.path{font:400 13px/24px "JetBrains Mono";color:var(--ink2)}
+main h1{font:800 120px/120px Archivo;font-stretch:75%;letter-spacing:-.02em;margin:0 0 24px -6px}
+.cells{display:grid;grid-template-columns:repeat(16,48px);margin-bottom:12px}
+.cells b{height:72px;display:grid;place-items:center;font:700 30px "JetBrains Mono";border:1px solid var(--grid);margin-right:-1px;background:#fff}
+.cells b.d{color:var(--plane);border-color:var(--grid)}
+.cells b.s{background:var(--ink);color:var(--ground);border-color:var(--ink)}
+.legend{font:400 12px/24px "JetBrains Mono";color:var(--ink2);margin-bottom:24px;display:flex;gap:24px;align-items:center}
+.legend i{display:inline-block;width:12px;height:12px;margin-right:6px;vertical-align:-1px}
+.acts{display:flex;gap:12px;margin-bottom:36px}
+dl{display:grid;grid-template-columns:168px 1fr;border-top:1px solid var(--ink)}
+dt,dd{line-height:24px;padding:12px 0;border-bottom:1px solid var(--grid)}
+dt{font:600 13px/24px Archivo;color:var(--ink2)}
+.bars{display:inline-grid;grid-template-columns:repeat(4,24px);gap:0;vertical-align:middle;margin-right:12px}
+.bars i{height:12px;background:var(--ink);border-right:1px solid var(--ground)}
+.tag{border:1px solid var(--ink);padding:1px 8px;font:600 12px Archivo;margin-right:6px}
+.danger{border-color:var(--danger);color:var(--danger)}
+</style>
+</head>
+<body>
+<svg style="display:none"><symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></symbol><symbol id="i-copy" viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11"/><path d="M5 15V5h10"/></symbol><symbol id="i-eye" viewBox="0 0 24 24"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></symbol><symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="9"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></symbol></svg>
+<header>
+  <div class="brand">ALMARIOKS</div>
+  <div class="cmd"><svg><use href="#i-search"/></svg>Escribe para buscar una cuenta<kbd>Ctrl K</kbd></div>
+  <span class="lockin">Se bloquea en 4:12</span>
+  <button class="solid"><svg><use href="#i-lock"/></svg>Bloquear</button>
+</header>
+<section class="index">
+  <nav class="filter"><a href="#">Todas 38</a><a href="#">Personal 12</a><a href="#" class="on">Trabajo 8</a><a href="#">Bancos 4</a><a href="#">Compras 9</a></nav>
+  <h2>Trabajo</h2>
+  <p class="count">8 cuentas · subgrupo Clientes (5)</p>
+  <div class="item"><span class="n">01</span>Correo de la oficina<small>ayer</small></div>
+  <div class="item"><span class="n">02</span>Figma<small>12 oct</small></div>
+  <div class="item on"><span class="n">03</span>GitHub<small>hace 3 días</small></div>
+  <div class="item"><span class="n">04</span>Jira<small>3 sep</small></div>
+  <div class="item"><span class="n">05</span>Nómina<span class="state">COPIADA · 14 s</span></div>
+  <div class="item"><span class="n">06</span>Railway<small>28 ago</small></div>
+  <div class="item"><span class="n">07</span>Slack<small>15 ago</small></div>
+  <div class="item"><span class="n">08</span>VPN de la oficina<small>2 jul</small></div>
+  <div class="item" style="color:var(--ink2)"><span class="n">+</span>Nueva cuenta<small>Ctrl N</small></div>
+</section>
+<main>
+  <p class="path">cuentas.kdbx / Trabajo / 03</p>
+  <h1>GitHub</h1>
+  <div class="cells" aria-label="Contraseña mostrada"><b>k</b><b>V</b><b class="d">7</b><b class="s">#</b><b>p</b><b>Q</b><b class="d">2</b><b class="s">!</b><b>x</b><b>W</b><b class="d">9</b><b class="s">@</b><b>m</b><b>L</b><b class="d">4</b><b class="s">$</b></div>
+  <p class="legend"><span><i style="background:#fff;border:1px solid var(--grid)"></i>letra</span><span><i style="background:var(--plane)"></i>dígito</span><span><i style="background:var(--ink)"></i>símbolo</span><span>16 caracteres · se oculta sola en 20 s</span></p>
+  <div class="acts"><button class="solid"><svg><use href="#i-copy"/></svg>Copiar contraseña</button><button><svg><use href="#i-eye"/></svg>Ocultar</button><button>Editar</button><button>Mover</button><button class="danger">Enviar a la papelera</button></div>
+  <dl>
+    <dt>Usuario</dt><dd>sara@example.com</dd>
+    <dt>Dirección</dt><dd>https://github.com</dd>
+    <dt>Fortaleza</dt><dd><span class="bars"><i></i><i></i><i></i><i></i></span>Fuerte · 4 de 4</dd>
+    <dt>Etiquetas</dt><dd><span class="tag">código</span><span class="tag">trabajo</span></dd>
+    <dt>Notas</dt><dd>Cuenta de la organización. Renovar el token de acceso en enero.</dd>
+  </dl>
+</main>
+</body>
+</html>
