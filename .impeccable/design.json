@@ -902,7 +902,7 @@
       "name": "Strength Bar",
       "kind": "custom",
       "refersTo": "input",
-      "description": "Barra de 120 x 6 con relleno proporcional, siempre junto a su texto.",
+      "description": "Barra de 120 x 6 con relleno proporcional, siempre junto a su texto; la línea existe siempre y mide lo mismo: con el campo vacío, barra vacía y sin texto.",
       "html": "<p class=\"ds-s\"><span class=\"ds-bar\"><span></span></span> Fortaleza: muy buena (4 de 4)</p>",
       "css": ".ds-s{font-family:'Overpass Variable','Segoe UI',system-ui,sans-serif;display:flex;gap:10px;align-items:center;margin:0;font-size:.8125rem;color:#a7adba}.ds-bar{display:flex;flex:0 0 120px;height:6px;overflow:hidden;background:#343842;border-radius:3px}.ds-bar>span{width:100%;background:#4cc38a}"
     },
@@ -926,7 +926,7 @@
       "name": "Entry Window",
       "kind": "custom",
       "refersTo": "entry-window",
-      "description": "Ventana modal de 600 px para abrir una entrada: cabecera con distintivo de 48, título de 24 px, acciones y tarjeta de filas sobre el fondo.",
+      "description": "Ventana modal de 600 px para abrir una entrada: cabecera con distintivo de 48, título de 24 px, acciones y tarjeta de filas sobre el fondo. Anclada arriba (10vh o 24 px) y creciendo hacia abajo: la cabecera no se mueve y solo el cuerpo se desplaza; un valor mostrado ocupa hasta 4 líneas y luego se desplaza en su fila.",
       "html": "<div class=\"ds-win\"><div class=\"ds-wh\"><span class=\"ds-wb\">G</span><div><div class=\"ds-wt\">GitHub</div><div class=\"ds-wg\">Trabajo</div></div><button class=\"ds-we\">Editar</button></div><div class=\"ds-wc\"><div class=\"ds-wr\"><span>Usuario</span><span>ana@example.com</span></div></div></div>",
       "css": ".ds-win{width:560px;padding-bottom:20px;font-family:'Overpass Variable','Segoe UI',system-ui,sans-serif;background:#20232a;color:#f2f2ee;border-radius:8px;box-shadow:0 12px 32px rgb(0 0 0 / 50%)}.ds-wh{display:flex;align-items:center;gap:14px;padding:20px 12px 16px 24px}.ds-wb{display:grid;place-items:center;width:48px;height:48px;border-radius:50%;background:#f26a1b;color:#16181d;font:800 1.25rem/1 sans-serif}.ds-wh>div{flex:1}.ds-wt{font-size:1.5rem;font-weight:800;line-height:1.15}.ds-wg{font-size:.8125rem;color:#a7adba}.ds-we{min-height:44px;padding:0 14px;font:600 .9375rem sans-serif;color:#f2f2ee;background:#20232a;border:1px solid #6b7280;border-radius:4px}.ds-we:focus-visible{outline:3px solid #f2f2ee;outline-offset:2px}.ds-wc{margin:0 24px;background:#191b21;border:1px solid #343842;border-radius:6px}.ds-wr{display:grid;grid-template-columns:104px 1fr;column-gap:12px;align-items:center;min-height:56px;padding:6px 8px 5px 16px}.ds-wr span:first-child{font-size:.8125rem;color:#a7adba}"
     }
